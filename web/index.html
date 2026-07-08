@@ -1,0 +1,2637 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Đặt hàng CTCH1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+tailwind.config = { theme: { extend: { colors: {
+  slate: {50:'#f0f2f5',100:'#e4e6eb',200:'#dadde1',300:'#ccd0d5',400:'#8a8d91',500:'#65676b',600:'#4b4f56',700:'#3a3b3c',800:'#242526',900:'#18191a'},
+  emerald: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
+  blue: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
+  sky: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
+  red: {50:'#fdecee',100:'#fad3d6',200:'#f5aab0',300:'#ef7d85',400:'#f9525c',500:'#fa383e',600:'#e41e3f',700:'#c81f3d',800:'#9f1830',900:'#7a1225'}
+}}}};
+  </script>
+  <style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif; background: #f0f2f5; }
+
+/* Loading spinner */
+.spinner { width: 32px; height: 32px; border: 3px solid #dadde1; border-top-color: #1877f2; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Scrollbar gọn */
+.scroll-area::-webkit-scrollbar { height: 8px; width: 8px; }
+.scroll-area::-webkit-scrollbar-thumb { background: #ccd0d5; border-radius: 4px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+
+/* Mien toggle */
+.mien-btn, .mmien-btn { color: #4b4f56; transition: all 0.15s; }
+.mien-btn:hover, .mmien-btn:hover { background: #fff; }
+.mien-btn.active, .mmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+/* Nav tabs */
+.nav-tab { padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; color: #65676b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; }
+.nav-tab:hover { color: #3a3b3c; }
+.nav-tab.active { color: #0c5dc7; border-bottom-color: #1877f2; }
+
+/* Controls */
+.ctl-select { padding: 6px 10px; font-size: 13px; border: 1px solid #dadde1; border-radius: 6px; background: #fff; outline: none; color: #242526; }
+.ctl-select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
+.ctl-select.ctl-active { border-color: #1877f2; color: #0c5dc7; background: #e7f3ff; }
+.ctl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; border: 1px solid #dadde1; border-radius: 6px; background: #fff; color: #3a3b3c; cursor: pointer; transition: all 0.15s; }
+.ctl-btn:hover { background: #f0f2f5; }
+.ctl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ctl-btn-primary { background: #1877f2; color: #fff; border-color: #1877f2; }
+.ctl-btn-primary:hover { background: #166fe5; }
+.ctl-btn-primary:disabled { background: #ccd0d5; border-color: #ccd0d5; color: #fff; }
+.ctl-btn-ok { background: #0c5dc7; color: #fff; border-color: #0c5dc7; }
+.ctl-btn-ok:hover { background: #0a4fa8; }
+.ctl-btn-warn { background: #d97706; color: #fff; border-color: #d97706; }
+.ctl-btn-warn:hover { background: #b45309; }
+
+/* Stat card */
+.stat-card { background: #fff; border-radius: 12px; border: 1px solid #dadde1; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.stat-card-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #65676b; font-weight: 600; margin-bottom: 6px; }
+.stat-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.stat-card-value { font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat-card-sub { font-size: 10.5px; color: #8a8d91; margin-top: 4px; }
+
+/* Cards group */
+.group-card { background: #fff; border-radius: 12px; border: 1px solid #dadde1; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.group-card .group-body { overflow-x: auto; scrollbar-width: none; }
+.group-card .group-body::-webkit-scrollbar { display: none; height: 0; }
+.group-header { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; background: none; border: none; text-align: left; transition: background 0.15s; }
+.group-header:hover { background: #f0f2f5; }
+.group-title { font-size: 14px; font-weight: 600; color: #242526; }
+.group-meta { font-size: 11.5px; color: #65676b; }
+.group-stat { text-align: right; }
+.group-stat-label { font-size: 9.5px; uppercase; letter-spacing: 0.04em; color: #8a8d91; text-transform: uppercase; }
+.group-stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Data table */
+.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.dt thead th {
+  background: #e4e6eb;
+  font-weight: 600;
+  color: #3a3b3c;
+  text-align: center;
+  padding: 10px 8px;
+  border-bottom: 2px solid #ccd0d5;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: grab;
+  user-select: none;
+}
+.dt thead th.r { text-align: center; }
+.dt thead th.c { text-align: center; }
+.dt thead th.l { text-align: center; }
+.dt thead.grabbing th { cursor: grabbing; }
+.dt tbody td { padding: 8px; border-bottom: 1px solid #e4e6eb; vertical-align: middle; }
+.dt tbody td.nowrap { white-space: nowrap; }
+.dt tbody tr:hover { background: #f0f2f5; }
+
+/* Top horizontal scrollbar (mirror của .group-body scroll) */
+.scroll-top-bar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 12px;
+  border-top: 1px solid #dadde1;
+  background: #f0f2f5;
+}
+.scroll-top-bar::-webkit-scrollbar { height: 10px; }
+.scroll-top-bar::-webkit-scrollbar-thumb { background: #8a8d91; border-radius: 5px; }
+.scroll-top-bar::-webkit-scrollbar-thumb:hover { background: #65676b; }
+.scroll-top-bar::-webkit-scrollbar-track { background: #e4e6eb; border-radius: 5px; }
+.scroll-top-inner { height: 1px; }
+
+/* Floating thead (clone hiển thị khi cuộn dọc) */
+.floating-thead-container {
+  background: #e4e6eb;
+  border-bottom: 2px solid #ccd0d5;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.floating-thead-container table { width: auto; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.floating-thead-container thead th {
+  background: #e4e6eb; font-weight: 600; color: #3a3b3c; text-align: center;
+  padding: 10px 8px; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.03em; white-space: nowrap; vertical-align: middle;
+}
+.dt tbody tr.dirty { background: #fffbeb; }
+.dt tbody tr.dirty:hover { background: #fef3c7; }
+
+/* PL parent row (thẻ mẹ phân loại) */
+.dt tbody tr.pl-parent { background: #dadde1; cursor: pointer; font-weight: 600; }
+.dt tbody tr.pl-parent:hover { background: #ccd0d5; }
+.dt tbody tr.pl-parent td { background: inherit; }
+.dt tbody tr.pl-parent .chev { transition: transform 0.15s; display: inline-block; }
+.dt tbody tr.pl-parent.collapsed .chev { transform: rotate(-90deg); }
+.dt tbody tr.pl-child.hidden { display: none; }
+.dt .r { text-align: right; }
+.dt .c { text-align: center; }
+.dt .num { font-variant-numeric: tabular-nums; }
+
+/* ===== Đông cứng 4 cột đầu (#, Mã Bravo, Mã NCC, Tên hàng) — chỉ bảng đặt hàng ===== */
+/* border-collapse của .dt là 'separate' nên position:sticky hoạt động chuẩn. */
+.group-body .dt thead th:nth-child(-n+4),
+.group-body .dt tbody td:nth-child(-n+4) {
+  position: sticky;
+}
+/* Clone floating thead: container overflow:hidden cuộn ngang bằng translateX, nên KHÔNG dùng
+   sticky (sticky ngang không giữ trong overflow:hidden). Ghim cột đông cứng bằng transform:
+   bảng clone dịch -sx, từng ô đông cứng dịch lại +sx => đứng yên ở mép trái. */
+.floating-thead-container thead th:nth-child(-n+4) {
+  position: relative;
+  left: auto !important;
+  transform: translateX(var(--sx, 0px));
+  z-index: 3;
+}
+/* left offset lấy từ CSS var (JS tính theo bề rộng thực); có fallback theo width khai báo */
+.group-body .dt thead th:nth-child(1),
+.group-body .dt tbody td:nth-child(1),
+.floating-thead-container thead th:nth-child(1) { left: var(--l1, 0px); }
+.group-body .dt thead th:nth-child(2),
+.group-body .dt tbody td:nth-child(2),
+.floating-thead-container thead th:nth-child(2) { left: var(--l2, 42px); }
+.group-body .dt thead th:nth-child(3),
+.group-body .dt tbody td:nth-child(3),
+.floating-thead-container thead th:nth-child(3) { left: var(--l3, 172px); }
+.group-body .dt thead th:nth-child(4),
+.group-body .dt tbody td:nth-child(4),
+.floating-thead-container thead th:nth-child(4) { left: var(--l4, 272px); }
+/* z-index: góc header (dính cả 2 trục) > cột body dính > header thường (=10) */
+.group-body .dt tbody td:nth-child(-n+4) { z-index: 5; }
+.group-body .dt thead th:nth-child(-n+4) { z-index: 20; }
+.floating-thead-container thead th:nth-child(-n+4) { z-index: 3; }
+/* Nền cột đông cứng phải khớp trạng thái từng dòng (nếu trong suốt sẽ lộ nội dung cuộn phía sau) */
+.group-body .dt tbody td:nth-child(-n+4) { background: #fff; }
+.group-body .dt tbody tr:hover td:nth-child(-n+4) { background: #f0f2f5; }
+.group-body .dt tbody tr.dirty td:nth-child(-n+4) { background: #fffbeb; }
+.group-body .dt tbody tr.dirty:hover td:nth-child(-n+4) { background: #fef3c7; }
+.group-body .dt tbody tr.pl-parent td:nth-child(-n+4) { background: #dadde1; }
+.group-body .dt tbody tr.pl-parent:hover td:nth-child(-n+4) { background: #ccd0d5; }
+/* Đường phân cách mép phải khối cột đông cứng */
+.group-body .dt thead th:nth-child(4),
+.group-body .dt tbody td:nth-child(4),
+.floating-thead-container thead th:nth-child(4) {
+  box-shadow: 6px 0 8px -6px rgba(0,0,0,0.15);
+}
+
+.qty-input { width: 60px; height: 28px; border: 1px solid #ccd0d5; border-radius: 6px; text-align: center; font-size: 12px; background: #fff; color: #18191a; font-weight: 500; font-variant-numeric: tabular-nums; outline: none; padding: 0 4px; }
+.qty-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
+.qty-input.dirty { border-color: #f59e0b; background: #fffbeb; color: #78350f; }
+.qty-input.approved { border-color: #166fe5; background: #cfe4ff; color: #0a3a7a; }
+.qty-input:disabled { background: #f0f2f5; color: #8a8d91; cursor: not-allowed; }
+
+.note-input { width: 100%; height: 28px; border: 1px solid #dadde1; border-radius: 6px; padding: 0 8px; font-size: 12px; background: #fff; outline: none; }
+.note-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
+.note-input:disabled { background: #f0f2f5; color: #8a8d91; }
+
+/* Pills */
+.pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 500; }
+.pill-hot { background: #fdecee; color: #c81f3d; }
+.pill-mid { background: #fef3c7; color: #92400e; }
+.pill-low { background: #e4e6eb; color: #65676b; }
+.pill-info { background: #e7f3ff; color: #0c5dc7; }
+.pill-ok { background: #cfe4ff; color: #0a4fa8; }
+
+/* Status pill */
+.st-draft { background: #e4e6eb; color: #4b4f56; }
+.st-sub { background: #fef3c7; color: #92400e; }
+.st-app { background: #cfe4ff; color: #0a4fa8; }
+.st-close { background: #e7f3ff; color: #0c5dc7; }
+
+/* Mini bar */
+.mini-bar { height: 4px; background: #e4e6eb; border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.mini-bar > i { display: block; height: 100%; background: #1877f2; }
+
+[data-need=approver], [data-need=creator] { display: none !important; }
+body.is-approver [data-need=approver] { display: inline-flex !important; }
+body.is-creator [data-need=creator] { display: inline-flex !important; }
+/* AM được thấy DUY NHẤT tab "Quản lý đặt hàng" (view-only), không mở khoá nút export/miền ALL */
+body.is-am [data-view="approval"][data-need="approver"] { display: inline-flex !important; }
+/* Mua hàng cũng thấy tab "Quản lý đặt hàng" */
+body.is-purchasing [data-view="approval"][data-need="approver"] { display: inline-flex !important; }
+
+.toast-show { opacity: 1; transform: translateY(0); }
+#toast { opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
+#toast.show { display: block; opacity: 1; transform: translateY(0); }
+#toast.err { background: #c81f3d; }
+
+.empty-state { padding: 48px 24px; text-align: center; color: #8a8d91; font-size: 13px; }
+.loading-state { padding: 48px 24px; text-align: center; color: #65676b; font-size: 13px; }
+</style>
+  <script>
+    // >>> ĐIỀN URL + ANON KEY CỦA DỰ ÁN SUPABASE VÀO ĐÂY <<<
+    window.CTCH_CONFIG = {
+      apiBase: 'https://nrfxymnfmjhbsgpipvkb.supabase.co/functions/v1',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yZnh5bW5mbWpoYnNncGlwdmtiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4ODk2OTQsImV4cCI6MjA5ODQ2NTY5NH0.cN-jTdPOLWKd9kNa1nNMENzHcY0_BftyYgPEbuVTWeo'
+    };
+  </script>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+
+<div id="boot" class="fixed inset-0 flex items-center justify-center bg-slate-100 z-[100]">
+  <div class="text-center text-slate-500 text-[13px]">
+    <div class="spinner mx-auto mb-3"></div>
+    Đang khởi động…
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen" class="hidden min-h-screen flex items-center justify-center p-4">
+  <form id="loginForm" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 w-full max-w-sm">
+    <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white mb-4">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h2 class="text-[18px] font-semibold m-0">Đặt hàng CTCH1</h2>
+    <p class="text-[13px] text-slate-500 mt-1 mb-5">Đăng nhập để truy cập</p>
+    <input id="loginUser" autofocus required placeholder="Tài khoản" autocomplete="username"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 mb-2.5"/>
+    <input id="loginPass" type="password" required placeholder="Mật khẩu" autocomplete="current-password"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+    <div id="loginErr" class="text-[12px] text-red-600 mt-3 min-h-[16px]"></div>
+    <button id="loginBtn" type="submit"
+            class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-2 rounded-md text-[14px] font-medium transition-colors">
+      Đăng nhập
+    </button>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden min-h-screen">
+
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-bold text-[13px] tracking-wide">CTCH</div>
+        <div>
+          <h1 class="text-[15px] font-semibold leading-tight">Đặt hàng CTCH1</h1>
+          <p id="userMeta" class="text-[11px] text-slate-500 leading-tight"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <div id="draftActions" class="hidden flex items-center gap-2">
+          <button id="btnReset" class="px-3 py-1.5 text-[13px] text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md">Hủy</button>
+          <button id="btnPlace" class="flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="btnPlaceLabel">Đặt hàng</span>
+          </button>
+        </div>
+
+        <span id="saveStatus" class="text-[12px] px-2.5 py-1 text-slate-400">—</span>
+
+        <div class="w-px h-6 bg-slate-200 mx-1"></div>
+
+        <div class="flex items-center gap-2 text-[12px] text-slate-600">
+          <span id="userName" class="font-medium"></span>
+          <div id="userAv" class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-medium text-[11px]"></div>
+        </div>
+        <button id="btnLogout" class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+
+    <nav class="px-6 flex items-center gap-1 border-t border-slate-100">
+      <button class="nav-tab active" data-view="order">Chi tiết đặt hàng</button>
+      <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
+      <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
+      <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
+      <button class="nav-tab" data-view="catalog" data-need="admin">Cấu hình danh mục</button>
+    </nav>
+  </header>
+
+  <div id="banner" class="hidden px-6 py-2 bg-amber-50 border-b border-amber-200 text-[12px] text-amber-900"></div>
+
+  <main id="main" class="pb-12"></main>
+</div>
+
+<!-- ============ TEMPLATES ============ -->
+<template id="tpl-order">
+  <div class="px-6 pt-4">
+    <div id="sessionBanner"></div>
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="orderStats"></div>
+
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
+      <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Tạo đặt hàng
+      </button>
+      <div class="w-px h-5 bg-slate-200 mx-1"></div>
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Lọc</span>
+      <div id="mienSeg" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+        <button data-mien="ALL" data-need="approver" class="mien-btn px-3 py-1 text-[12px] rounded font-medium">Tất cả</button>
+        <button data-mien="MB" class="mien-btn px-3 py-1 text-[12px] rounded font-medium">Miền Bắc</button>
+        <button data-mien="MN" class="mien-btn px-3 py-1 text-[12px] rounded font-medium">Miền Nam</button>
+      </div>
+      <select id="fGrp" class="ctl-select"><option value="">Tất cả nhóm hàng</option></select>
+      <div id="fPLWrap" class="relative">
+        <button type="button" id="fPLBtn" class="ctl-select cursor-pointer flex items-center justify-between gap-2" style="min-width:170px" aria-haspopup="true" aria-expanded="false">
+          <span id="fPLLabel" class="truncate">Tất cả sản phẩm</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 shrink-0"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fPLMenu" class="hidden absolute left-0 top-full z-30 mt-1 w-72 max-h-72 overflow-auto bg-white border border-slate-200 rounded-md shadow-lg p-1"></div>
+      </div>
+      <div id="fMucDoWrap" class="relative">
+        <button type="button" id="fMucDoBtn" class="ctl-select cursor-pointer flex items-center justify-between gap-2" style="min-width:150px" aria-haspopup="true" aria-expanded="false">
+          <span id="fMucDoLabel">Tất cả mức độ</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 shrink-0"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fMucDoMenu" class="hidden absolute left-0 top-full z-30 mt-1 w-52 bg-white border border-slate-200 rounded-md shadow-lg p-1">
+          <label class="flex items-center gap-2 px-2 py-1.5 text-[13px] rounded hover:bg-slate-50 cursor-pointer">
+            <input type="checkbox" class="rounded fmucdo-opt" value="Hay sử dụng"/> Hay sử dụng
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-[13px] rounded hover:bg-slate-50 cursor-pointer">
+            <input type="checkbox" class="rounded fmucdo-opt" value="Ít sử dụng"/> Ít sử dụng
+          </label>
+          <label class="flex items-center gap-2 px-2 py-1.5 text-[13px] rounded hover:bg-slate-50 cursor-pointer">
+            <input type="checkbox" class="rounded fmucdo-opt" value="Hiếm khi sử dụng"/> Hiếm khi sử dụng
+          </label>
+          <div class="border-t border-slate-100 mt-1 pt-1">
+            <button type="button" id="fMucDoClear" class="w-full text-left px-2 py-1.5 text-[12px] text-slate-500 rounded hover:bg-slate-50">Bỏ chọn tất cả</button>
+          </div>
+        </div>
+      </div>
+      <label class="flex items-center gap-1.5 text-[12px] text-slate-600 ml-1">
+        <input type="checkbox" id="fLowStock" class="rounded"/> SKU tồn thấp
+      </label>
+      <div class="flex-1"></div>
+      <div class="relative">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+          <path d="m21 21-4.34-4.34"/><path d="M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/>
+        </svg>
+        <input id="fSearch" placeholder="Tìm mã, code NCC, tên hàng, sản phẩm…" class="pl-8 pr-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-64 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      </div>
+    </div>
+
+    <div id="orderTableHost"></div>
+  </div>
+</template>
+
+<template id="tpl-approval">
+  <div class="px-6 pt-4">
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
+      <select id="mStatus" class="ctl-select">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="DRAFT">AM đang nhập</option>
+        <option value="SUBMITTED">PM chờ duyệt</option>
+        <option value="PM_APPROVED">Manager chờ duyệt</option>
+        <option value="APPROVED">Đã duyệt</option>
+        <option value="CLOSED">Đã chốt</option>
+      </select>
+      <div id="mMienSeg" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+        <button data-mmien="ALL" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium active">Tất cả</button>
+        <button data-mmien="MB" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium">Miền Bắc</button>
+        <button data-mmien="MN" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium">Miền Nam</button>
+      </div>
+      <button id="mRefresh" class="ctl-btn">Làm mới</button>
+    </div>
+    <div id="manageHost"></div>
+  </div>
+</template>
+
+<template id="tpl-config">
+  <div class="px-6 pt-4 max-w-3xl">
+    <div class="bg-white rounded-lg border border-slate-200 p-6">
+      <h2 class="text-lg font-semibold text-slate-800 mb-1">Cấu hình công thức Gợi ý</h2>
+      <p class="text-[13px] text-slate-500 mb-5">
+        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[12px]">Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt − Tổng tồn</code>
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <label class="block">
+          <span class="text-[12px] text-slate-600 font-medium">k1 — Hệ số TB tháng CKNT</span>
+          <input type="number" id="cfgK1" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+        </label>
+        <label class="block">
+          <span class="text-[12px] text-slate-600 font-medium">k2 — Hệ số TB tháng YTD</span>
+          <input type="number" id="cfgK2" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+        </label>
+        <label class="block">
+          <span class="text-[12px] text-slate-600 font-medium">k3 — Hệ số TB KH 3 tháng tiếp theo</span>
+          <input type="number" id="cfgK3" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+        </label>
+      </div>
+      <div id="cfgSumNote" class="text-[12px] mb-5"></div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 pt-4 border-t border-slate-100">
+        <label class="block">
+          <span class="text-[12px] text-slate-600 font-medium">Số tháng đặt mặc định</span>
+          <input type="number" id="cfgSoThangDat" step="1" min="1" max="12" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+          <div class="text-[11px] text-slate-400 mt-1">Dùng khi sản phẩm chưa có giá trị riêng trong sheet Products</div>
+        </label>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="cfgSave" class="ctl-btn ctl-btn-primary">Lưu cấu hình</button>
+        <button id="cfgReset" class="ctl-btn">Đặt lại mặc định (0.4 / 0.4 / 0.2)</button>
+        <span id="cfgMsg" class="text-[12px] text-emerald-600"></span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-catalog">
+  <div class="px-6 pt-4">
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Vật tư được đặt hàng</span>
+      <div class="w-px h-5 bg-slate-200 mx-1"></div>
+      <select id="catGrp" class="ctl-select"><option value="">Tất cả nhóm sản phẩm</option></select>
+      <label class="flex items-center gap-1.5 text-[12px] text-slate-600">
+        <input type="checkbox" id="catOnlySel" class="rounded"/> Chỉ hiện đã chọn
+      </label>
+      <input id="catSearch" placeholder="Tìm mã, code NCC, tên hàng…" class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-64 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      <button id="catSelectAll" class="ctl-btn">Chọn tất cả (đang lọc)</button>
+      <button id="catUnselectAll" class="ctl-btn">Bỏ chọn (đang lọc)</button>
+      <div class="flex-1"></div>
+      <span id="catCounter" class="text-[12px] text-slate-500"></span>
+      <button id="catSave" class="ctl-btn ctl-btn-primary" disabled>Lưu thay đổi</button>
+    </div>
+    <div id="catalogHost"></div>
+  </div>
+</template>
+
+<template id="tpl-audit">
+  <div class="px-6 pt-4">
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
+      <select id="lAction" class="ctl-select">
+        <option value="ALL">Tất cả thao tác</option>
+        <option value="LOGIN">Đăng nhập</option><option value="LOGOUT">Đăng xuất</option>
+        <option value="PLACE_ORDER">Đặt hàng</option><option value="PLACE_ORDER_BUSY">Bị khoá</option>
+        <option value="APPROVE">Duyệt</option><option value="CLOSE_SESSION">Chốt đợt</option>
+        <option value="CREATE_SESSION">Tạo đợt</option>
+      </select>
+      <div class="relative">
+        <input id="lSearch" placeholder="Lọc theo username…" class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-64 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      </div>
+      <button id="lRefresh" class="ctl-btn">Làm mới</button>
+    </div>
+    <div id="auditHost"></div>
+  </div>
+</template>
+
+<!-- ============ MODAL TẠO ĐỢT ============ -->
+<div id="modalCreateSession" class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+      <h3 class="font-semibold text-[15px]">Tạo đợt đặt hàng mới</h3>
+      <button id="modalClose" class="text-slate-400 hover:text-slate-700 text-[22px] leading-none">×</button>
+    </div>
+    <div class="p-5">
+      <div id="modalNote" class="bg-emerald-50 border border-emerald-100 rounded-md p-3 text-[12px] text-emerald-800 mb-4">
+        Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.
+      </div>
+      <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Tên đợt</label>
+      <input id="modalSessName" placeholder="VD: Q3-2026 đợt 1" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Ngày đóng đợt <span class="text-slate-400 normal-case">(tuỳ chọn)</span></label>
+      <input id="modalSessClose" type="date" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      <div id="modalErr" class="text-[12px] text-red-600 mt-3 min-h-[16px]"></div>
+    </div>
+    <div class="flex justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">
+      <button id="modalCancel" class="px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-100 rounded-md">Huỷ</button>
+      <button id="modalSubmit" class="px-4 py-1.5 text-[13px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">Tạo đợt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL ĐẶT HÀNG (MUA HÀNG: DM + PO) ============ -->
+<div id="modalPurchase" class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+      <h3 class="font-semibold text-[15px]">Đặt hàng · thông tin tracking</h3>
+      <button id="pmClose" class="text-slate-400 hover:text-slate-700 text-[22px] leading-none">×</button>
+    </div>
+    <div class="p-5">
+      <div id="pmNote" class="bg-emerald-50 border border-emerald-100 rounded-md p-3 text-[12px] text-emerald-800 mb-4"></div>
+      <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Đề nghị mua hàng (DM)</label>
+      <input id="pmDM" placeholder="VD: DM-2026-0135" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Số PO</label>
+      <input id="pmPO" placeholder="VD: PO-2026-0421" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+      <div id="pmErr" class="text-[12px] text-red-600 mt-3 min-h-[16px]"></div>
+    </div>
+    <div class="flex justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">
+      <button id="pmCancel" class="px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-100 rounded-md">Huỷ</button>
+      <button id="pmSubmit" class="px-4 py-1.5 text-[13px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-lg text-[13px] shadow-lg z-50"></div>
+
+<script>
+// ============ STATE ============
+const state = {
+  token: null,
+  user: null,
+  mien: 'MB',
+  view: 'order',
+  sessions: [],
+  currentSession: null,
+  rows: [],
+  readOnly: true,
+  changes: new Map(),
+  filters: { grp: '', pl: [], mucDo: [], search: '', lowStock: false },
+  approvalRows: [],
+  approvalDirty: new Map(),
+};
+const TOKEN_KEY = 'ctch_auth_token';
+
+// ============ UTILS ============
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+const fmt = n => (n == null || n === '') ? '—' : Number(n).toLocaleString('vi-VN');
+// Như fmt nhưng giá trị 0 cũng hiển thị "—" (dùng cho dải cột Tồn kho(DA) → Gợi ý).
+const dash0 = n => (n == null || n === '' || Number(n) === 0) ? '—' : Number(n).toLocaleString('vi-VN');
+const fmtDate = d => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return isNaN(dt) ? '—' : dt.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+const initials = name => String(name || '').split(' ').filter(Boolean).map(s => s[0]).slice(-2).join('').toUpperCase();
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, isErr) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  el.classList.toggle('err', !!isErr);
+  setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ==== Supabase Edge Function bridge (thay google.script.run) ====
+const API_BASE = (window.CTCH_CONFIG && window.CTCH_CONFIG.apiBase) || '';
+const ANON_KEY = (window.CTCH_CONFIG && window.CTCH_CONFIG.anonKey) || '';
+function _headers() {
+  const h = { 'Content-Type': 'application/json' };
+  if (ANON_KEY) { h['Authorization'] = 'Bearer ' + ANON_KEY; h['apikey'] = ANON_KEY; }
+  return h;
+}
+async function rpc(fn, ...args) {
+  return rpcOpts({}, fn, ...args);
+}
+async function rpcOpts(opts, fn, ...args) {
+  const res = await fetchWithTimeout(API_BASE + '/order-api', {
+    method: 'POST', headers: _headers(),
+    body: JSON.stringify({ action: fn, token: state.token, args })
+  }, opts.timeoutMs);
+  let body = {};
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok || body.error) {
+    const msg = body.error || ('HTTP ' + res.status);
+    if (String(msg).includes('AUTH_REQUIRED')) {
+      localStorage.removeItem(TOKEN_KEY); state.token = null; showLogin();
+      throw new Error('Phiên đăng nhập đã hết hạn');
+    }
+    throw new Error(msg);
+  }
+  return body.data;
+}
+async function rpcRaw(fn, ...args) {
+  if (fn === 'login') {
+    const [username, password] = args;
+    const res = await fetchWithTimeout(API_BASE + '/order-login', {
+      method: 'POST', headers: _headers(),
+      body: JSON.stringify({ username, password })
+    });
+    let body = {};
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok || body.error) throw new Error(body.error || ('HTTP ' + res.status));
+    return body;
+  }
+  return rpc(fn, ...args);
+}
+
+// Fetch có timeout — tránh nút bị kẹt "Đang xử lý…" vô thời hạn khi server chậm/treo
+function fetchWithTimeout(url, options, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: ctrl.signal })
+    .catch(e => {
+      if (e.name === 'AbortError') throw new Error('Yêu cầu quá thời gian chờ (' + (timeoutMs / 1000) + 's). Kiểm tra kết nối hoặc thử lại.');
+      throw e;
+    })
+    .finally(() => clearTimeout(timer));
+}
+
+// ============ BOOT ============
+window.addEventListener('DOMContentLoaded', async () => {
+  const boot = $('#boot');
+  if (boot) boot.remove();
+  try {
+    const saved = localStorage.getItem(TOKEN_KEY);
+    if (saved) {
+      state.token = saved;
+      try {
+        const u = await rpc('getCurrentUser');
+        if (!u || !u.username) throw new Error('User trống từ server');
+        state.user = u;
+        await safeShowApp();
+        return;
+      } catch (e) {
+        console.error('[boot] getCurrentUser fail:', e);
+        localStorage.removeItem(TOKEN_KEY);
+        state.token = null;
+      }
+    }
+    showLogin();
+  } catch (e) {
+    console.error('[boot] fatal:', e);
+    // Fallback: ép hiện login
+    document.body.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,sans-serif">
+        <div style="background:#fff;border:1px solid #f5aab0;border-radius:12px;padding:24px;max-width:480px;text-align:center">
+          <div style="color:#c81f3d;font-weight:600;font-size:15px;margin-bottom:8px">Lỗi khởi động ứng dụng</div>
+          <div style="color:#65676b;font-size:13px;margin-bottom:16px">${esc(e.message)}</div>
+          <button onclick="localStorage.removeItem('${TOKEN_KEY}');location.reload()"
+            style="background:#1877f2;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px">
+            Xoá phiên đăng nhập và tải lại
+          </button>
+        </div>
+      </div>`;
+  }
+});
+
+async function safeShowApp() {
+  try {
+    await showApp();
+  } catch (e) {
+    console.error('[showApp] fail:', e);
+    // Reset về login nếu showApp bị crash
+    const app = $('#app'); if (app) app.classList.add('hidden');
+    const login = $('#loginScreen'); if (login) login.classList.remove('hidden');
+    $('#loginErr').textContent = 'Lỗi khởi động: ' + e.message + '. Hãy đăng nhập lại.';
+    localStorage.removeItem(TOKEN_KEY);
+    state.token = null;
+  }
+}
+
+function showLogin() {
+  $('#loginScreen').classList.remove('hidden');
+  $('#app').classList.add('hidden');
+  $('#loginErr').textContent = '';
+  // Reset nút về trạng thái sẵn sàng — nếu không, sau khi đăng nhập thành công rồi
+  // đăng xuất, nút vẫn kẹt ở disabled + "Đang đăng nhập…".
+  const _lb = $('#loginBtn');
+  if (_lb) { _lb.disabled = false; _lb.textContent = 'Đăng nhập'; }
+  const _lp = $('#loginPass'); if (_lp) _lp.value = '';
+  $('#loginUser').focus();
+  $('#loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const u = $('#loginUser').value.trim();
+    const p = $('#loginPass').value;
+    if (!u || !p) return;
+    $('#loginBtn').disabled = true;
+    $('#loginBtn').textContent = 'Đang đăng nhập…';
+    $('#loginErr').textContent = '';
+    try {
+      const res = await rpcRaw('login', u, p);
+      state.token = res.token;
+      state.user = res.user;
+      localStorage.setItem(TOKEN_KEY, res.token);
+      showApp();
+    } catch (e) {
+      $('#loginErr').textContent = e.message;
+      $('#loginBtn').disabled = false;
+      $('#loginBtn').textContent = 'Đăng nhập';
+    }
+  };
+}
+
+async function showApp() {
+  $('#loginScreen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  try { setupUserUI(); } catch (e) { console.error('setupUserUI:', e); }
+  try { bindNav(); } catch (e) { console.error('bindNav:', e); }
+  try { bindLogout(); } catch (e) { console.error('bindLogout:', e); }
+  try { bindGlobalDraftActions(); } catch (e) { console.error('bindGlobalDraftActions:', e); }
+  try { bindExportButton(); } catch (e) { console.error('bindExportButton:', e); }
+  try {
+    await loadSessions();
+    renderView();
+  } catch (e) {
+    console.error('loadSessions/renderView:', e);
+    const main = $('#main');
+    if (main) main.innerHTML = `<div class="empty-state text-red-600">Lỗi: ${esc(e.message)}</div>`;
+  }
+}
+
+function bindExportButton() {
+  const btn = $('#btnExport');
+  if (!btn) return;
+  btn.onclick = () => exportToExcel();
+}
+
+// Nạp SheetJS 1 lần khi cần (không ảnh hưởng tốc độ mở app).
+let _xlsxLoading = null;
+function loadSheetJS() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (_xlsxLoading) return _xlsxLoading;
+  _xlsxLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error('Không tải được thư viện xuất Excel (kiểm tra mạng)'));
+    document.head.appendChild(s);
+  });
+  return _xlsxLoading;
+}
+
+// session tuỳ chọn — nếu không truyền thì dùng đợt đang xem. Backend chỉ cho Manager/Admin
+// xuất khi đợt đã APPROVED/CLOSED, nên đây chỉ là lớp UX phía trước.
+async function exportToExcel(session) {
+  const sess = session || state.currentSession;
+  if (!sess || !sess.session_id) { toast('Chưa chọn đợt để xuất', true); return; }
+  const btn = $('#btnExport');
+  if (btn) btn.disabled = true;
+  try {
+    const [data, XLSX] = await Promise.all([
+      rpc('exportOrderData', sess.session_id),
+      loadSheetJS(),
+    ]);
+    const rows = data.rows || [];
+    if (!rows.length) { toast('Đợt này chưa có SKU nào', true); return; }
+    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Đơn vị','Đơn giá','Leadtime (ngày)','SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
+    const aoa = [header];
+    rows.forEach((r, i) => {
+      aoa.push([
+        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.don_vi,
+        num0(r.gia), num0(r.leadtime_ngay), num0(r.sl_yeu_cau), num0(r.sl_pm_duyet),
+        num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
+        num0(r.thanh_tien), r.ghi_chu_dat, r.ghi_chu_duyet,
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 8 },
+      { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Đặt hàng');
+    const se = data.session || sess;
+    const fname = `dat-hang_${String(se.ten_dot || 'dot').replace(/\s+/g,'-')}_${se.mien || ''}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast(`Đã xuất ${rows.length} dòng ra Excel (.xlsx)`);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+// Ép số cho ô Excel (tránh chuỗi); rỗng khi không phải số.
+function num0(v) { const n = Number(v); return isFinite(n) ? n : (v == null ? '' : v); }
+
+function roleLabel(r) {
+  return ({ AM: 'Area Manager', PM: 'Product Manager', MANAGER: 'Manager', ADMIN: 'Admin',
+            PURCHASING: 'Mua hàng',
+            SALE_MANAGER: 'Area Manager', PRODUCT_MANAGER: 'Product Manager' })[r] || r;
+}
+function isPurchasing() { return state.user.role === 'PURCHASING'; }
+function canEditMien(m) {
+  const r = state.user.role;
+  return r === 'ADMIN' || ((r === 'AM' || r === 'SALE_MANAGER') && state.user.mien === m);
+}
+function canApprove() {
+  const r = state.user.role;
+  return ['PM', 'MANAGER', 'ADMIN', 'PRODUCT_MANAGER'].indexOf(r) >= 0;
+}
+function canCreateSession() { return state.user.role === 'ADMIN' || state.user.role === 'AM'; }
+
+function setupUserUI() {
+  const u = state.user;
+  $('#userMeta').textContent = roleLabel(u.role);
+  $('#userName').textContent = u.ho_ten;
+  $('#userAv').textContent = initials(u.ho_ten);
+  document.body.classList.toggle('is-approver', canApprove());
+  document.body.classList.toggle('is-creator', canCreateSession());
+  document.body.classList.toggle('is-admin', u.role === 'ADMIN');
+  document.body.classList.toggle('is-am', u.role === 'AM' || u.role === 'SALE_MANAGER');
+  document.body.classList.toggle('is-purchasing', u.role === 'PURCHASING');
+
+  // Default mien theo role: AM khoá theo miền của mình; ADMIN/PM/MANAGER → 'ALL'
+  if (u.role === 'AM' || u.role === 'SALE_MANAGER') {
+    state.mien = u.mien || 'MB';
+  } else {
+    state.mien = 'ALL';
+  }
+}
+
+function bindLogout() {
+  $('#btnLogout').onclick = async () => {
+    if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Đăng xuất sẽ mất. Tiếp tục?')) return;
+    const oldToken = state.token;
+    localStorage.removeItem(TOKEN_KEY);
+    state.token = null; state.user = null; state.changes.clear();
+    showLogin();
+    // Báo server biết (best-effort) — không chờ, không chặn UI dù server chậm/treo
+    if (oldToken) {
+      fetchWithTimeout(API_BASE + '/api', {
+        method: 'POST', headers: _headers(),
+        body: JSON.stringify({ action: 'logout', token: oldToken, args: [] })
+      }).catch(() => {});
+    }
+  };
+}
+
+function bindNav() {
+  $$('.nav-tab').forEach(a => {
+    // AM được xem tab "Quản lý đặt hàng" (chỉ xem, miền mình); các tab approver khác vẫn ẩn.
+    const isManageTab = a.dataset.view === 'approval';
+    const amManage = isManageTab && (state.user.role === 'AM' || state.user.role === 'SALE_MANAGER' || state.user.role === 'PURCHASING');
+    const okApprover = canApprove() || amManage;
+    // Ẩn các tab cần quyền user không có
+    if (a.dataset.need === 'approver' && !okApprover) a.style.display = 'none';
+    if (a.dataset.need === 'admin' && state.user.role !== 'ADMIN') a.style.display = 'none';
+
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      if (a.dataset.need === 'approver' && !okApprover) return;
+      if (a.dataset.need === 'admin' && state.user.role !== 'ADMIN') return;
+      $$('.nav-tab').forEach(x => x.classList.remove('active'));
+      a.classList.add('active');
+      state.view = a.dataset.view;
+      renderView();
+    });
+  });
+}
+
+function bindMienToggle() {
+  $$('.mien-btn').forEach(b => {
+    b.addEventListener('click', async () => {
+      const m = b.dataset.mien;
+      if (m === state.mien) return;
+      if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?')) return;
+      state.mien = m;
+      state.changes.clear();
+      state.pinnedSessionId = null;   // đổi miền -> chọn lại đợt của miền mới
+      $$('.mien-btn').forEach(x => x.classList.toggle('active', x === b));
+      await loadSessions();
+      renderView();
+    });
+  });
+}
+
+function bindGlobalDraftActions() {
+  $('#btnPlace').onclick = placeOrder;
+  $('#btnReset').onclick = () => {
+    if (state.changes.size === 0) return;
+    if (!confirm('Huỷ toàn bộ thay đổi chưa lưu?')) return;
+    state.changes.clear();
+    renderOrderBody();
+    updateOrderStats();
+    updateDraftIndicator();
+  };
+}
+
+async function loadSessions() {
+  const result = await rpc('listSessions', {});
+  state.sessions = Array.isArray(result) ? result : [];
+  const matchMien = s => state.mien === 'ALL' ? true : s.mien === state.mien;
+  const open = state.sessions.find(s => matchMien(s) && (s.trang_thai === 'DRAFT' || s.trang_thai === 'SUBMITTED'));
+  state.currentSession = open || state.sessions.find(matchMien) || null;
+}
+
+function renderView() {
+  // Cleanup floating thead từ view trước
+  document.querySelectorAll('.floating-thead-container').forEach(el => el.remove());
+
+  const main = $('#main');
+  main.innerHTML = '';
+  const tpl = $('#tpl-' + state.view);
+  if (!tpl) { main.innerHTML = '<div class="empty-state">Màn hình không tồn tại</div>'; return; }
+  main.appendChild(tpl.content.cloneNode(true));
+  if (state.view === 'order') initOrderView();
+  if (state.view === 'approval') initApprovalView();
+  if (state.view === 'audit') initAuditView();
+  if (state.view === 'config') initConfigView();
+  if (state.view === 'catalog') initCatalogView();
+}
+
+// ============ STAT CARD HELPER ============
+function statCard({ label, value, sub, accent }) {
+  const dot = ({ emerald:'#1877f2', teal:'#1877f2', blue:'#1877f2', amber:'#f59e0b', red:'#fa383e', slate:'#8a8d91' })[accent] || '#8a8d91';
+  const txt = ({ emerald:'#0c5dc7', teal:'#0a4fa8', blue:'#0c5dc7', amber:'#b45309', red:'#c81f3d', slate:'#242526' })[accent] || '#242526';
+  return `<div class="stat-card">
+    <div class="stat-card-label"><span class="stat-dot" style="background:${dot}"></span>${esc(label)}</div>
+    <div class="stat-card-value" style="color:${txt}">${value}</div>
+    <div class="stat-card-sub">${esc(sub || '')}</div>
+  </div>`;
+}
+
+// ============ MÀN ĐẶT HÀNG ============
+async function initOrderView() {
+  $('#btnNewSession').addEventListener('click', openCreateSessionModal);
+  $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
+  initPLFilter();
+  initMucDoFilter();
+  $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
+  $('#fSearch').addEventListener('input', e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); });
+
+  // Bind mien buttons (chúng nằm trong template tpl-order, phải bind lại sau mỗi render)
+  const role = state.user.role;
+  $$('.mien-btn').forEach(b => {
+    // AM: ẩn các miền khác miền của user; chỉ giữ nút miền của mình
+    if (role === 'AM') {
+      if (b.dataset.mien !== state.user.mien) {
+        b.style.display = 'none';
+        return;
+      }
+    }
+    // Highlight active
+    b.classList.toggle('active', b.dataset.mien === state.mien);
+    // Click handler
+    b.addEventListener('click', async () => {
+      const m = b.dataset.mien;
+      if (m === state.mien) return;
+      if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?')) return;
+      state.mien = m;
+      state.changes.clear();
+      state.pinnedSessionId = null;   // đổi miền -> chọn lại đợt của miền mới
+      $$('.mien-btn').forEach(x => x.classList.toggle('active', x === b));
+      await loadSessions();
+      await loadOrderData();
+    });
+  });
+
+  await loadOrderData();
+}
+
+function populateSessionDropdown(sel, filter) {
+  const el = $(sel);
+  if (!el) return;
+  const items = state.sessions.filter(filter);
+  if (!items.length) {
+    el.innerHTML = '<option value="">— Chưa có đợt nào —</option>';
+    el.disabled = true;
+    return;
+  }
+  el.disabled = false;
+  el.innerHTML = items.map(s => {
+    const sel = state.currentSession && state.currentSession.session_id === s.session_id ? 'selected' : '';
+    return `<option value="${s.session_id}" ${sel}>${esc(s.ten_dot)} · ${s.mien} · ${s.trang_thai}</option>`;
+  }).join('');
+}
+
+async function loadOrderData(pinSessionId) {
+  const host = $('#orderTableHost');
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200"><div class="loading-state">Đang tải dữ liệu…</div></div>`;
+  $('#orderStats').innerHTML = '';
+  const bannerHost = $('#sessionBanner');
+  if (bannerHost) bannerHost.innerHTML = '';
+  try {
+    const sid = pinSessionId || state.pinnedSessionId || null;
+    const data = await rpc('loadOrderScreen', sid, state.mien);
+    console.log('[loadOrderData] received:', data);
+    if (!data || typeof data !== 'object') {
+      throw new Error('Server trả về dữ liệu rỗng (' + (data === null ? 'null' : typeof data) + '). Kiểm tra Apps Script Executions panel.');
+    }
+    state.rows = Array.isArray(data.rows) ? data.rows : [];
+    state.readOnly = !!data.readOnly;
+    state.currentSession = data.session || null;
+    // Giữ đúng đợt đang xem cho các lần tải lại sau (đến khi đổi miền).
+    state.pinnedSessionId = data.session ? data.session.session_id : null;
+    state.currentAction = data.action || null;
+    state.stockAsof = data.stock_asof || '';
+    populateGrpAndPLOptions();
+    renderSessionBanner();
+    renderOrderBody();
+    updateOrderStats();
+    updateDraftIndicator();
+  } catch (e) {
+    console.error('[loadOrderData] error:', e);
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">Lỗi tải dữ liệu: ${esc(e.message)}</div>`;
+    state.currentSession = null;
+    state.currentAction = null;
+    renderSessionBanner();
+  }
+}
+
+function renderSessionBanner() {
+  const host = $('#sessionBanner');
+  if (!host) return;
+  const sess = state.currentSession;
+
+  // Chú thích nguồn dữ liệu tồn kho (cycledate mới nhất trong bảng stock).
+  const asof = state.stockAsof;
+  const stockNote = asof
+    ? `<div class="text-[11.5px] text-slate-500 mb-3 -mt-1 flex items-center gap-1.5">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Thông tin hàng tồn kho cập nhật đến ngày <strong class="text-slate-700">${esc(asof)}</strong></div>`
+    : '';
+
+  if (!sess) {
+    const isAll = state.mien === 'ALL';
+    const note = isAll
+      ? `Đang xem <strong>tổng hợp MB + MN</strong> (${state.rows.length} SKU, số tồn & xuất là tổng 2 miền). Chuyển sang <strong>Miền Bắc</strong> hoặc <strong>Miền Nam</strong> để xem chi tiết đợt đặt hàng.`
+      : `Đang xem <strong>danh mục</strong> (${state.rows.length} SKU) — chưa có đợt đặt hàng nào cho miền <strong>${state.mien}</strong>.`;
+    host.innerHTML = (canCreateSession() && !isAll
+      ? `<div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 mb-4 flex items-center gap-2 text-[13px] text-amber-900">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>${note} Bấm <strong>+ Tạo đặt hàng</strong> bên dưới để bắt đầu.</span>
+        </div>`
+      : `<div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 mb-4 text-[13px] text-slate-600">${note}</div>`) + stockNote;
+    return;
+  }
+
+  const statusOrder = ['DRAFT', 'SUBMITTED', 'PM_APPROVED', 'APPROVED'];
+  const stepLabels = { DRAFT: 'AM xác nhận', SUBMITTED: 'PM xác nhận', PM_APPROVED: 'Manager phê duyệt', APPROVED: 'Hoàn thành' };
+  const currIdx = statusOrder.indexOf(sess.trang_thai);
+  const isDone = sess.trang_thai === 'APPROVED' || sess.trang_thai === 'CLOSED';
+
+  const stepsHtml = statusOrder.map((st, i) => {
+    let circleCls, content;
+    if (i < currIdx || (isDone && i === currIdx)) {
+      circleCls = 'bg-emerald-500 text-white';
+      content = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else if (i === currIdx) {
+      circleCls = 'bg-amber-500 text-white ring-2 ring-amber-200';
+      content = String(i + 1);
+    } else {
+      circleCls = 'bg-slate-200 text-slate-500';
+      content = String(i + 1);
+    }
+    const labelCls = i <= currIdx ? 'text-slate-800 font-medium' : 'text-slate-400';
+    const conn = i < 3 ? `<div class="w-6 h-px ${i < currIdx ? 'bg-emerald-400' : 'bg-slate-200'}"></div>` : '';
+    return `<div class="flex items-center gap-1.5">
+      <div class="w-5 h-5 rounded-full ${circleCls} flex items-center justify-center text-[10px] font-semibold flex-shrink-0">${content}</div>
+      <span class="text-[11px] ${labelCls} whitespace-nowrap">${stepLabels[st]}</span>
+    </div>${conn}`;
+  }).join('');
+
+  const created = sess.ngay_mo ? new Date(sess.ngay_mo).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+  const mienCls = sess.mien === 'MB' ? 'pill-info' : 'pill-mid';
+
+  const rejectAlert = (sess.trang_thai === 'DRAFT' && sess.ly_do_tu_choi)
+    ? `<div class="bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 mb-4 flex items-start gap-2 text-[13px] text-red-800">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 flex-shrink-0"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><strong>Đợt bị từ chối${sess.tu_choi_o_buoc ? ' bởi ' + esc(sess.tu_choi_o_buoc) : ''}${sess.nguoi_tu_choi ? ' (' + esc(sess.nguoi_tu_choi) + ')' : ''}:</strong> ${esc(sess.ly_do_tu_choi)}<br>Vui lòng chỉnh sửa và xác nhận lại.</span>
+      </div>`
+    : '';
+
+  host.innerHTML = rejectAlert + `
+    <div class="bg-white rounded-lg border border-slate-200 px-4 py-3 mb-4 flex items-center gap-4 flex-wrap shadow-sm">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Đang xem</span>
+            <h2 class="font-semibold text-[14px] text-slate-900 truncate">${esc(sess.ten_dot)}</h2>
+            <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Tạo bởi <span class="font-medium">${esc(sess.tao_boi || '—')}</span> · ${created}</div>
+        </div>
+      </div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-1.5 flex-wrap">${stepsHtml}</div>
+    </div>
+  ` + stockNote;
+}
+
+// Dropdown lọc mức độ — cho phép chọn nhiều option qua checkbox.
+function initMucDoFilter() {
+  const btn = $('#fMucDoBtn');
+  const menu = $('#fMucDoMenu');
+  const label = $('#fMucDoLabel');
+  if (!btn || !menu || !label) return;
+
+  const opts = () => $$('.fmucdo-opt');
+  // Khôi phục trạng thái đã chọn khi view được render lại
+  const cur = state.filters.mucDo || [];
+  opts().forEach(o => { o.checked = cur.includes(o.value); });
+
+  const updateLabel = () => {
+    const sel = state.filters.mucDo || [];
+    if (!sel.length) label.textContent = 'Tất cả mức độ';
+    else if (sel.length === 1) label.textContent = sel[0];
+    else label.textContent = sel.length + ' mức độ';
+    btn.classList.toggle('ctl-active', sel.length > 0);
+  };
+  updateLabel();
+
+  const closeMenu = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+  const openMenu  = () => { menu.classList.remove('hidden'); btn.setAttribute('aria-expanded', 'true'); };
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    menu.classList.contains('hidden') ? openMenu() : closeMenu();
+  };
+  opts().forEach(o => {
+    o.onchange = () => {
+      state.filters.mucDo = opts().filter(x => x.checked).map(x => x.value);
+      updateLabel();
+      renderOrderBody();
+    };
+  });
+  const clearBtn = $('#fMucDoClear');
+  if (clearBtn) clearBtn.onclick = (e) => {
+    e.stopPropagation();
+    opts().forEach(o => { o.checked = false; });
+    state.filters.mucDo = [];
+    updateLabel();
+    renderOrderBody();
+  };
+
+  // Đóng menu khi click ra ngoài
+  if (window.__mucDoOutside) document.removeEventListener('click', window.__mucDoOutside);
+  window.__mucDoOutside = (e) => {
+    const wrap = $('#fMucDoWrap');
+    if (wrap && !wrap.contains(e.target)) closeMenu();
+  };
+  document.addEventListener('click', window.__mucDoOutside);
+}
+
+function populateGrpAndPLOptions() {
+  const viCmp = (a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true, sensitivity: 'base' });
+  const grps = [...new Set(state.rows.map(r => r.nhom_hang).filter(Boolean))].sort(viCmp);
+  $('#fGrp').innerHTML = '<option value="">Tất cả nhóm hàng</option>' + grps.map(g => `<option ${state.filters.grp === g ? 'selected' : ''}>${esc(g)}</option>`).join('');
+  renderPLOptions();
+}
+
+// Danh sách sản phẩm (phân loại) trong menu — link theo nhóm hàng đang chọn, sắp ABC, chọn nhiều.
+function renderPLOptions() {
+  const menu = $('#fPLMenu');
+  if (!menu) return;
+  const viCmp = (a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true, sensitivity: 'base' });
+  const grp = state.filters.grp;
+  const pls = [...new Set(
+    state.rows.filter(r => !grp || r.nhom_hang === grp).map(r => r.phan_loai).filter(Boolean)
+  )].sort(viCmp);
+  // Bỏ các sản phẩm đã chọn nhưng không còn thuộc nhóm hiện tại
+  state.filters.pl = (state.filters.pl || []).filter(p => pls.includes(p));
+  const sel = state.filters.pl;
+
+  menu.innerHTML = pls.length ? (
+    pls.map(p => `
+      <label class="flex items-center gap-2 px-2 py-1.5 text-[13px] rounded hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="rounded fpl-opt shrink-0" value="${esc(p)}" ${sel.includes(p) ? 'checked' : ''}/>
+        <span class="truncate">${esc(p)}</span>
+      </label>`).join('') +
+    `<div class="border-t border-slate-100 mt-1 pt-1 sticky bottom-0 bg-white">
+       <button type="button" id="fPLClear" class="w-full text-left px-2 py-1.5 text-[12px] text-slate-500 rounded hover:bg-slate-50">Bỏ chọn tất cả</button>
+     </div>`
+  ) : `<div class="px-2 py-3 text-[12px] text-slate-400 text-center">Không có sản phẩm</div>`;
+
+  $$('.fpl-opt', menu).forEach(o => {
+    o.onchange = () => {
+      state.filters.pl = $$('.fpl-opt', menu).filter(x => x.checked).map(x => x.value);
+      updatePLLabel();
+      renderOrderBody();
+    };
+  });
+  const clr = $('#fPLClear');
+  if (clr) clr.onclick = (e) => {
+    e.stopPropagation();
+    state.filters.pl = [];
+    renderPLOptions();
+    updatePLLabel();
+    renderOrderBody();
+  };
+  updatePLLabel();
+}
+
+function updatePLLabel() {
+  const label = $('#fPLLabel'); const btn = $('#fPLBtn');
+  if (!label) return;
+  const sel = state.filters.pl || [];
+  label.textContent = !sel.length ? 'Tất cả sản phẩm' : (sel.length === 1 ? sel[0] : sel.length + ' sản phẩm');
+  if (btn) btn.classList.toggle('ctl-active', sel.length > 0);
+}
+
+function initPLFilter() {
+  const btn = $('#fPLBtn'); const menu = $('#fPLMenu');
+  if (!btn || !menu) return;
+  btn.onclick = (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); btn.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true'); };
+  if (window.__plOutside) document.removeEventListener('click', window.__plOutside);
+  window.__plOutside = (e) => { const w = $('#fPLWrap'); if (w && !w.contains(e.target)) { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); } };
+  document.addEventListener('click', window.__plOutside);
+}
+
+function filteredOrderRows() {
+  const f = state.filters;
+  return state.rows.filter(r => {
+    if (f.grp && r.nhom_hang !== f.grp) return false;
+    if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
+    if (f.mucDo && f.mucDo.length && !f.mucDo.includes(r.muc_do_sd)) return false;
+    if (f.lowStock && r.tong_ton > r.goi_y_dat) return false;
+    if (f.search) {
+      const hay = ((r.ma_bravo || '') + ' ' + (r.code_ncc || '') + ' ' + (r.ten_hang || '')
+        + ' ' + (r.phan_loai || '') + ' ' + (r.nhom_hang || '')).toLowerCase();
+      if (!hay.includes(f.search)) return false;
+    }
+    return true;
+  });
+}
+
+// Group rows by nhom_hang for card-based rendering
+function renderOrderBody() {
+  const host = $('#orderTableHost');
+  const rows = filteredOrderRows();
+  if (!rows.length) {
+    const msg = !state.currentSession
+      ? (canCreateSession() ? 'Đang xem danh mục — bấm "+ Tạo đợt mới" ở trên để bắt đầu đặt hàng' : 'Đang xem danh mục — chưa có đợt nào để đặt hàng')
+      : 'Không có SKU nào phù hợp với bộ lọc';
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">${esc(msg)}</div>`;
+    return;
+  }
+
+  // Số thứ tự liên tục trong toàn bộ kết quả lọc
+  rows.forEach((r, i) => r.__idx = i + 1);
+
+  // Group 2 cấp: nhom_hang → phan_loai
+  const byGroup = new Map();
+  rows.forEach(r => {
+    const g = r.nhom_hang || 'Khác';
+    if (!byGroup.has(g)) byGroup.set(g, new Map());
+    const pl = r.phan_loai || '(không phân loại)';
+    if (!byGroup.get(g).has(pl)) byGroup.get(g).set(pl, []);
+    byGroup.get(g).get(pl).push(r);
+  });
+
+  // Sắp xếp nhóm hàng (ABC) và trong mỗi nhóm sắp xếp phân loại/sản phẩm (ABC) theo tiếng Việt
+  const viCmp = (a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true, sensitivity: 'base' });
+  const sortedGroups = Array.from(byGroup.entries())
+    .sort((a, b) => viCmp(a[0], b[0]))
+    .map(([grp, plMap]) => {
+      const sortedPl = new Map(Array.from(plMap.entries()).sort((a, b) => viCmp(a[0], b[0])));
+      return [grp, sortedPl];
+    });
+
+  host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
+  bindOrderInputs();
+  bindGroupToggles();
+  bindPLToggles();
+  bindScrollSyncAndDrag();
+}
+
+function groupCardHtml(grp, plMap, gIdx) {
+  const allItems = Array.from(plMap.values()).flat();
+  const totalSku = allItems.length;
+  const totalOrdered = allItems.reduce((s, r) => {
+    const ch = state.changes.get(r.ma_bravo);
+    return s + Number((ch ? ch.sl_dat : r.sl_dat) || 0);
+  }, 0);
+  const totalStock = allItems.reduce((s, r) => {
+    return s + (Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0) + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0));
+  }, 0);
+  const lowStockCount = allItems.filter(r => r.tong_ton <= r.goi_y_dat && r.muc_do_sd === 'Hay sử dụng').length;
+  const open = gIdx === 0;
+
+  return `<div class="group-card" data-grp="${esc(grp)}">
+    <button class="group-header" data-toggle>
+      <svg class="chev text-slate-400 ${open ? '' : '-rotate-90'} transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="flex-1 min-w-0">
+        <div class="group-title">${esc(grp)}</div>
+        <div class="group-meta">${totalSku} SKU · ${plMap.size} phân loại${lowStockCount ? ` · <span class="text-red-600 font-medium">${lowStockCount} SKU tồn thấp</span>` : ''}</div>
+      </div>
+      <div class="hidden md:flex items-center gap-5">
+        <div class="group-stat"><div class="group-stat-label">SKU</div><div class="group-stat-value text-slate-700">${totalSku}</div></div>
+        <div class="group-stat"><div class="group-stat-label">SL đã đặt</div><div class="group-stat-value text-emerald-700">${fmt(totalOrdered)}</div></div>
+      </div>
+    </button>
+    <div class="scroll-top-bar ${open ? '' : 'hidden'}" data-scroll-top>
+      <div class="scroll-top-inner"></div>
+    </div>
+    <div class="group-body ${open ? '' : 'hidden'} border-t border-slate-100" data-scroll-body>
+      <table class="dt">
+        <thead><tr>
+          <th class="c" style="width:42px">#</th>
+          <th style="width:130px">Mã Bravo</th>
+          <th style="width:100px">Mã NCC</th>
+          <th style="min-width:240px">Tên hàng</th>
+          <th class="c" style="width:62px">Mức độ</th>
+          <th class="r" style="width:80px">Tồn kho (DA)</th>
+          <th class="r" style="width:90px">Hàng ký gửi</th>
+          <th class="r" style="width:80px">Vét thầu (GU)</th>
+          <th class="r" style="width:90px">Hàng đi đường</th>
+          <th class="r" style="width:80px">Tổng tồn</th>
+          <th class="r" style="width:90px">TB tháng CKNT</th>
+          <th class="r" style="width:90px">TB tháng YTD</th>
+          <th class="r" style="width:80px">% SD</th>
+          <th class="c" style="width:75px">Leadtime</th>
+          <th class="r" style="width:90px">TB KH 3T tiếp theo</th>
+          <th class="c" style="width:70px">Số tháng đặt</th>
+          <th class="c" style="width:60px">Gợi ý</th>
+          <th class="c" style="width:80px">SL yêu cầu</th>
+          <th class="c" style="width:80px">SL PM duyệt</th>
+          <th class="c" style="width:80px">SL đặt hàng</th>
+          <th class="c" style="width:120px" title="Đề nghị mua hàng">DM</th>
+          <th class="c" style="width:120px" title="Số PO">PO</th>
+          <th style="min-width:160px">Ghi chú</th>
+        </tr></thead>
+        <tbody>${Array.from(plMap.entries()).map(([pl, items]) => plBlockHtml(pl, items, grp)).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// Tạo plId hợp lệ cho CSS class & attribute từ string Unicode
+function _plId(grp, pl) {
+  return 'pl' + (grp + '|' + pl).split('').map(c => c.charCodeAt(0).toString(36)).join('').slice(0, 40);
+}
+
+function plBlockHtml(pl, items, grp) {
+  const plId = _plId(grp, pl);
+  const agg = items.reduce((a, r) => {
+    const ch = state.changes.get(r.ma_bravo);
+    const slDat = Number((ch ? ch.sl_dat : r.sl_dat) || 0);
+    a.ton_kho += Number(r.ton_kho || 0);
+    a.hang_ktv_bv += Number(r.hang_ktv_bv || 0);
+    a.hang_vet_thau += Number(r.hang_vet_thau || 0);
+    a.hang_di_duong += Number(r.hang_di_duong || 0);
+    a.tong_ton += Number(r.tong_ton || 0);
+    a.xuat_2025 += Number(r.tb_cknt || 0);
+    a.xuat_lk_2026 += Number(r.tb_ytd || 0);
+    // TB KH ở mức san_pham (mọi mã bravo cùng phân loại chia sẻ 1 giá trị) -> KHÔNG cộng dồn,
+    // lấy đúng giá trị đó (max phòng dòng lệch/0) để tổng phân loại không bị nhân số SKU.
+    a.tb_kh_3_thang = Math.max(a.tb_kh_3_thang, Number(r.tb_kh_3_thang || 0));
+    a.goi_y_dat += Number(r.goi_y_dat || 0);
+    a.sl_dat += slDat;
+    a.sl_duyet += Number(r.sl_duyet || 0);
+    a.sl_dat_hang += Number(r.sl_dat_hang || 0);
+    return a;
+  }, { ton_kho:0, hang_ktv_bv:0, hang_vet_thau:0, hang_di_duong:0, tong_ton:0, xuat_2025:0, xuat_lk_2026:0, tb_kh_3_thang:0, goi_y_dat:0, sl_dat:0, sl_duyet:0, sl_dat_hang:0 });
+
+  const parentRow = `<tr class="pl-parent" data-pl-toggle="${plId}">
+    <td class="c">
+      <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </td>
+    <td class="text-slate-400">—</td>
+    <td class="text-slate-400">—</td>
+    <td class="text-slate-900"><strong>${esc(pl)}</strong> <span class="text-[11px] text-slate-500 font-normal">(${items.length} SKU)</span></td>
+    <td></td>
+    <td class="r num">${dash0(agg.ton_kho)}</td>
+    <td class="r num">${dash0(agg.hang_ktv_bv)}</td>
+    <td class="r num">${dash0(agg.hang_vet_thau)}</td>
+    <td class="r num">${dash0(agg.hang_di_duong)}</td>
+    <td class="r num text-slate-900">${dash0(agg.tong_ton)}</td>
+    <td class="r num">${dash0(agg.xuat_2025)}</td>
+    <td class="r num">${dash0(agg.xuat_lk_2026)}</td>
+    <td class="r num text-slate-400">—</td>
+    <td class="c num text-slate-400">—</td>
+    <td class="r num">${dash0(agg.tb_kh_3_thang)}</td>
+    <td class="c num text-slate-400">—</td>
+    <td class="c num text-blue-700">${dash0(agg.goi_y_dat)}</td>
+    <td class="c num text-amber-700" data-pl-sum-sldat="${plId}">${fmt(agg.sl_dat)}</td>
+    <td class="c num text-emerald-700">${agg.sl_duyet > 0 ? fmt(agg.sl_duyet) : '—'}</td>
+    <td class="c num text-emerald-800 font-bold">${agg.sl_dat_hang > 0 ? fmt(agg.sl_dat_hang) : '—'}</td>
+    <td class="c text-slate-300">—</td>
+    <td class="c text-slate-300">—</td>
+    <td></td>
+  </tr>`;
+
+  const childRows = items.map(r => productRowHtml(r, plId)).join('');
+  return parentRow + childRows;
+}
+
+function productRowHtml(r, plId) {
+  const action = state.currentAction;
+  const editField = action ? action.editField : null;
+  const editNoteField = action ? action.editNoteField : null;
+
+  const change = state.changes.get(r.ma_bravo);
+  const dirty = !!change;
+  const pillCls = r.muc_do_sd === 'Hay sử dụng' ? 'pill-hot' : r.muc_do_sd === 'Ít sử dụng' ? 'pill-mid' : 'pill-low';
+  const pillText = r.muc_do_sd === 'Hay sử dụng' ? 'Hay' : r.muc_do_sd === 'Ít sử dụng' ? 'Ít' : 'Hiếm';
+  const pctBar = Math.min(100, r.ty_le_sd_pct * 5);
+  const leadtimeDisplay = r.leadtime_ngay ? `${r.leadtime_ngay} ngày` : '—';
+
+  // Render cell cho 1 cột số lượng — input nếu editField match, else display read-only
+  const qtyCell = (field, currentValue, colorCls) => {
+    const display = currentValue == null ? '—' : fmt(currentValue);
+    if (field === editField && r.editable !== false) {
+      const editingValue = change ? (change[field] ?? '') : (currentValue ?? '');
+      return `<td class="c"><input type="number" class="qty-input ${dirty ? 'dirty' : ''}" min="0" value="${editingValue}" data-field="${field}" data-id="${esc(r.ma_bravo)}"/></td>`;
+    }
+    const lockTitle = (field === editField && r.editable === false) ? ' title="Ngoài scope của bạn"' : '';
+    return `<td class="c num font-medium ${currentValue != null ? colorCls : 'text-slate-300'}"${lockTitle}>${display}</td>`;
+  };
+
+  // Ghi chú: 1 cột dùng chung — sửa được theo role
+  const noteValue = change && change[editNoteField] !== undefined
+    ? change[editNoteField]
+    : (r[editNoteField] || r.ghi_chu_dat || r.ghi_chu_duyet || r.ghi_chu_dat_hang || '');
+  const noteCell = (editNoteField && r.editable !== false)
+    ? `<td><input type="text" class="note-input" value="${esc(noteValue)}" placeholder="—" data-field="${editNoteField}" data-id="${esc(r.ma_bravo)}"/></td>`
+    : `<td class="text-[11.5px] text-slate-500 italic">${esc(noteValue || '—')}</td>`;
+
+  return `<tr class="pl-child pl-child-${plId} ${dirty ? 'dirty' : ''}" data-id="${esc(r.ma_bravo)}" data-pl="${plId}">
+    <td class="c num text-slate-400 text-[11px]">${r.__idx}</td>
+    <td class="font-mono text-[11px] text-slate-700 nowrap">${esc(r.ma_bravo)}</td>
+    <td class="font-mono text-[11px] text-slate-500 nowrap">${esc(r.code_ncc || '—')}</td>
+    <td class="font-medium text-slate-800 leading-snug">${esc(r.ten_hang || '')}</td>
+    <td class="c"><span class="pill ${pillCls}">${pillText}</span></td>
+    <td class="r num text-slate-600">${dash0(r.ton_kho)}</td>
+    <td class="r num text-slate-600">${dash0(r.hang_ktv_bv)}</td>
+    <td class="r num text-slate-600">${dash0(r.hang_vet_thau)}</td>
+    <td class="r num text-slate-600">${dash0(r.hang_di_duong)}</td>
+    <td class="r num font-semibold text-slate-800">${dash0(r.tong_ton)}</td>
+    <td class="r num text-slate-600">${dash0(r.tb_cknt)}</td>
+    <td class="r num text-slate-600">${dash0(r.tb_ytd)}</td>
+    <td class="r num text-slate-700">${r.ty_le_sd_pct ? `${r.ty_le_sd_pct.toFixed(1)}%<div class="mini-bar"><i style="width:${pctBar}%"></i></div>` : '—'}</td>
+    <td class="c num text-slate-600 text-[11px]">${leadtimeDisplay}</td>
+    <td class="r num text-slate-300">—</td>
+    <td class="c num text-slate-600">${r.so_thang_dat || '—'}</td>
+    <td class="c num"><span class="font-bold text-blue-700">${dash0(r.goi_y_dat)}</span></td>
+    ${qtyCell('sl_dat', r.sl_dat, 'text-amber-700')}
+    ${qtyCell('sl_duyet', r.sl_duyet, 'text-emerald-700')}
+    ${qtyCell('sl_dat_hang', r.sl_dat_hang, 'text-emerald-800 font-bold')}
+    <td class="c text-[11.5px] text-slate-600">${(state.currentSession && state.currentSession.de_nghi_mua_hang) ? esc(state.currentSession.de_nghi_mua_hang) : '—'}</td>
+    <td class="c text-[11.5px] text-slate-600">${(state.currentSession && state.currentSession.po) ? esc(state.currentSession.po) : '—'}</td>
+    ${noteCell}
+  </tr>`;
+}
+
+function bindOrderInputs() {
+  $$('#orderTableHost input[data-id]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const id = inp.dataset.id;
+      const field = inp.dataset.field;
+      const row = state.rows.find(r => r.ma_bravo === id);
+      if (!row) return;
+      const existing = state.changes.get(id) || {};
+      existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
+      // Check same-as-orig dựa trên action's editField/editNoteField
+      const action = state.currentAction;
+      const origQty = Number(row[action.editField] || 0);
+      const origNote = row[action.editNoteField] || '';
+      const newQty = Number(existing[action.editField] || 0);
+      const newNote = existing[action.editNoteField] !== undefined ? existing[action.editNoteField] : origNote;
+      if (newQty === origQty && newNote === origNote) state.changes.delete(id);
+      else state.changes.set(id, existing);
+
+      const tr = inp.closest('tr');
+      tr.classList.toggle('dirty', state.changes.has(id));
+      if (field === action.editField) {
+        inp.classList.toggle('dirty', state.changes.has(id));
+        const plId = tr.dataset.pl;
+        if (plId) updatePLSumSlDat(plId);
+      }
+      updateOrderStats();
+      updateDraftIndicator();
+    });
+  });
+}
+
+function updatePLSumSlDat(plId) {
+  const action = state.currentAction;
+  if (!action) return;
+  let sum = 0;
+  $$(`.pl-child-${plId} input[data-field="${action.editField}"]`).forEach(inp => {
+    sum += Number(inp.value || 0);
+  });
+  const cell = $(`[data-pl-sum-sldat="${plId}"]`);
+  if (cell) cell.textContent = fmt(sum);
+}
+
+function bindGroupToggles() {
+  $$('.group-card [data-toggle]').forEach(btn => {
+    btn.onclick = () => {
+      const card = btn.closest('.group-card');
+      const body = card.querySelector('[data-scroll-body]');
+      const scrollTop = card.querySelector('[data-scroll-top]');
+      const chev = btn.querySelector('.chev');
+      const isHidden = body.classList.contains('hidden');
+      body.classList.toggle('hidden');
+      if (scrollTop) scrollTop.classList.toggle('hidden');
+      chev.classList.toggle('-rotate-90', !isHidden);
+      if (isHidden) { lockColumnWidths(card); syncScrollWidths(); applyStickyCols(card); buildFloatingHeaders(); }  // vừa mở
+    };
+  });
+}
+
+// Đồng bộ chiều rộng inner của scroll-top-bar với table.scrollWidth
+function syncScrollWidths() {
+  $$('.group-card').forEach(card => {
+    const body = card.querySelector('[data-scroll-body]');
+    const top  = card.querySelector('[data-scroll-top]');
+    if (!body || !top) return;
+    const table = body.querySelector('table');
+    const inner = top.querySelector('.scroll-top-inner');
+    if (!table || !inner) return;
+    inner.style.width = table.scrollWidth + 'px';
+  });
+}
+
+// Khoá bề rộng từng cột: đo bề rộng thực (table-layout auto) rồi ghim bằng <colgroup> + table-layout fixed.
+// Nhờ đó header (kể cả clone floating) và thân bảng luôn khớp cột, không bị co lệch / che tiêu đề cột đông cứng.
+function lockColumnWidths(root) {
+  const scope = (root && root.querySelectorAll) ? root : document;
+  scope.querySelectorAll('.group-body table.dt').forEach(tbl => {
+    const hr = tbl.tHead && tbl.tHead.rows[0];
+    if (!hr || !hr.cells.length) return;
+    // Đo khi đang auto (tạm bỏ fixed nếu đã set từ lần trước) để lấy bề rộng tự nhiên
+    tbl.style.tableLayout = 'auto';
+    tbl.style.width = '';
+    const existing = tbl.querySelector('colgroup');
+    if (existing) existing.remove();
+    const widths = [];
+    for (const c of hr.cells) {
+      const w = c.getBoundingClientRect().width;
+      if (!w) return; // bảng ẩn → bỏ qua, sẽ khoá lại khi mở
+      widths.push(Math.round(w));
+    }
+    const cg = document.createElement('colgroup');
+    widths.forEach(w => {
+      const col = document.createElement('col');
+      col.style.width = w + 'px';
+      cg.appendChild(col);
+    });
+    tbl.insertBefore(cg, tbl.firstChild);
+    tbl.style.tableLayout = 'fixed';
+    tbl.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
+    tbl.__colWidths = widths; // clone floating dùng lại
+  });
+}
+
+// Tính left offset cho 4 cột đông cứng theo bề rộng cột đã khoá.
+// Ghi vào CSS var trên từng <table> để mọi cell con dùng chung; clone floating thead copy lại các var này.
+function applyStickyCols(root) {
+  const scope = (root && root.querySelectorAll) ? root : document;
+  const tables = scope.querySelectorAll('.group-body table.dt');
+  tables.forEach(tbl => {
+    const w = tbl.__colWidths;
+    let w1, w2, w3;
+    if (w && w.length >= 3) {
+      [w1, w2, w3] = w;
+    } else {
+      const hr = tbl.tHead && tbl.tHead.rows[0];
+      if (!hr || hr.cells.length < 4) return;
+      w1 = hr.cells[0].getBoundingClientRect().width;
+      w2 = hr.cells[1].getBoundingClientRect().width;
+      w3 = hr.cells[2].getBoundingClientRect().width;
+    }
+    if (!w1) return; // bảng đang ẩn
+    tbl.style.setProperty('--l1', '0px');
+    tbl.style.setProperty('--l2', w1 + 'px');
+    tbl.style.setProperty('--l3', (w1 + w2) + 'px');
+    tbl.style.setProperty('--l4', (w1 + w2 + w3) + 'px');
+  });
+  // Đồng bộ var sang các clone floating thead đang tồn tại
+  document.querySelectorAll('.floating-thead-container table.dt').forEach(clone => {
+    const card = clone.__srcCard;
+    const src = card && card.querySelector('.group-body table.dt');
+    if (!src) return;
+    ['--l1', '--l2', '--l3', '--l4'].forEach(v => {
+      const val = src.style.getPropertyValue(v);
+      if (val) clone.style.setProperty(v, val);
+    });
+  });
+}
+
+function bindScrollSyncAndDrag() {
+  // Cleanup floaters cũ
+  document.querySelectorAll('.floating-thead-container').forEach(el => el.remove());
+  if (window.__floatingScrollHandler) {
+    window.removeEventListener('scroll', window.__floatingScrollHandler);
+    window.removeEventListener('resize', window.__floatingScrollHandler);
+  }
+
+  $$('.group-card').forEach(card => {
+    const body = card.querySelector('[data-scroll-body]');
+    const top  = card.querySelector('[data-scroll-top]');
+    if (!body || !top) return;
+
+    // 2-way sync scrollLeft (top bar ↔ body)
+    let syncing = false;
+    top.addEventListener('scroll', () => {
+      if (syncing) return; syncing = true;
+      body.scrollLeft = top.scrollLeft;
+      requestAnimationFrame(() => { syncing = false; });
+    });
+    body.addEventListener('scroll', () => {
+      if (syncing) return; syncing = true;
+      top.scrollLeft = body.scrollLeft;
+      requestAnimationFrame(() => { syncing = false; });
+    });
+
+    // Drag scroll trên thead
+    const thead = body.querySelector('thead');
+    if (!thead) return;
+    let isDown = false, startX = 0, startScrollLeft = 0;
+    thead.addEventListener('mousedown', e => {
+      if (e.target.closest('input, button, a, select')) return;
+      isDown = true;
+      thead.classList.add('grabbing');
+      startX = e.pageX;
+      startScrollLeft = body.scrollLeft;
+      e.preventDefault();
+    });
+    document.addEventListener('mouseup', () => {
+      if (!isDown) return;
+      isDown = false;
+      thead.classList.remove('grabbing');
+    });
+    document.addEventListener('mousemove', e => {
+      if (!isDown) return;
+      e.preventDefault();
+      body.scrollLeft = startScrollLeft - (e.pageX - startX);
+    });
+  });
+
+  lockColumnWidths();
+  syncScrollWidths();
+  applyStickyCols();
+  buildFloatingHeaders();
+
+  // Tính lại offset cột đông cứng khi resize (bề rộng cột có thể đổi)
+  if (window.__stickyResizeHandler) {
+    window.removeEventListener('resize', window.__stickyResizeHandler);
+  }
+  window.__stickyResizeHandler = () => applyStickyCols();
+  window.addEventListener('resize', window.__stickyResizeHandler, { passive: true });
+}
+
+// ============ FLOATING THEAD (sticky-to-viewport) ============
+// Mỗi group-card có 1 clone thead fixed-position ở top: pageHeaderHeight.
+// Trên window scroll, card nào đang "cắt" ngưỡng top sẽ show floating thead của nó.
+function buildFloatingHeaders() {
+  // Dọn clone cũ + handler cũ (cho phép gọi lại khi mở group mà không nhân đôi)
+  document.querySelectorAll('.floating-thead-container').forEach(el => el.remove());
+  if (window.__floatingScrollHandler) {
+    window.removeEventListener('scroll', window.__floatingScrollHandler);
+    window.removeEventListener('resize', window.__floatingScrollHandler);
+  }
+  const pageHeader = document.querySelector('header.sticky') || document.querySelector('header');
+  const HEADER_OFFSET = pageHeader ? pageHeader.offsetHeight : 96;
+
+  const registry = [];
+  $$('.group-card').forEach(card => {
+    const body = card.querySelector('[data-scroll-body]');
+    if (!body) return;
+    const table = body.querySelector('table');
+    const thead = table && table.querySelector('thead');
+    if (!table || !thead) return;
+
+    const container = document.createElement('div');
+    container.className = 'floating-thead-container';
+    container.style.cssText = `position: fixed; top: ${HEADER_OFFSET}px; overflow: hidden; z-index: 15; display: none; pointer-events: none;`;
+
+    const cloneTable = document.createElement('table');
+    cloneTable.className = 'dt';
+    cloneTable.__srcCard = card; // để applyStickyCols đồng bộ var offset
+    // Copy CSS var offset của cột đông cứng từ bảng gốc sang clone
+    ['--l1', '--l2', '--l3', '--l4'].forEach(v => {
+      const val = table.style.getPropertyValue(v);
+      if (val) cloneTable.style.setProperty(v, val);
+    });
+    // Khoá bề rộng cột giống bảng gốc (đã đo & lock) → header clone khớp thân bảng, không che tiêu đề
+    const colW = table.__colWidths;
+    if (colW && colW.length) {
+      const cg = document.createElement('colgroup');
+      colW.forEach(w => { const col = document.createElement('col'); col.style.width = w + 'px'; cg.appendChild(col); });
+      cloneTable.appendChild(cg);
+      cloneTable.style.tableLayout = 'fixed';
+      cloneTable.style.width = colW.reduce((a, b) => a + b, 0) + 'px';
+    } else {
+      cloneTable.style.tableLayout = getComputedStyle(table).tableLayout || 'auto';
+    }
+    const cloneThead = thead.cloneNode(true);
+    cloneTable.appendChild(cloneThead);
+    container.appendChild(cloneTable);
+    document.body.appendChild(container);
+
+    registry.push({ card, body, table, container, cloneTable });
+  });
+
+  const update = () => {
+    let anyShown = false;
+    registry.forEach(({ card, body, table, container, cloneTable }) => {
+      const bodyRect = body.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      // Chỉ show khi phần bảng đang cắt ngưỡng top viewport (đã có ít nhất 40px của tbody hiện)
+      const shouldShow = bodyRect.top < HEADER_OFFSET && bodyRect.bottom > HEADER_OFFSET + 40;
+
+      if (shouldShow) {
+        anyShown = true;
+        container.style.display = 'block';
+        container.style.left = bodyRect.left + 'px';
+        container.style.width = bodyRect.width + 'px';
+        // Width clone: nếu đã khoá bằng colgroup thì giữ nguyên (đã set lúc tạo), tránh lệch cột
+        if (!(table.__colWidths && table.__colWidths.length)) {
+          cloneTable.style.width = table.offsetWidth + 'px';
+        }
+        // Ghim cột đông cứng bằng transform: bảng dịch -sx, ô đông cứng dịch lại +sx (qua CSS var --sx).
+        applyCloneX(container, cloneTable, body.scrollLeft);
+      } else {
+        container.style.display = 'none';
+      }
+    });
+  };
+
+  // Đặt độ lệch ngang cho clone (thay cho container.scrollLeft — sticky ngang không giữ trong overflow:hidden).
+  const applyCloneX = (container, cloneTable, sx) => {
+    container.style.setProperty('--sx', sx + 'px');
+    cloneTable.style.transform = 'translateX(' + (-sx) + 'px)';
+  };
+
+  window.__floatingScrollHandler = update;
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update, { passive: true });
+
+  // Sync khi body cuộn ngang → cập nhật clone
+  registry.forEach(({ body, container, cloneTable }) => {
+    body.addEventListener('scroll', () => { applyCloneX(container, cloneTable, body.scrollLeft); });
+  });
+
+  update();
+}
+
+function bindPLToggles() {
+  $$('[data-pl-toggle]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('input, button, a')) return;
+      const plId = row.dataset.plToggle;
+      const children = $$(`.pl-child-${plId}`);
+      const isOpen = children.length && !children[0].classList.contains('hidden');
+      children.forEach(c => c.classList.toggle('hidden', isOpen));
+      row.classList.toggle('collapsed', isOpen);
+    });
+  });
+}
+
+function updateOrderStats() {
+  const rows = state.rows;
+
+  // Giá trị hiệu lực (đã lưu + đang sửa) cho 1 field số lượng.
+  const eff = (r, field) => {
+    const ch = state.changes.get(r.ma_bravo);
+    return (ch && ch[field] !== undefined) ? Number(ch[field] || 0) : Number(r[field] || 0);
+  };
+  // Tồn của 1 dòng theo công thức: DA + KG + Đi đường − GU
+  const stockOf = r => Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0)
+    + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0);
+
+  // Tổng sản phẩm = số phân loại (sản phẩm) khác nhau; SKU cùng sản phẩm gộp 1.
+  const totalProducts = new Set(
+    rows.map(r => (r.nhom_hang || '') + '|' + (r.phan_loai || ''))
+  ).size;
+  const totalSku = rows.length;
+  const totalStock = rows.reduce((s, r) => s + stockOf(r), 0);
+  const totalReqQty = rows.reduce((s, r) => s + eff(r, 'sl_dat'), 0);
+  const totalReqValue = rows.reduce((s, r) => s + eff(r, 'sl_dat') * Number(r.gia || 0), 0);
+  const totalOrderValue = rows.reduce((s, r) => s + eff(r, 'sl_dat_hang') * Number(r.gia || 0), 0);
+  const lowCount = rows.filter(r => stockOf(r) <= r.goi_y_dat && r.muc_do_sd === 'Hay sử dụng').length;
+
+  const fmtInt = n => fmt(Math.round(Number(n) || 0));
+
+  $('#orderStats').innerHTML = [
+    statCard({ label: 'Tổng sản phẩm', value: fmtInt(totalProducts), sub: 'phân loại khác nhau', accent: 'slate' }),
+    statCard({ label: 'Tổng SKU', value: fmtInt(totalSku), sub: 'trong danh mục', accent: 'slate' }),
+    statCard({ label: 'Tổng tồn', value: fmtInt(totalStock), sub: 'DA + Ký gửi + Đi đường − GU', accent: 'teal' }),
+    statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'đã lưu + đang sửa', accent: 'blue' }),
+    statCard({ label: 'Tổng giá trị yêu cầu', value: fmtVND(totalReqValue), sub: 'SL yêu cầu × đơn giá', accent: 'amber' }),
+    statCard({ label: 'Tổng giá trị đặt hàng', value: fmtVND(totalOrderValue), sub: 'SL đặt hàng × đơn giá', accent: 'amber' }),
+    statCard({ label: 'SKU tồn thấp', value: fmtInt(lowCount), sub: 'cần đặt thêm', accent: lowCount > 0 ? 'red' : 'slate' }),
+  ].join('');
+}
+
+function fmtVND(n) {
+  if (!n) return '—';
+  if (Math.abs(n) >= 1e9) return (n / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' tỷ';
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' tr';
+  return n.toLocaleString('vi-VN') + ' đ';
+}
+
+function updateDraftIndicator() {
+  const n = state.changes.size;
+  const draftActions = $('#draftActions');
+  const status = $('#saveStatus');
+  const action = state.currentAction;
+
+  if (!action) {
+    draftActions.classList.add('hidden');
+    draftActions.classList.remove('flex');
+    if (state.currentSession) {
+      status.textContent = `Đợt ở trạng thái ${state.currentSession.trang_thai} · không có thao tác cho vai trò của bạn`;
+    } else {
+      status.textContent = 'Danh mục · chỉ xem';
+    }
+    return;
+  }
+
+  const isAMConfirm = action.editField === 'sl_dat';
+  const suggN = state.rows.reduce((a, r) => a + (Number(r.goi_y_dat || 0) > 0 ? 1 : 0), 0);
+
+  if (n > 0) {
+    draftActions.classList.remove('hidden');
+    draftActions.classList.add('flex');
+    $('#btnPlaceLabel').textContent = `${action.label} (${n})`;
+    $('#btnPlace').disabled = false;
+    status.textContent = '';
+  } else if (isAMConfirm && suggN > 0) {
+    // AM chưa nhập gì -> cho xác nhận nhanh theo số gợi ý (SL yêu cầu = gợi ý).
+    draftActions.classList.remove('hidden');
+    draftActions.classList.add('flex');
+    $('#btnPlaceLabel').textContent = `Xác nhận theo gợi ý (${suggN})`;
+    $('#btnPlace').disabled = false;
+    status.textContent = 'Chưa chỉnh sửa — bấm để đặt theo số gợi ý, hoặc nhập tay để điều chỉnh';
+  } else {
+    draftActions.classList.add('hidden');
+    draftActions.classList.remove('flex');
+    status.textContent = `Sẵn sàng — bấm "${action.label}" sau khi nhập`;
+  }
+}
+
+async function placeOrder() {
+  const action = state.currentAction;
+  if (!action) return;
+  const noChange = state.changes.size === 0;
+  let items;
+  if (noChange) {
+    // "Xác nhận theo gợi ý" — chỉ ở bước AM: SL yêu cầu = gợi ý cho mọi dòng có gợi ý > 0.
+    if (action.editField !== 'sl_dat') return;
+    items = state.rows
+      .filter(r => Number(r.goi_y_dat || 0) > 0)
+      .map(r => ({ ma_bravo: r.ma_bravo, sl_dat: Number(r.goi_y_dat || 0), ghi_chu_dat: r.ghi_chu_dat || '' }));
+    if (!items.length) return;
+  } else {
+    items = Array.from(state.changes.entries()).map(([ma_bravo, v]) => {
+      const item = { ma_bravo };
+      item[action.editField] = Number(v[action.editField] || 0);
+      item[action.editNoteField] = v[action.editNoteField] || '';
+      return item;
+    });
+  }
+  const keepId = state.currentSession && state.currentSession.session_id;
+  $('#btnPlace').disabled = true;
+  $('#btnPlaceLabel').textContent = 'Đang lưu…';
+  try {
+    const res = await rpc(action.endpoint, keepId, items);
+    toast(`Đã ${action.label.toLowerCase()}: +${res.created} ~${res.updated} -${res.deleted}. Trạng thái → ${res.newStatus}`);
+    state.changes.clear();
+    await loadSessions();
+    await loadOrderData(keepId);   // ở lại đúng đợt vừa xác nhận, không nhảy sang đợt khác
+  } catch (e) {
+    toast(e.message, true);
+    $('#btnPlace').disabled = false;
+    updateDraftIndicator();
+  }
+}
+
+// ============ MÀN QUẢN LÝ ĐẶT HÀNG (LIST VIEW) ============
+async function initApprovalView() {
+  const isAM = state.user.role === 'AM' || state.user.role === 'SALE_MANAGER';
+  if (!canApprove() && !isAM && !isPurchasing()) { $('#main').innerHTML = '<div class="empty-state">Không có quyền</div>'; return; }
+  $('#mStatus').addEventListener('change', renderManageList);
+  if (isAM) {
+    // AM chỉ xem miền của mình — khoá bộ chọn miền, backend cũng đã giới hạn theo miền AM.
+    state.manageMien = state.user.mien;
+    const seg = $('#mMienSeg'); if (seg) seg.style.display = 'none';
+  } else {
+    $$('.mmien-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        $$('.mmien-btn').forEach(x => x.classList.toggle('active', x === b));
+        state.manageMien = b.dataset.mmien;
+        renderManageList();
+      });
+    });
+    state.manageMien = state.manageMien || 'ALL';
+  }
+  // Mua hàng: mặc định lọc "Đã duyệt" cho gọn (backend cũng chỉ trả APPROVED/CLOSED).
+  if (isPurchasing()) { const st = $('#mStatus'); if (st) st.value = 'APPROVED'; }
+  $('#mRefresh').addEventListener('click', async () => { await loadSessions(); renderManageList(); });
+  await renderManageList();
+}
+
+async function renderManageList() {
+  const host = $('#manageHost');
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200"><div class="loading-state">Đang tải…</div></div>`;
+  try {
+    const status = $('#mStatus').value;
+    const mien = state.manageMien || 'ALL';
+    const list = await rpc('listSessions', { mien: mien, status: status });
+    console.log('[renderManageList] received:', list);
+    if (!Array.isArray(list)) throw new Error(`Server trả về ${list === null ? 'null' : list === undefined ? 'undefined' : typeof list} thay vì array. Bạn đã Deploy NEW VERSION chưa?`);
+    if (!list.length) {
+      host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có đợt nào</div>`;
+      return;
+    }
+    const stLabel = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CLOSED: 'Đã chốt' };
+    const stCls = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CLOSED: 'st-close' };
+    const role = state.user.role;
+    const canPM = (role === 'PM' || role === 'ADMIN');       // duyệt/từ chối đợt SUBMITTED
+    const canMgr = (role === 'MANAGER' || role === 'ADMIN');  // duyệt/từ chối đợt PM_APPROVED
+    const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // đặt hàng (ghi DM/PO) đợt APPROVED
+    const canExport = (role === 'MANAGER' || role === 'ADMIN' || role === 'PURCHASING');
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+      <table class="dt">
+        <thead><tr>
+          <th>Đợt</th>
+          <th class="c">Miền</th>
+          <th>Ngày mở</th>
+          <th>Ngày yêu cầu</th>
+          <th>Ngày PM duyệt</th>
+          <th>Ngày Manager duyệt</th>
+          <th>Ngày đóng</th>
+          <th class="c">Trạng thái</th>
+          <th class="r">SKU · SL đặt</th>
+          <th class="r">SL duyệt</th>
+          <th class="r">SL đặt hàng</th>
+          <th class="c">Tác vụ</th>
+        </tr></thead>
+        <tbody>${list.map(s => {
+          const st = s.trang_thai;
+          // Đợt này người dùng có quyền phê duyệt/từ chối không?
+          const reviewable = (st === 'SUBMITTED' && canPM) || (st === 'PM_APPROVED' && canMgr);
+          let action = '';
+          if (reviewable) {
+            action += `<button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
+            action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
+            action += ` <button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem / Sửa</button>`;
+          } else {
+            action += `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
+          }
+          if (canExport && (st === 'APPROVED' || st === 'CLOSED')) {
+            action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
+          }
+          if (canPurchase && (st === 'APPROVED' || st === 'CLOSED')) {
+            action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
+          }
+          if (role === 'ADMIN' && st === 'APPROVED') {
+            action += ` <button class="ctl-btn" data-act="close" data-id="${s.session_id}">Chốt đợt</button>`;
+          }
+          const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
+          const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
+            ? `<div class="text-[10.5px] text-red-600 mt-1">↩ Bị từ chối${s.tu_choi_o_buoc ? ' ('+esc(s.tu_choi_o_buoc)+')' : ''}: ${esc(s.ly_do_tu_choi)}</div>`
+            : '';
+          const purchaseNote = (s.de_nghi_mua_hang || s.po)
+            ? `<div class="text-[10.5px] text-emerald-700 mt-1">🛒 DM: ${esc(s.de_nghi_mua_hang || '—')} · PO: ${esc(s.po || '—')}</div>`
+            : '';
+          return `<tr>
+            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}</div></td>
+            <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
+            <td class="text-slate-600">${fmtDate(s.ngay_mo)}</td>
+            <td class="text-slate-600">${fmtDate(s.ngay_yeu_cau) || '<span class="text-slate-300">—</span>'}</td>
+            <td class="text-slate-600">${fmtDate(s.ngay_pm_duyet) || '<span class="text-slate-300">—</span>'}</td>
+            <td class="text-slate-600">${fmtDate(s.ngay_manager_duyet) || '<span class="text-slate-300">—</span>'}</td>
+            <td class="text-slate-600">${fmtDate(s.ngay_dong) || '<span class="text-slate-300">—</span>'}</td>
+            <td class="c"><span class="pill ${stCls[st] || 'st-draft'}">${stLabel[st] || st}</span>${rejectNote}${purchaseNote}</td>
+            <td class="r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
+            <td class="r num text-blue-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
+            <td class="r num text-emerald-700">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
+            <td class="c">${action}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+    // Wire tác vụ
+    host.querySelectorAll('button[data-act]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const id = b.dataset.id;
+        const act = b.dataset.act;
+        if (act === 'open') {
+          // Switch sang tab Chi tiết với session này (PM/Manager: sửa cột của mình rồi "Xác nhận")
+          const targetMien = b.dataset.mien;
+          state.mien = targetMien;
+          state.pinnedSessionId = id;   // mở đúng đợt được chọn, không auto-pick
+          state.currentSession = state.sessions.find(s => s.session_id === id) || null;
+          $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === 'order'));
+          state.view = 'order';
+          renderView();
+        } else if (act === 'approve') {
+          if (!confirm('Phê duyệt nhanh đợt này? Số lượng giữ nguyên từ bước trước, đợt sẽ chuyển sang bước kế tiếp.')) return;
+          b.disabled = true;
+          try {
+            const r = await rpc('approveSession', id);
+            toast('Đã phê duyệt · trạng thái → ' + (r.newStatus || ''));
+            await loadSessions();
+            renderManageList();
+          } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
+        } else if (act === 'reject') {
+          const reason = prompt('Nhập lý do từ chối (bắt buộc). Đợt sẽ trả về AM để chỉnh sửa lại:');
+          if (reason === null) return;
+          if (!reason.trim()) { toast('Cần nhập lý do từ chối', true); return; }
+          b.disabled = true;
+          try {
+            await rpc('rejectSession', id, reason.trim());
+            toast('Đã từ chối · trả đợt về AM');
+            await loadSessions();
+            renderManageList();
+          } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
+        } else if (act === 'export') {
+          const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: 'dot', mien: '' };
+          await exportToExcel(sess);
+        } else if (act === 'purchase') {
+          const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
+          openPurchaseModal(sess);
+        } else if (act === 'close') {
+          if (!confirm('Chốt đợt này? Sẽ không sửa được nữa.')) return;
+          try {
+            await rpc('closeSession', id);
+            toast('Đã chốt đợt');
+            await loadSessions();
+            renderManageList();
+          } catch (e) { toast('Lỗi: ' + e.message, true); }
+        }
+      });
+    });
+  } catch (e) {
+    console.error('[renderManageList]', e);
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">Lỗi: ${esc(e.message)}</div>`;
+  }
+}
+
+// ============ MÀN CẤU HÌNH (chỉ admin) ============
+async function initConfigView() {
+  if (state.user.role !== 'ADMIN') {
+    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin mới truy cập được tab này</div>';
+    return;
+  }
+  try {
+    const cfg = await rpc('getConfig');
+    $('#cfgK1').value = cfg.k1;
+    $('#cfgK2').value = cfg.k2;
+    $('#cfgK3').value = cfg.k3;
+    $('#cfgSoThangDat').value = cfg.so_thang_dat_default;
+    updateCfgSumNote();
+  } catch (e) {
+    $('#cfgMsg').textContent = 'Lỗi tải cấu hình: ' + e.message;
+    $('#cfgMsg').className = 'text-[12px] text-red-600';
+  }
+
+  ['cfgK1', 'cfgK2', 'cfgK3'].forEach(id => {
+    $('#' + id).addEventListener('input', updateCfgSumNote);
+  });
+
+  $('#cfgSave').addEventListener('click', async () => {
+    const cfg = {
+      k1: parseFloat($('#cfgK1').value),
+      k2: parseFloat($('#cfgK2').value),
+      k3: parseFloat($('#cfgK3').value),
+      so_thang_dat_default: parseFloat($('#cfgSoThangDat').value),
+    };
+    if (isNaN(cfg.k1) || isNaN(cfg.k2) || isNaN(cfg.k3)) {
+      $('#cfgMsg').textContent = 'k1/k2/k3 phải là số';
+      $('#cfgMsg').className = 'text-[12px] text-red-600';
+      return;
+    }
+    try {
+      await rpc('saveConfig', cfg);
+      $('#cfgMsg').textContent = '✓ Đã lưu cấu hình lúc ' + new Date().toLocaleTimeString('vi-VN');
+      $('#cfgMsg').className = 'text-[12px] text-emerald-600';
+      toast('Đã lưu cấu hình. Cột Gợi ý sẽ cập nhật khi mở tab Chi tiết.');
+    } catch (e) {
+      $('#cfgMsg').textContent = 'Lỗi: ' + e.message;
+      $('#cfgMsg').className = 'text-[12px] text-red-600';
+    }
+  });
+
+  $('#cfgReset').addEventListener('click', () => {
+    $('#cfgK1').value = 0.4; $('#cfgK2').value = 0.4; $('#cfgK3').value = 0.2;
+    $('#cfgSoThangDat').value = 3;
+    updateCfgSumNote();
+  });
+}
+
+function updateCfgSumNote() {
+  const sum = (parseFloat($('#cfgK1').value) || 0) + (parseFloat($('#cfgK2').value) || 0) + (parseFloat($('#cfgK3').value) || 0);
+  const note = $('#cfgSumNote');
+  if (!note) return;
+  if (Math.abs(sum - 1) < 0.001) {
+    note.innerHTML = `<span class="text-emerald-600">Tổng k1+k2+k3 = ${sum.toFixed(2)} ✓</span>`;
+  } else {
+    note.innerHTML = `<span class="text-amber-700">Tổng k1+k2+k3 = ${sum.toFixed(2)} (khuyến nghị = 1.00)</span>`;
+  }
+}
+
+// ============ MÀN CẤU HÌNH DANH MỤC (chỉ admin) ============
+const CAT_RENDER_CAP = 600;
+const MUC_DO_OPTS = ['', 'Hay sử dụng', 'Ít sử dụng', 'Hiếm khi sử dụng'];
+
+async function initCatalogView() {
+  if (state.user.role !== 'ADMIN') {
+    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin mới truy cập được tab này</div>';
+    return;
+  }
+  state.catalog = [];
+  state.catalogDirty = new Map();
+  state.catFilter = { search: '', grp: '', onlySelected: false };
+
+  $('#catSearch').addEventListener('input', debounce(e => { state.catFilter.search = e.target.value.toLowerCase(); renderCatalogBody(); }, 200));
+  $('#catGrp').addEventListener('change', e => { state.catFilter.grp = e.target.value; renderCatalogBody(); });
+  $('#catOnlySel').addEventListener('change', e => { state.catFilter.onlySelected = e.target.checked; renderCatalogBody(); });
+  $('#catSelectAll').addEventListener('click', () => bulkSelectCatalog(true));
+  $('#catUnselectAll').addEventListener('click', () => bulkSelectCatalog(false));
+  $('#catSave').addEventListener('click', saveCatalog);
+
+  await loadCatalog();
+}
+
+async function loadCatalog() {
+  const host = $('#catalogHost');
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200"><div class="loading-state">Đang tải danh mục vật tư…</div></div>`;
+  try {
+    const list = await rpc('listCatalog');
+    state.catalog = Array.isArray(list) ? list : [];
+    const grps = [...new Set(state.catalog.map(r => r.nhom_san_pham).filter(Boolean))].sort();
+    $('#catGrp').innerHTML = '<option value="">Tất cả nhóm sản phẩm</option>' + grps.map(g => `<option>${esc(g)}</option>`).join('');
+    renderCatalogBody();
+  } catch (e) {
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">Lỗi tải danh mục: ${esc(e.message)}</div>`;
+  }
+}
+
+function catEffective(r) {
+  const d = state.catalogDirty.get(r.ma_bravo) || {};
+  return {
+    dat_hang: d.dat_hang !== undefined ? d.dat_hang : r.dat_hang,
+    muc_do_sd: d.muc_do_sd !== undefined ? d.muc_do_sd : r.muc_do_sd,
+  };
+}
+
+function filteredCatalog() {
+  const f = state.catFilter;
+  return state.catalog.filter(r => {
+    if (f.grp && r.nhom_san_pham !== f.grp) return false;
+    if (f.onlySelected && !catEffective(r).dat_hang) return false;
+    if (f.search) {
+      const hay = ((r.ma_bravo || '') + ' ' + (r.code_ncc || '') + ' ' + (r.ten_hang || '')).toLowerCase();
+      if (!hay.includes(f.search)) return false;
+    }
+    return true;
+  });
+}
+
+function markCatDirty(ma, field, value) {
+  const r = state.catalog.find(x => x.ma_bravo === ma);
+  if (!r) return;
+  const cur = state.catalogDirty.get(ma) || {};
+  cur[field] = value;
+  const effDat = cur.dat_hang !== undefined ? cur.dat_hang : r.dat_hang;
+  const effMuc = cur.muc_do_sd !== undefined ? cur.muc_do_sd : r.muc_do_sd;
+  if (effDat === r.dat_hang && effMuc === r.muc_do_sd) state.catalogDirty.delete(ma);
+  else state.catalogDirty.set(ma, cur);
+}
+
+function updateCatHeader() {
+  const selectedTotal = state.catalog.filter(r => catEffective(r).dat_hang).length;
+  $('#catCounter').textContent = `Đã chọn ${fmt(selectedTotal)} / ${fmt(state.catalog.length)} · đang lọc ${fmt(filteredCatalog().length)}`;
+  const btn = $('#catSave');
+  btn.disabled = state.catalogDirty.size === 0;
+  btn.textContent = state.catalogDirty.size ? `Lưu thay đổi (${state.catalogDirty.size})` : 'Lưu thay đổi';
+}
+
+function renderCatalogBody() {
+  const host = $('#catalogHost');
+  const all = filteredCatalog();
+  updateCatHeader();
+  if (!all.length) {
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có vật tư phù hợp bộ lọc</div>`;
+    return;
+  }
+  const rows = all.slice(0, CAT_RENDER_CAP);
+  const capNote = all.length > CAT_RENDER_CAP
+    ? `<div class="px-4 py-2 text-[12px] text-amber-700 bg-amber-50 border-b border-amber-100">Hiển thị ${CAT_RENDER_CAP}/${fmt(all.length)} dòng — lọc bớt để xem hết. ("Chọn tất cả đang lọc" vẫn áp cho toàn bộ ${fmt(all.length)} dòng.)</div>`
+    : '';
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+    ${capNote}
+    <table class="dt">
+      <thead><tr>
+        <th class="c" style="width:64px">Đặt hàng</th>
+        <th style="width:130px">Mã Bravo</th>
+        <th style="width:120px">Mã NCC</th>
+        <th style="min-width:240px">Tên vật tư</th>
+        <th style="width:140px">Sản phẩm</th>
+        <th style="width:130px">Phân loại 1</th>
+        <th style="width:130px">Phân loại 2</th>
+        <th class="r" style="width:110px">Đơn giá thầu</th>
+        <th class="c" style="width:150px">Mức độ SD</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const eff = catEffective(r);
+        const dirty = state.catalogDirty.has(r.ma_bravo);
+        return `<tr class="${dirty ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}">
+          <td class="c"><input type="checkbox" data-cat-chk="${esc(r.ma_bravo)}" ${eff.dat_hang ? 'checked' : ''}/></td>
+          <td class="font-mono text-[11px] text-slate-700 nowrap">${esc(r.ma_bravo)}</td>
+          <td class="font-mono text-[11px] text-slate-500 nowrap">${esc(r.code_ncc || '—')}</td>
+          <td class="text-slate-800">${esc(r.ten_hang || '')}</td>
+          <td class="text-slate-600 text-[12px]">${esc(r.san_pham || '—')}</td>
+          <td class="text-slate-600 text-[12px]">${esc(r.phan_loai_1 || '—')}</td>
+          <td class="text-slate-600 text-[12px]">${esc(r.phan_loai_2 || '—')}</td>
+          <td class="r num text-slate-600">${fmt(r.gia)}</td>
+          <td class="c"><select class="ctl-select" data-cat-muc="${esc(r.ma_bravo)}" style="width:100%">
+            ${MUC_DO_OPTS.map(o => `<option value="${esc(o)}" ${eff.muc_do_sd === o ? 'selected' : ''}>${o || '—'}</option>`).join('')}
+          </select></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>`;
+  bindCatalogInputs();
+}
+
+function bindCatalogInputs() {
+  $$('#catalogHost input[data-cat-chk]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const ma = chk.dataset.catChk;
+      markCatDirty(ma, 'dat_hang', chk.checked);
+      chk.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
+      updateCatHeader();
+    });
+  });
+  $$('#catalogHost select[data-cat-muc]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const ma = sel.dataset.catMuc;
+      markCatDirty(ma, 'muc_do_sd', sel.value);
+      sel.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
+      updateCatHeader();
+    });
+  });
+}
+
+function bulkSelectCatalog(value) {
+  const all = filteredCatalog();
+  if (!all.length) return;
+  if (!confirm(`${value ? 'Chọn' : 'Bỏ chọn'} ${all.length} vật tư đang lọc?`)) return;
+  all.forEach(r => markCatDirty(r.ma_bravo, 'dat_hang', value));
+  renderCatalogBody();
+}
+
+async function saveCatalog() {
+  if (state.catalogDirty.size === 0) return;
+  const changes = Array.from(state.catalogDirty.entries()).map(([ma_bravo, v]) => ({ ma_bravo, ...v }));
+  const btn = $('#catSave');
+  btn.disabled = true; btn.textContent = 'Đang lưu…';
+  try {
+    const res = await rpcOpts({ timeoutMs: 60000 }, 'saveCatalog', changes);
+    toast(`Đã lưu ${res.updated} vật tư vào danh mục đặt hàng`);
+    changes.forEach(c => {
+      const r = state.catalog.find(x => x.ma_bravo === c.ma_bravo);
+      if (r) {
+        if (c.dat_hang !== undefined) r.dat_hang = c.dat_hang;
+        if (c.muc_do_sd !== undefined) r.muc_do_sd = c.muc_do_sd;
+      }
+    });
+    state.catalogDirty.clear();
+    renderCatalogBody();
+  } catch (e) {
+    toast(e.message, true);
+    updateCatHeader();
+  }
+}
+
+function filteredApprovalRows() {
+  const grp = $('#aGrp').value;
+  const who = $('#aWho').value;
+  const st = $('#aStatus').value;
+  return state.approvalRows.filter(r => {
+    if (grp && r.nhom_hang !== grp) return false;
+    if (who && r.requester_name !== who) return false;
+    const dirty = state.approvalDirty.get(r.item_id);
+    const slDuyet = dirty ? dirty.sl_duyet : r.sl_duyet;
+    if (st === 'PENDING' && slDuyet != null) return false;
+    if (st === 'DONE' && slDuyet == null) return false;
+    return true;
+  });
+}
+
+function renderApprovalBody() {
+  const rows = filteredApprovalRows();
+  const host = $('#approvalTableHost');
+  if (!rows.length) {
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có dòng nào phù hợp</div>`;
+    updateApprovalStats();
+    return;
+  }
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+    <table class="dt">
+      <thead><tr>
+        <th class="c" style="width:40px"><input type="checkbox" id="aAll"/></th>
+        <th>SKU / người đặt</th>
+        <th>Tên hàng</th>
+        <th>Tồn · LK</th>
+        <th class="c">Gợi ý</th>
+        <th class="c">SL đặt</th>
+        <th class="c">SL duyệt</th>
+        <th>Ghi chú</th>
+      </tr></thead>
+      <tbody>${rows.map(approvalRowHtml).join('')}</tbody>
+    </table>
+  </div>`;
+  bindApprovalInputs();
+  updateApprovalStats();
+}
+
+function approvalRowHtml(r) {
+  const dirty = state.approvalDirty.get(r.item_id);
+  const slApp = dirty ? dirty.sl_duyet : r.sl_duyet;
+  const note = dirty ? dirty.ghi_chu_duyet : r.ghi_chu_duyet;
+  const inputVal = slApp == null ? '' : slApp;
+  const diff = slApp != null && Number(slApp) !== Number(r.sl_dat);
+  const delta = diff ? `<span class="ml-1 text-[11px] font-medium ${slApp < r.sl_dat ? 'text-red-600' : 'text-emerald-700'}">${slApp - r.sl_dat > 0 ? '+' : ''}${slApp - r.sl_dat}</span>` : '';
+  return `<tr class="${dirty ? 'dirty' : ''}">
+    <td class="c"><input type="checkbox" data-app-id="${esc(r.item_id)}"/></td>
+    <td>
+      <div class="font-mono text-[11px] text-slate-700">${esc(r.ma_bravo)}</div>
+      <div class="flex items-center gap-1.5 mt-1">
+        <div class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[9px] font-medium">${esc(r.requester_initials || '?')}</div>
+        <span class="text-[11px] text-slate-500">${esc(r.requester_name || '')}</span>
+      </div>
+    </td>
+    <td><div class="font-medium text-slate-800">${esc(r.ten_hang || '')}</div><div class="text-[11px] text-slate-500">${esc(r.nhom_hang || '')} · ${esc(r.phan_loai || '')}</div></td>
+    <td class="num text-slate-600">${r.tong_ton} · ${r.tb_ytd}</td>
+    <td class="c num"><span class="font-bold text-blue-700">${r.goi_y_dat}</span></td>
+    <td class="c num font-semibold text-slate-800 text-[13px]">${r.sl_dat}</td>
+    <td class="c">
+      <input type="number" min="0" class="qty-input ${diff ? 'dirty' : ''}" value="${inputVal}" data-app-id="${esc(r.item_id)}" data-field="sl_duyet"/>
+      ${delta}
+    </td>
+    <td>
+      <div class="text-[11px] text-slate-500 italic mb-1">${esc(r.ghi_chu_dat || '—')}</div>
+      <input type="text" class="note-input" placeholder="Ghi chú duyệt…" value="${esc(note || '')}" data-app-id="${esc(r.item_id)}" data-field="ghi_chu_duyet"/>
+    </td>
+  </tr>`;
+}
+
+function bindApprovalInputs() {
+  $$('#approvalTableHost input[data-app-id][data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const id = inp.dataset.appId;
+      const field = inp.dataset.field;
+      const r = state.approvalRows.find(x => x.item_id === id);
+      if (!r) return;
+      const existing = state.approvalDirty.get(id) || { sl_duyet: r.sl_duyet, ghi_chu_duyet: r.ghi_chu_duyet || '' };
+      existing[field] = field === 'sl_duyet' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
+      state.approvalDirty.set(id, existing);
+      renderApprovalBody();
+    });
+  });
+}
+
+function updateApprovalStats() {
+  const all = state.approvalRows;
+  const merged = all.map(r => {
+    const d = state.approvalDirty.get(r.item_id);
+    return { ...r, sl_duyet: d ? d.sl_duyet : r.sl_duyet };
+  });
+  $('#approvalStats').innerHTML = [
+    statCard({ label: 'SKU đã đặt', value: fmt(all.length), sub: 'trong đợt', accent: 'slate' }),
+    statCard({ label: 'SL đặt', value: fmt(all.reduce((s, r) => s + Number(r.sl_dat || 0), 0)), sub: 'từ sale', accent: 'slate' }),
+    statCard({ label: 'SL duyệt', value: fmt(merged.reduce((s, r) => s + Number(r.sl_duyet || 0), 0)), sub: 'đã + đang', accent: 'blue' }),
+    statCard({ label: 'Đã duyệt', value: fmt(merged.filter(r => r.sl_duyet != null).length), sub: 'số SKU', accent: 'emerald' }),
+    statCard({ label: 'Còn lại', value: fmt(merged.filter(r => r.sl_duyet == null).length), sub: 'chờ duyệt', accent: 'amber' }),
+  ].join('');
+  $('#aSaveApproval').disabled = state.approvalDirty.size === 0;
+}
+
+function bulkApprove(kind) {
+  const checked = $$('#approvalTableHost input[type=checkbox][data-app-id]:checked').map(c => c.dataset.appId);
+  const ids = checked.length ? checked : filteredApprovalRows().map(r => r.item_id);
+  ids.forEach(id => {
+    const r = state.approvalRows.find(x => x.item_id === id);
+    if (!r) return;
+    state.approvalDirty.set(id, {
+      sl_duyet: kind === 'requested' ? r.sl_dat : r.goi_y_dat,
+      ghi_chu_duyet: (state.approvalDirty.get(id) || {}).ghi_chu_duyet || r.ghi_chu_duyet || '',
+    });
+  });
+  renderApprovalBody();
+}
+
+async function saveApproval() {
+  if (state.approvalDirty.size === 0) return;
+  const approvals = Array.from(state.approvalDirty.entries()).map(([item_id, v]) => ({
+    item_id, sl_duyet: v.sl_duyet || 0, ghi_chu_duyet: v.ghi_chu_duyet || '',
+  }));
+  $('#aSaveApproval').disabled = true;
+  try {
+    const res = await rpc('approveItems', state.currentSession.session_id, approvals);
+    toast(`Đã duyệt ${res.count} SKU`);
+    state.approvalDirty.clear();
+    await loadApprovalData();
+  } catch (e) {
+    toast(e.message, true);
+    $('#aSaveApproval').disabled = false;
+  }
+}
+
+async function closeSessionAction() {
+  if (!confirm('Chốt đợt sẽ khoá toàn bộ chỉnh sửa. Tiếp tục?')) return;
+  try {
+    await rpc('closeSession', state.currentSession.session_id);
+    toast('Đã chốt đợt');
+    await loadSessions();
+    await initApprovalView();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ============ MÀN NHẬT KÝ ============
+const ACTION_LABELS = {
+  LOGIN: 'Đăng nhập', LOGOUT: 'Đăng xuất',
+  PLACE_ORDER: 'Đặt hàng', PLACE_ORDER_BUSY: 'Bị khoá',
+  APPROVE: 'Duyệt SKU', CLOSE_SESSION: 'Chốt đợt', CREATE_SESSION: 'Tạo đợt',
+  CONFIG_CATALOG: 'Cấu hình danh mục', SAVE_CONFIG: 'Cấu hình công thức',
+  AM_CONFIRM: 'AM xác nhận', PM_CONFIRM: 'PM xác nhận', PM_APPROVE: 'PM phê duyệt',
+  MANAGER_APPROVE: 'Manager phê duyệt', REJECT: 'Từ chối', EXPORT: 'Xuất Excel', PURCHASE: 'Đặt hàng (DM/PO)',
+};
+
+async function initAuditView() {
+  $('#lAction').addEventListener('change', renderAudit);
+  $('#lSearch').addEventListener('input', debounce(renderAudit, 300));
+  $('#lRefresh').addEventListener('click', renderAudit);
+  await renderAudit();
+}
+
+function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
+
+async function renderAudit() {
+  const host = $('#auditHost');
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200"><div class="loading-state">Đang tải…</div></div>`;
+  let rawResponse;
+  try {
+    rawResponse = await rpc('loadAuditLog', { action: $('#lAction').value, username: $('#lSearch').value, limit: 200 });
+    console.log('[renderAudit] received:', rawResponse, 'type:', typeof rawResponse, 'isArray:', Array.isArray(rawResponse));
+    const logs = rawResponse;
+    if (!Array.isArray(logs)) {
+      throw new Error(`Server trả về ${logs === null ? 'null' : logs === undefined ? 'undefined' : typeof logs}. Xem Apps Script Executions panel để biết chi tiết bước nào fail.`);
+    }
+    if (!logs.length) {
+      host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Chưa có log
+        <div class="mt-3"><button id="auditPingBtn" class="ctl-btn">Test ping server</button></div>
+      </div>`;
+      bindAuditPing();
+      return;
+    }
+
+    // Lấy meta resolve riêng (ho_ten / ten_dot / mien) — nếu fail thì hiển thị thô
+    let meta = { userMap: {}, sessMap: {} };
+    try {
+      meta = await rpc('resolveAuditMeta');
+      console.log('[renderAudit] meta:', meta);
+    } catch (e) {
+      console.warn('resolveAuditMeta fail, hiển thị thô:', e);
+    }
+
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+      <table class="dt">
+        <thead><tr>
+          <th>Thời gian</th><th>Người dùng</th><th>Thao tác</th><th>Đợt</th><th>Chi tiết</th>
+        </tr></thead>
+        <tbody>${logs.map(l => {
+          const cls = l.action === 'PLACE_ORDER_BUSY' ? 'pill-hot'
+                    : (l.action === 'APPROVE' || l.action === 'CLOSE_SESSION') ? 'pill-mid'
+                    : (l.action === 'LOGIN' || l.action === 'PLACE_ORDER') ? 'pill-ok'
+                    : 'pill-low';
+          const ho_ten = (meta.userMap && meta.userMap[l.username.toLowerCase()]) || l.username;
+          const sess = (meta.sessMap && meta.sessMap[l.session_id]) || {};
+          const ten_dot = sess.ten_dot || '';
+          const mien = sess.mien || '';
+          return `<tr>
+            <td class="text-slate-600">${fmtDate(l.timestamp)}</td>
+            <td><div class="font-medium text-slate-800">${esc(ho_ten)}</div><div class="text-[11px] text-slate-400">${esc(l.username)}</div></td>
+            <td><span class="pill ${cls}">${esc(ACTION_LABELS[l.action] || l.action)}</span></td>
+            <td class="text-slate-600">${esc(ten_dot || '—')}${mien ? ' · ' + mien : ''}</td>
+            <td class="text-slate-500 text-[11.5px]">${esc(l.detail || '')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+  } catch (e) {
+    console.error('[renderAudit] error:', e, 'rawResponse was:', rawResponse);
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">
+      <div class="font-medium mb-2">Lỗi: ${esc(e.message)}</div>
+      <button id="auditPingBtn" class="ctl-btn">Test ping server</button>
+      <div class="text-[11px] text-slate-400 mt-3">Bấm Test ping → nếu OK thì server deploy đúng. Lỗi là trong loadAuditLog — xem Apps Script Executions panel.</div>
+    </div>`;
+    bindAuditPing();
+  }
+}
+
+function bindAuditPing() {
+  const btn = document.getElementById('auditPingBtn');
+  if (!btn) return;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Đang test…';
+    try {
+      const r = await rpc('auditPing');
+      console.log('[auditPing] result:', r);
+      if (Array.isArray(r) && r.length > 0) {
+        alert('✓ Deploy server OK!\n\nNhận được:\n' + JSON.stringify(r, null, 2) + '\n\nNếu loadAuditLog vẫn lỗi → vấn đề trong code function. Xem Apps Script Executions.');
+      } else {
+        alert('✗ auditPing trả về: ' + JSON.stringify(r) + '\n\nĐiều này CHỨNG TỎ deploy CHƯA cập nhật code mới. Bạn cần Deploy → Manage deployments → Edit → New version.');
+      }
+    } catch (e) {
+      alert('✗ auditPing throw error: ' + e.message + '\n\nHàm auditPing chưa tồn tại = chưa deploy. Hoặc lỗi auth.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Test ping server';
+    }
+  };
+}
+
+// ============ MODAL TẠO ĐỢT ============
+function openCreateSessionModal() {
+  const modal = $('#modalCreateSession');
+  modal.classList.remove('hidden');
+  $('#modalSessName').value = '';
+  $('#modalSessClose').value = '';
+  $('#modalErr').textContent = '';
+
+  // Hiển thị thông báo phù hợp role
+  const role = state.user.role;
+  const noteEl = $('#modalNote');
+  if (noteEl) {
+    if (role === 'AM') {
+      noteEl.innerHTML = `Đợt sẽ được tạo riêng cho miền <strong>${state.user.mien}</strong> (miền của bạn).`;
+      noteEl.className = 'bg-blue-50 border border-blue-100 rounded-md p-3 text-[12px] text-blue-800 mb-4';
+    } else {
+      noteEl.innerHTML = `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.`;
+      noteEl.className = 'bg-emerald-50 border border-emerald-100 rounded-md p-3 text-[12px] text-emerald-800 mb-4';
+    }
+  }
+  setTimeout(() => $('#modalSessName').focus(), 50);
+
+  const close = () => modal.classList.add('hidden');
+  $('#modalClose').onclick = close;
+  $('#modalCancel').onclick = close;
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+
+  $('#modalSubmit').onclick = async () => {
+    const name = $('#modalSessName').value.trim();
+    if (!name) { $('#modalErr').textContent = 'Vui lòng nhập tên đợt'; return; }
+    const ngayDong = $('#modalSessClose').value;
+    const btn = $('#modalSubmit');
+    btn.disabled = true; btn.textContent = 'Đang tạo…';
+    try {
+      let toastMsg;
+      if (role === 'AM') {
+        await rpc('createSession', name, state.user.mien, ngayDong || '');
+        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}`;
+        // AM luôn ở miền của mình, không cần switch
+      } else {
+        await rpc('createSessionBoth', name, ngayDong || '');
+        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền`;
+        // Khi đang xem 'ALL', switch về MB để hiển thị đợt MB mới tạo
+        if (state.mien === 'ALL') {
+          state.mien = 'MB';
+          $$('.mien-btn').forEach(x => x.classList.toggle('active', x.dataset.mien === 'MB'));
+        }
+      }
+      toast(toastMsg);
+      close();
+      await loadSessions();
+      renderView();
+    } catch (e) {
+      $('#modalErr').textContent = e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Tạo đợt';
+    }
+  };
+}
+
+// ============ MODAL ĐẶT HÀNG (MUA HÀNG) ============
+function openPurchaseModal(sess) {
+  const modal = $('#modalPurchase');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  const full = state.sessions.find(s => s.session_id === sess.session_id) || sess;
+  $('#pmDM').value = full.de_nghi_mua_hang || '';
+  $('#pmPO').value = full.po || '';
+  $('#pmErr').textContent = '';
+  const noteEl = $('#pmNote');
+  if (noteEl) {
+    noteEl.innerHTML = `Ghi thông tin mua hàng cho đợt <strong>${esc(full.ten_dot || '')}</strong>`
+      + (full.mien ? ` (miền <strong>${full.mien === 'MB' ? 'Bắc' : full.mien === 'MN' ? 'Nam' : full.mien}</strong>)` : '') + '.';
+  }
+  setTimeout(() => $('#pmDM').focus(), 50);
+
+  const close = () => modal.classList.add('hidden');
+  $('#pmClose').onclick = close;
+  $('#pmCancel').onclick = close;
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+
+  $('#pmSubmit').onclick = async () => {
+    const dm = $('#pmDM').value.trim();
+    const po = $('#pmPO').value.trim();
+    if (!dm && !po) { $('#pmErr').textContent = 'Nhập ít nhất Đề nghị mua hàng hoặc số PO'; return; }
+    const btn = $('#pmSubmit');
+    btn.disabled = true; btn.textContent = 'Đang lưu…';
+    try {
+      await rpc('recordPurchase', sess.session_id, dm, po);
+      toast('Đã ghi thông tin đặt hàng (DM/PO)');
+      close();
+      await loadSessions();
+      renderManageList();
+    } catch (e) {
+      $('#pmErr').textContent = e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Xác nhận';
+    }
+  };
+}
+</script>
+</body>
+</html>
