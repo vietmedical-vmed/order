@@ -151,7 +151,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
   position: relative;
   left: auto !important;
   transform: translateX(var(--sx, 0px));
-  z-index: 3;
+  z-index: 30;
 }
 /* left offset lấy từ CSS var (JS tính theo bề rộng thực); có fallback theo width khai báo */
 .group-body .dt thead th:nth-child(1),
@@ -166,10 +166,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .group-body .dt thead th:nth-child(4),
 .group-body .dt tbody td:nth-child(4),
 .floating-thead-container thead th:nth-child(4) { left: var(--l4, 272px); }
-/* z-index: góc header (dính cả 2 trục) > cột body dính > header thường (=10) */
+/* z-index: cột đông cứng phải > cột cuộn ở MỌI ngữ cảnh.
+   Clone thead cũng mang class .dt nên ô cột cuộn thừa hưởng z-index:10 từ ".dt thead th";
+   ô cột đông cứng của clone vì thế PHẢI cao hơn 10, nếu không cột cuộn sẽ đè lên khi cuộn ngang. */
 .group-body .dt tbody td:nth-child(-n+4) { z-index: 5; }
 .group-body .dt thead th:nth-child(-n+4) { z-index: 20; }
-.floating-thead-container thead th:nth-child(-n+4) { z-index: 3; }
+.floating-thead-container thead th:nth-child(-n+4) { z-index: 30; }
 /* Nền cột đông cứng phải khớp trạng thái từng dòng (nếu trong suốt sẽ lộ nội dung cuộn phía sau) */
 .group-body .dt tbody td:nth-child(-n+4) { background: #fff; }
 .group-body .dt tbody tr:hover td:nth-child(-n+4) { background: #f0f2f5; }
@@ -1922,7 +1924,7 @@ async function renderManageList() {
     const stLabel = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CLOSED: 'Đã chốt' };
     const stCls = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CLOSED: 'st-close' };
     const role = state.user.role;
-    const canPM = (role === 'PM' || role === 'ADMIN');       // duyệt/từ chối đợt SUBMITTED
+    const canPM = (role === 'PM' || role === 'ADMIN');       // duyệt đợt SUBMITTED (PM không còn từ chối)
     const canMgr = (role === 'MANAGER' || role === 'ADMIN');  // duyệt/từ chối đợt PM_APPROVED
     const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // đặt hàng (ghi DM/PO) đợt APPROVED
     const canExport = (role === 'MANAGER' || role === 'ADMIN' || role === 'PURCHASING');
@@ -1944,24 +1946,27 @@ async function renderManageList() {
         </tr></thead>
         <tbody>${list.map(s => {
           const st = s.trang_thai;
-          // Đợt này người dùng có quyền phê duyệt/từ chối không?
+          // Đợt này người dùng có quyền phê duyệt không?
           const reviewable = (st === 'SUBMITTED' && canPM) || (st === 'PM_APPROVED' && canMgr);
+          // Từ chối CHỈ còn ở bước Manager (PM_APPROVED). Đã bỏ luồng PM từ chối AM.
+          const canReject = (st === 'PM_APPROVED' && canMgr);
+          // Thứ tự nút: Xem/Sửa · Phê duyệt · Từ chối · Chốt đợt · Nhập thông tin (Đặt hàng) · Xuất Excel
           let action = '';
+          action += `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">${reviewable ? 'Xem / Sửa' : 'Xem'}</button>`;
           if (reviewable) {
-            action += `<button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
-            action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
-            action += ` <button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem / Sửa</button>`;
-          } else {
-            action += `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
+            action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
           }
-          if (canExport && (st === 'APPROVED' || st === 'CLOSED')) {
-            action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
+          if (canReject) {
+            action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
+          }
+          if (role === 'ADMIN' && st === 'APPROVED') {
+            action += ` <button class="ctl-btn" data-act="close" data-id="${s.session_id}">Chốt đợt</button>`;
           }
           if (canPurchase && (st === 'APPROVED' || st === 'CLOSED')) {
             action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
           }
-          if (role === 'ADMIN' && st === 'APPROVED') {
-            action += ` <button class="ctl-btn" data-act="close" data-id="${s.session_id}">Chốt đợt</button>`;
+          if (canExport && (st === 'APPROVED' || st === 'CLOSED')) {
+            action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
           }
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
