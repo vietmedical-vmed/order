@@ -208,56 +208,30 @@ async function resolveStockCycledate(
 // Hàng đi đường + Hàng ký gửi: bảng logistics_input (nhập tay từ Excel, tạm thời).
 // ngayMo = ngày mở đợt: chốt tồn kho theo cycledate mới nhất < ngày này để không lấy nhầm log mở sau.
 async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string | null) {
-  const map: Record<string, any> = {};
-  if (mien === "ALL") {
-    const [mb, mn] = await Promise.all([stockMapFor(supa, "MB", ngayMo), stockMapFor(supa, "MN", ngayMo)]);
-    return mergeStock(mb, mn);
-  }
+  // Aggregate DA/GU + logistics ngay trong DB (stock_agg) -> 1 RPC thay cho hàng chục
+  // request phân trang. Cycledate hiệu lực được chốt bên trong hàm SQL.
+  const { data, error } = await supa.rpc("stock_agg", { p_mien: mien, p_ngaymo: ngayMo ?? null });
+  if (error) throw new Error("Đọc stock (stock_agg): " + error.message);
 
-  // Cycledate hiệu lực cho miền này (mới nhất < ngày mở đợt, hoặc mới nhất tuyệt đối nếu không có đợt).
-  const cycledate = await resolveStockCycledate(supa, mien, ngayMo);
-
-  // stock: mỗi dòng = (ma_bravo, mien, warehousetype, quantity, cycledate). Gom quantity theo warehousetype.
-  // Lọc đúng 1 cycledate để không cộng dồn nhiều log. Phân trang vì stock có thể >1000 dòng.
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    let sq = supa.from("stock").select("ma_bravo, warehousetype, quantity")
-      .in("mien", mienVariants(mien));
-    if (cycledate) sq = sq.eq("cycledate", cycledate);
-    const { data, error } = await sq.range(from, from + PAGE - 1);
-    if (error) throw new Error("Đọc stock: " + error.message);
-    const batch = data || [];
-    for (const r of batch) {
-      const ma = r.ma_bravo;
-      if (!ma) continue;
-      const row = map[ma] ||
-        (map[ma] = { ton_kho: 0, hang_vet_thau: 0, hang_ktv_bv: 0, hang_di_duong: 0 });
-      // warehousetype có thể là 'DA'/'GU' gọn hoặc 'SG.05.06.DA' có tiền tố kho -> lấy đuôi.
-      const wtRaw = String(r.warehousetype || "").trim().toUpperCase();
-      const wt = wtRaw.includes(".") ? wtRaw.split(".").pop()! : wtRaw;
-      const q = num(r.quantity);
-      if (wt === "DA") row.ton_kho += q;            // tồn kho đạt chất lượng
-      else if (wt === "GU") row.hang_vet_thau += q; // hàng gửi = vét thầu
-      // warehousetype khác (nếu có) không tính vào tồn kho / vét thầu
+  const buildOne = (rows: any[]) => {
+    const map: Record<string, any> = {};
+    for (const r of rows) {
+      const ton_kho = num(r.ton_kho), hang_vet_thau = num(r.hang_vet_thau);
+      const hang_ktv_bv = num(r.hang_ktv_bv), hang_di_duong = num(r.hang_di_duong);
+      map[r.ma_bravo] = {
+        ton_kho, hang_vet_thau, hang_ktv_bv, hang_di_duong,
+        tong_ton: ton_kho + hang_ktv_bv + hang_di_duong - hang_vet_thau,
+      };
     }
-    if (batch.length < PAGE) break;
-  }
+    return map;
+  };
 
-  const { data: lg, error: e2 } = await supa
-    .from("logistics_input").select("ma_bravo, hang_di_duong, hang_ktv_bv").in("mien", mienVariants(mien));
-  if (e2) throw new Error("Đọc logistics_input: " + e2.message);
-  (lg || []).forEach((r) => {
-    const row = map[r.ma_bravo] ||
-      (map[r.ma_bravo] = { ton_kho: 0, hang_vet_thau: 0, hang_ktv_bv: 0, hang_di_duong: 0 });
-    row.hang_di_duong = num(r.hang_di_duong);
-    row.hang_ktv_bv = num(r.hang_ktv_bv);
-  });
-
-  for (const k of Object.keys(map)) {
-    const s = map[k];
-    s.tong_ton = s.ton_kho + s.hang_ktv_bv + s.hang_di_duong - s.hang_vet_thau;
+  if (mien === "ALL") {
+    const mb: any[] = [], mn: any[] = [];
+    for (const r of (data || [])) (r.mien === "MN" ? mn : mb).push(r);
+    return mergeStock(buildOne(mb), buildOne(mn));   // ghép 2 miền + tính lại tong_ton
   }
-  return map;
+  return buildOne(data || []);
 }
 
 // Ngày cycledate mới nhất trong bảng stock (dùng cho chú thích "tồn kho cập nhật đến…").
@@ -267,105 +241,46 @@ async function latestCycledate(supa: SupabaseClient): Promise<string> {
   return data && data.cycledate ? String(data.cycledate).slice(0, 10) : "";
 }
 
-// ---------- usage đọc trực tiếp từ bảng sv ----------
+// ---------- usage đọc từ bảng sv qua RPC usage_agg ----------
 // sv: { month, item_code, quantity, area }  — area = miền ('MB' | 'MN')
-type YM = { y: number; mo: number };
-
-function ymOf(v: any): YM | null {
-  if (v == null) return null;
-  const m = String(v).match(/^(\d{4})-(\d{1,2})/);   // 'YYYY-MM' / 'YYYY-MM-DD' / ISO
-  if (m) return { y: +m[1], mo: +m[2] };
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1 };
-}
-
-// CKNT: 3 tháng tiến tới tính từ tháng hiện tại, của NĂM NGOÁI (có xử lý vắt năm).
-function caKyWindow(Y: number, M: number): Set<string> {
-  const set = new Set<string>();
-  let yr = Y - 1, mo = M;
-  for (let k = 0; k < 3; k++) {
-    if (mo > 12) { mo -= 12; yr += 1; }
-    set.add(yr + "-" + mo);
-    mo += 1;
-  }
-  return set;
-}
-
-// Map ma_bravo -> san_pham (cho %SD), lấy toàn bộ dm_vat_tu (không chỉ dat_hang).
-async function loadSanPhamMap(supa: SupabaseClient): Promise<Record<string, string>> {
-  const map: Record<string, string> = {};
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supa
-      .from("dm_vat_tu").select("ma_bravo, san_pham").range(from, from + PAGE - 1);
-    if (error) throw new Error("Đọc dm_vat_tu(san_pham): " + error.message);
-    const batch = data || [];
-    for (const r of batch) map[r.ma_bravo] = r.san_pham || "";
-    if (batch.length < PAGE) break;
-  }
-  return map;
-}
-
-async function usageMapFor(supa: SupabaseClient, mien: string, spMap?: Record<string, string>) {
-  const sanPham = spMap || await loadSanPhamMap(supa);
-  if (mien === "ALL") {
-    const [mb, mn] = await Promise.all([usageMapFor(supa, "MB", sanPham), usageMapFor(supa, "MN", sanPham)]);
-    return mergeUsage(mb, mn);
-  }
-
+// YTD / CKNT (cửa sổ 3 tháng vắt năm) / tổng năm được tính trong SQL (xem usage_agg).
+//
+// usage_agg trả per (mien, item_code) các tổng THÔ + san_pham; phần chia trung bình /
+// %SD / làm tròn giữ nguyên ở JS như logic cũ nên số hiển thị không đổi.
+async function usageMapFor(supa: SupabaseClient, mien: string) {
   const now = new Date();
   const Y = now.getFullYear(), M = now.getMonth() + 1;
+  const { data, error } = await supa.rpc("usage_agg", { p_mien: mien, p_y: Y, p_m: M });
+  if (error) throw new Error("Đọc sv (usage_agg): " + error.message);
   const ytdMonths = Math.max(0, M - 1);        // 2026-07 -> 6 (T01..T06)
-  const cknt = caKyWindow(Y, M);
-  const minMonth = (Y - 1) + "-01";            // chỉ cần từ T01 năm ngoái trở đi
 
-  // Đọc sv theo miền (chỉ 3 cột cần), phân trang
-  const rows: any[] = [];
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supa
-      .from("sv").select("item_code, quantity, month").in("area", mienVariants(mien))
-      .gte("month", minMonth)
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error("Đọc sv: " + error.message);
-    const batch = data || [];
-    rows.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-
-  const perItem: Record<string, { ytd: number; cknt: number; year: number }> = {};
-  const perProdYear: Record<string, number> = {};   // %SD: tổng dùng cả năm theo sản phẩm
-
-  for (const r of rows) {
-    const code = r.item_code;
-    if (!code) continue;
-    const ym = ymOf(r.month);
-    if (!ym) continue;
-    const q = num(r.quantity);
-    const it = perItem[code] || (perItem[code] = { ytd: 0, cknt: 0, year: 0 });
-
-    if (ym.y === Y && ym.mo <= M - 1) it.ytd += q;              // YTD
-    if (cknt.has(ym.y + "-" + ym.mo)) it.cknt += q;             // CKNT
-    if (ym.y === Y) {                                           // cả năm dương lịch
-      it.year += q;
-      const sp = sanPham[code] || ("__" + code);
-      perProdYear[sp] = (perProdYear[sp] || 0) + q;
+  const buildOne = (rows: any[]) => {
+    const perProdYear: Record<string, number> = {};   // %SD: tổng dùng cả năm theo sản phẩm
+    for (const r of rows) {
+      const sp = r.san_pham || ("__" + r.item_code);
+      perProdYear[sp] = (perProdYear[sp] || 0) + num(r.yr);
     }
-  }
+    const map: Record<string, any> = {};
+    for (const r of rows) {
+      const sp = r.san_pham || ("__" + r.item_code);
+      const py = perProdYear[sp] || 0;
+      const year = num(r.yr);
+      map[r.item_code] = {
+        tb_ytd: ytdMonths > 0 ? Math.round(num(r.ytd) / ytdMonths) : 0,
+        tb_cknt: Math.round(num(r.cknt) / 3),
+        ty_le_sd_pct: py > 0 ? Math.round((year / py) * 100) : 0,
+        _iy: year, _py: py,
+      };
+    }
+    return map;
+  };
 
-  const map: Record<string, any> = {};
-  for (const code of Object.keys(perItem)) {
-    const it = perItem[code];
-    const sp = sanPham[code] || ("__" + code);
-    const py = perProdYear[sp] || 0;
-    map[code] = {
-      tb_ytd: ytdMonths > 0 ? Math.round(it.ytd / ytdMonths) : 0,
-      tb_cknt: Math.round(it.cknt / 3),
-      ty_le_sd_pct: py > 0 ? Math.round((it.year / py) * 100) : 0,
-      _iy: it.year, _py: py,
-    };
+  if (mien === "ALL") {
+    const mb: any[] = [], mn: any[] = [];
+    for (const r of (data || [])) (r.mien === "MN" ? mn : mb).push(r);
+    return mergeUsage(buildOne(mb), buildOne(mn));   // làm tròn từng miền rồi cộng (như cũ)
   }
-  return map;
+  return buildOne(data || []);
 }
 
 // ---------- TB KH 3 tháng tiếp theo (từ sale_target + mapping) ----------
@@ -421,32 +336,17 @@ async function loadSpBoMap(supa: SupabaseClient): Promise<Record<string, SpBo>> 
 }
 
 // { normKey(sale_target.san_pham): Σ 3 tháng } theo miền (CHƯA chia 3).
+// sale_target_agg group sẵn theo san_pham THÔ trong DB; JS chuẩn hoá normKey rồi cộng dồn.
+// ALL là phép cộng thuần nên gộp thẳng mọi dòng (cả 2 miền) không cần tách.
 async function saleTargetSumByBo(supa: SupabaseClient, mien: string): Promise<Record<string, number>> {
-  if (mien === "ALL") {
-    const [mb, mn] = await Promise.all([saleTargetSumByBo(supa, "MB"), saleTargetSumByBo(supa, "MN")]);
-    const out: Record<string, number> = { ...mb };
-    for (const k of Object.keys(mn)) out[k] = (out[k] || 0) + mn[k];
-    return out;
-  }
   const months = planMonths3();
+  const { data, error } = await supa.rpc("sale_target_agg", { p_mien: mien, p_months: months });
+  if (error) throw new Error("Đọc sale_target (sale_target_agg): " + error.message);
   const sum: Record<string, number> = {};
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supa
-      .from("sale_target")
-      .select("san_pham, thang_ke_hoach, mien, sl_ke_hoach_update, sl_ke_hoach_dau_nam")
-      .in("mien", mienVariants(mien))
-      .in("thang_ke_hoach", months)
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error("Đọc sale_target: " + error.message);
-    const batch = data || [];
-    for (const r of batch) {
-      const key = normKey(r.san_pham);   // = tên bộ (bộ thực) hoặc tên vật tư lẻ
-      if (!key) continue;
-      const v = r.sl_ke_hoach_update != null ? num(r.sl_ke_hoach_update) : num(r.sl_ke_hoach_dau_nam);
-      sum[key] = (sum[key] || 0) + v;    // gom qua ps/khách hàng và cả 3 tháng
-    }
-    if (batch.length < PAGE) break;
+  for (const r of (data || [])) {
+    const key = normKey(r.san_pham);   // = tên bộ (bộ thực) hoặc tên vật tư lẻ
+    if (!key) continue;
+    sum[key] = (sum[key] || 0) + num(r.tong);   // gom qua ps/khách hàng, cả 3 tháng & 2 miền
   }
   return sum;
 }
@@ -657,14 +557,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async loadOrderScreen(supa, u, [sessionId, mien]) {
     // Phase 1: fetch session-independent data in parallel
-    const [sessionRaw, products0, grants, spBoMap, sanPhamMap, cfg] = await Promise.all([
+    // (san_pham cho %SD nay lay trong usage_agg -> khong con loadSanPhamMap)
+    const [sessionRaw, products0, grants, spBoMap, cfg] = await Promise.all([
       sessionId
         ? supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
         : (mien && mien !== "ALL") ? findCurrentSession(supa, u, mien) : Promise.resolve(null),
       fetchProducts(supa),
       getGrants(supa, u),
       loadSpBoMap(supa),
-      loadSanPhamMap(supa),
       getKConfig(supa),
     ]);
 
@@ -684,7 +584,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (effMien === "MB" || effMien === "MN") {
       const [sm, um, sb, sa, its] = await Promise.all([
         stockMapFor(supa, effMien, ngayMo),
-        usageMapFor(supa, effMien, sanPhamMap),
+        usageMapFor(supa, effMien),
         saleTargetSumByBo(supa, effMien),
         resolveStockCycledate(supa, effMien, ngayMo),
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
@@ -694,7 +594,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     } else if (effMien === "ALL") {
       const [sm, um, sb, sa, its] = await Promise.all([
         stockMapFor(supa, "ALL"),
-        usageMapFor(supa, "ALL", sanPhamMap),
+        usageMapFor(supa, "ALL"),
         saleTargetSumByBo(supa, "ALL"),
         latestCycledate(supa),
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
