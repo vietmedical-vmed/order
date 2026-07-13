@@ -67,53 +67,63 @@ $$;
 --    DA -> ton_kho, GU -> hang_vet_thau  (lấy đuôi sau dấu '.' nếu có).
 --  Cộng hang_di_duong / hang_ktv_bv từ logistics_input.
 --  Trả per (mien, ma_bravo); JS ghép ALL và tính tong_ton y như cũ.
+--
+--  QUAN TRỌNG: cycledate được chốt MỘT LẦN vào biến (cd_mb/cd_mn). Trước đây để
+--  trong CTE 'cyc' dạng subquery tương quan -> Postgres inline & chạy lại subquery
+--  cho gần như mỗi dòng stock -> nested loop ~25s. Dùng biến là hằng số -> 1 scan.
 -- =====================================================================
 create or replace function public.stock_agg(p_mien text, p_ngaymo timestamptz default null)
 returns table (mien text, ma_bravo text, ton_kho numeric,
                hang_vet_thau numeric, hang_ktv_bv numeric, hang_di_duong numeric)
 language plpgsql stable as $$
+declare
+  cd_mb stock.cycledate%type;
+  cd_mn stock.cycledate%type;
 begin
+  if p_mien in ('ALL','MB') then
+    select st.cycledate into cd_mb from public.stock st
+    where st.mien = any(array['MB','Miền Bắc'])
+      and (p_ngaymo is null or st.cycledate < p_ngaymo)
+    order by st.cycledate desc nulls last limit 1;
+  end if;
+  if p_mien in ('ALL','MN') then
+    select st.cycledate into cd_mn from public.stock st
+    where st.mien = any(array['MN','Miền Nam'])
+      and (p_ngaymo is null or st.cycledate < p_ngaymo)
+    order by st.cycledate desc nulls last limit 1;
+  end if;
+
   return query
-  with miens as (
-    select m from (values ('MB'), ('MN')) v(m)
-    where p_mien = 'ALL' or p_mien = m
-  ),
-  cyc as (   -- cycledate hiệu lực cho mỗi miền
-    select mn.m as mien,
-      ( select st.cycledate
-        from public.stock st
-        where st.mien = any(case mn.m when 'MB' then array['MB','Miền Bắc']
-                                      else array['MN','Miền Nam'] end)
-          and (p_ngaymo is null or st.cycledate < p_ngaymo)
-        order by st.cycledate desc nulls last
-        limit 1 ) as cd
-    from miens mn
-  ),
-  stk as (   -- gộp quantity theo ma_bravo, tách DA/GU tại cycledate hiệu lực
-    select c.mien, s.ma_bravo,
+  with stk as (   -- gộp quantity theo ma_bravo, tách DA/GU tại cycledate hiệu lực
+    select
+      case when s.mien in ('MB','Miền Bắc') then 'MB'
+           when s.mien in ('MN','Miền Nam') then 'MN' end as mien,
+      s.ma_bravo,
       sum(coalesce(s.quantity, 0)) filter (
         where upper(trim(regexp_replace(coalesce(s.warehousetype, ''), '^.*\.', ''))) = 'DA'
       ) as ton_kho,
       sum(coalesce(s.quantity, 0)) filter (
         where upper(trim(regexp_replace(coalesce(s.warehousetype, ''), '^.*\.', ''))) = 'GU'
       ) as hang_vet_thau
-    from cyc c
-    join public.stock s
-      on s.mien = any(case c.mien when 'MB' then array['MB','Miền Bắc']
-                                  else array['MN','Miền Nam'] end)
-     and (c.cd is null or s.cycledate = c.cd)
+    from public.stock s
     where s.ma_bravo is not null
-    group by c.mien, s.ma_bravo
+      and (
+           (s.mien in ('MB','Miền Bắc') and p_mien in ('ALL','MB') and (cd_mb is null or s.cycledate = cd_mb))
+        or (s.mien in ('MN','Miền Nam') and p_mien in ('ALL','MN') and (cd_mn is null or s.cycledate = cd_mn))
+      )
+    group by 1, s.ma_bravo
   ),
   lg as (    -- logistics_input: 1 dòng / (ma_bravo, mien)
-    select mn.m as mien, l.ma_bravo,
+    select
+      case when l.mien in ('MB','Miền Bắc') then 'MB'
+           when l.mien in ('MN','Miền Nam') then 'MN' end as mien,
+      l.ma_bravo,
       sum(coalesce(l.hang_di_duong, 0)) as hang_di_duong,
       sum(coalesce(l.hang_ktv_bv, 0))   as hang_ktv_bv
-    from miens mn
-    join public.logistics_input l
-      on l.mien = any(case mn.m when 'MB' then array['MB','Miền Bắc']
-                                else array['MN','Miền Nam'] end)
-    group by mn.m, l.ma_bravo
+    from public.logistics_input l
+    where (l.mien in ('MB','Miền Bắc') and p_mien in ('ALL','MB'))
+       or (l.mien in ('MN','Miền Nam') and p_mien in ('ALL','MN'))
+    group by 1, l.ma_bravo
   )
   select
     coalesce(stk.mien, lg.mien)         as mien,

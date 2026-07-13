@@ -1,0 +1,30 @@
+name: Deploy Supabase Edge Functions
+
+# Tự deploy edge function khi có thay đổi trong supabase/functions/**
+# (workflow Pages ở deploy.yml chỉ publish frontend, không đụng tới đây).
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:      # cho phép bấm chạy tay trong tab Actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: nrfxymnfmjhbsgpipvkb
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy order-api
+        run: supabase functions deploy order-api --project-ref "$PROJECT_REF"
+
+      - name: Deploy order-login
+        run: supabase functions deploy order-login --project-ref "$PROJECT_REF"
