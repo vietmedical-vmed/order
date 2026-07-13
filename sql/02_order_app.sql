@@ -98,6 +98,15 @@ drop trigger if exists trg_items_touch on public.order_items;
 create trigger trg_items_touch before update on public.order_items
   for each row execute function public.touch_updated_at();
 
+-- ---------- INDEX (performance) ----------
+-- stock: tìm cycledate mới nhất theo miền, filter theo cycledate
+create index if not exists idx_stock_mien_cycle
+  on public.stock (mien, cycledate desc);
+
+-- sv, sale_target: nằm ngoài schema file (production-only), chạy thủ công trên SQL Editor:
+--   CREATE INDEX IF NOT EXISTS idx_sv_area_month ON public.sv (area, month);
+--   CREATE INDEX IF NOT EXISTS idx_sale_target_mien_thang ON public.sale_target (mien, thang_ke_hoach);
+
 -- ---------- RLS ----------
 alter table public.order_catalog    enable row level security;
 alter table public.order_sessions   enable row level security;

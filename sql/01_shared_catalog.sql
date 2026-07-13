@@ -45,6 +45,8 @@ create table if not exists public.dm_vat_tu (
 );
 create index if not exists idx_vattu_bu on public.dm_vat_tu(bu);
 create index if not exists idx_vattu_pl1 on public.dm_vat_tu(phan_loai_1);
+-- partial index cho fetchProducts (WHERE dat_hang = true)
+create index if not exists idx_vattu_dat_hang on public.dm_vat_tu(ma_bravo) where dat_hang = true;
 
 -- Bộ vật tư (kit) + định mức
 create table if not exists public.dm_bo_vat_tu (

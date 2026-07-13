@@ -191,23 +191,40 @@ function mienVariants(mien: string): string[] {
   return [mien];
 }
 
+// Chốt cycledate của tồn kho: cycledate mới nhất < ngày mở đợt (ngayMo).
+// Không truyền ngayMo -> lấy cycledate mới nhất tuyệt đối của miền (view danh mục / không có đợt).
+// Nhờ vậy bảng stock giữ nhiều log mà vẫn tra đúng tồn kho tại thời điểm mở đợt (không bị mất log).
+async function resolveStockCycledate(
+  supa: SupabaseClient, mien: string, ngayMo?: string | null,
+): Promise<string> {
+  let q = supa.from("stock").select("cycledate").in("mien", mienVariants(mien))
+    .order("cycledate", { ascending: false }).limit(1);
+  if (ngayMo) q = q.lt("cycledate", ngayMo);
+  const { data } = await q.maybeSingle();
+  return data && data.cycledate ? String(data.cycledate) : "";
+}
+
 // Tồn kho (DA) + Vét thầu (GU): bảng stock — phân biệt bằng cột warehousetype, SL ở cột quantity.
 // Hàng đi đường + Hàng ký gửi: bảng logistics_input (nhập tay từ Excel, tạm thời).
-async function stockMapFor(supa: SupabaseClient, mien: string) {
+// ngayMo = ngày mở đợt: chốt tồn kho theo cycledate mới nhất < ngày này để không lấy nhầm log mở sau.
+async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string | null) {
   const map: Record<string, any> = {};
   if (mien === "ALL") {
-    const mb = await stockMapFor(supa, "MB");
-    const mn = await stockMapFor(supa, "MN");
+    const [mb, mn] = await Promise.all([stockMapFor(supa, "MB", ngayMo), stockMapFor(supa, "MN", ngayMo)]);
     return mergeStock(mb, mn);
   }
 
-  // stock: mỗi dòng = (ma_bravo, mien, warehousetype, quantity). Gom quantity theo warehousetype.
-  // Phân trang vì stock có thể >1000 dòng (PostgREST mặc định cắt ở 1000).
+  // Cycledate hiệu lực cho miền này (mới nhất < ngày mở đợt, hoặc mới nhất tuyệt đối nếu không có đợt).
+  const cycledate = await resolveStockCycledate(supa, mien, ngayMo);
+
+  // stock: mỗi dòng = (ma_bravo, mien, warehousetype, quantity, cycledate). Gom quantity theo warehousetype.
+  // Lọc đúng 1 cycledate để không cộng dồn nhiều log. Phân trang vì stock có thể >1000 dòng.
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supa
-      .from("stock").select("ma_bravo, warehousetype, quantity").in("mien", mienVariants(mien))
-      .range(from, from + PAGE - 1);
+    let sq = supa.from("stock").select("ma_bravo, warehousetype, quantity")
+      .in("mien", mienVariants(mien));
+    if (cycledate) sq = sq.eq("cycledate", cycledate);
+    const { data, error } = await sq.range(from, from + PAGE - 1);
     if (error) throw new Error("Đọc stock: " + error.message);
     const batch = data || [];
     for (const r of batch) {
@@ -292,16 +309,15 @@ async function loadSanPhamMap(supa: SupabaseClient): Promise<Record<string, stri
 async function usageMapFor(supa: SupabaseClient, mien: string, spMap?: Record<string, string>) {
   const sanPham = spMap || await loadSanPhamMap(supa);
   if (mien === "ALL") {
-    return mergeUsage(
-      await usageMapFor(supa, "MB", sanPham),
-      await usageMapFor(supa, "MN", sanPham),
-    );
+    const [mb, mn] = await Promise.all([usageMapFor(supa, "MB", sanPham), usageMapFor(supa, "MN", sanPham)]);
+    return mergeUsage(mb, mn);
   }
 
   const now = new Date();
   const Y = now.getFullYear(), M = now.getMonth() + 1;
   const ytdMonths = Math.max(0, M - 1);        // 2026-07 -> 6 (T01..T06)
   const cknt = caKyWindow(Y, M);
+  const minMonth = (Y - 1) + "-01";            // chỉ cần từ T01 năm ngoái trở đi
 
   // Đọc sv theo miền (chỉ 3 cột cần), phân trang
   const rows: any[] = [];
@@ -309,6 +325,7 @@ async function usageMapFor(supa: SupabaseClient, mien: string, spMap?: Record<st
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
       .from("sv").select("item_code, quantity, month").in("area", mienVariants(mien))
+      .gte("month", minMonth)
       .range(from, from + PAGE - 1);
     if (error) throw new Error("Đọc sv: " + error.message);
     const batch = data || [];
@@ -406,8 +423,7 @@ async function loadSpBoMap(supa: SupabaseClient): Promise<Record<string, SpBo>> 
 // { normKey(sale_target.san_pham): Σ 3 tháng } theo miền (CHƯA chia 3).
 async function saleTargetSumByBo(supa: SupabaseClient, mien: string): Promise<Record<string, number>> {
   if (mien === "ALL") {
-    const mb = await saleTargetSumByBo(supa, "MB");
-    const mn = await saleTargetSumByBo(supa, "MN");
+    const [mb, mn] = await Promise.all([saleTargetSumByBo(supa, "MB"), saleTargetSumByBo(supa, "MN")]);
     const out: Record<string, number> = { ...mb };
     for (const k of Object.keys(mn)) out[k] = (out[k] || 0) + mn[k];
     return out;
@@ -640,39 +656,54 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async loadOrderScreen(supa, u, [sessionId, mien]) {
-    // 1. pick session
-    let session: any = null;
-    if (sessionId) {
-      const { data } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
-      session = data || null;
-    } else if (mien && mien !== "ALL") {
-      session = await findCurrentSession(supa, u, mien);
-    }
+    // Phase 1: fetch session-independent data in parallel
+    const [sessionRaw, products0, grants, spBoMap, sanPhamMap, cfg] = await Promise.all([
+      sessionId
+        ? supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
+        : (mien && mien !== "ALL") ? findCurrentSession(supa, u, mien) : Promise.resolve(null),
+      fetchProducts(supa),
+      getGrants(supa, u),
+      loadSpBoMap(supa),
+      loadSanPhamMap(supa),
+      getKConfig(supa),
+    ]);
+
+    let session: any = sessionRaw;
     if (session && u.role === "AM" && u.mien !== session.mien) session = null;
 
-    // 2. products = danh mục đặt hàng (dm_vat_tu WHERE dat_hang = true)
-    let products = await fetchProducts(supa);
-    // Lọc theo vai trò: AM -> BU, PM -> nhóm sản phẩm, MANAGER/ADMIN -> tất cả.
-    const grants = await getGrants(supa, u);
     const visFilter = makeVisibleFilter(u.role, grants);
-    if (visFilter) products = products.filter(visFilter);
+    let products = visFilter ? products0.filter(visFilter) : products0;
 
-    // 3. stock/usage + TB KH 3 tháng (sale_target + mapping)
-    let stockMap: any = {}, usageMap: any = {}, sumByBo: Record<string, number> = {};
-    const spBoMap = await loadSpBoMap(supa);   // mapping không theo miền -> nạp 1 lần
-    if (session) { stockMap = await stockMapFor(supa, session.mien); usageMap = await usageMapFor(supa, session.mien); sumByBo = await saleTargetSumByBo(supa, session.mien); }
-    else if (mien === "MB" || mien === "MN") { stockMap = await stockMapFor(supa, mien); usageMap = await usageMapFor(supa, mien); sumByBo = await saleTargetSumByBo(supa, mien); }
-    else if (mien === "ALL") { stockMap = await stockMapFor(supa, "ALL"); usageMap = await usageMapFor(supa, "ALL"); sumByBo = await saleTargetSumByBo(supa, "ALL"); }
+    const effMien: string = session ? session.mien : (mien || "");
+    const ngayMo: string | null = session ? session.ngay_mo : null;
 
-    // 4. items for session
+    // Phase 2: stock/usage/items — parallel (depend on effMien known after Phase 1)
     const itemMap: Record<string, any> = {};
-    if (session) {
-      const { data: its } = await supa.from("order_items").select("*").eq("session_id", session.session_id);
-      (its || []).forEach((r) => { itemMap[r.ma_bravo] = r; });
+    let stockMap: any = {}, usageMap: any = {}, sumByBo: Record<string, number> = {}, stockAsof = "";
+
+    if (effMien === "MB" || effMien === "MN") {
+      const [sm, um, sb, sa, its] = await Promise.all([
+        stockMapFor(supa, effMien, ngayMo),
+        usageMapFor(supa, effMien, sanPhamMap),
+        saleTargetSumByBo(supa, effMien),
+        resolveStockCycledate(supa, effMien, ngayMo),
+        session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
+      ]);
+      stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
+      (its as any[]).forEach((r) => { itemMap[r.ma_bravo] = r; });
+    } else if (effMien === "ALL") {
+      const [sm, um, sb, sa, its] = await Promise.all([
+        stockMapFor(supa, "ALL"),
+        usageMapFor(supa, "ALL", sanPhamMap),
+        saleTargetSumByBo(supa, "ALL"),
+        latestCycledate(supa),
+        session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
+      ]);
+      stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
+      (its as any[]).forEach((r) => { itemMap[r.ma_bravo] = r; });
     }
 
     // 5. build rows
-    const cfg = await getKConfig(supa);
 
     // 5a. Gợi ý tính ở mức SẢN PHẨM (công thức hệ số k), sau đó phân bổ cho từng mã bravo theo %SD YTD.
     //     Gom theo san_pham: Σ tb_cknt, Σ tb_ytd, Σ tong_ton; tb_kh là số của sản phẩm (chung).
@@ -749,7 +780,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       user: { username: u.username, ho_ten: u.ho_ten, role: u.role, mien: u.mien, scope: u.scope || "" },
       session: sessionOut, rows, action: action || null, readOnly: !action,
       isCatalogOnly: !session, isAllView: mien === "ALL" && !session,
-      stock_asof: await latestCycledate(supa),
+      stock_asof: (stockAsof || await latestCycledate(supa)).slice(0, 10),
     };
   },
 
@@ -826,12 +857,13 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   // Từ chối: trả đợt về DRAFT cho AM sửa lại; bắt buộc có lý do.
+  // Chỉ Manager (bước PM_APPROVED) được từ chối. Đã bỏ luồng PM từ chối AM (SUBMITTED).
   async rejectSession(supa, u, [sessionId, reason]) {
     const { data: s } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
     let buoc = "";
-    if (s.trang_thai === "SUBMITTED") { if (!canActAs(u, "PM")) throw new Error("Không có quyền từ chối (PM)"); buoc = "PM"; }
-    else if (s.trang_thai === "PM_APPROVED") { if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền từ chối (Manager)"); buoc = "Manager"; }
+    if (s.trang_thai === "PM_APPROVED") { if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền từ chối (Manager)"); buoc = "Manager"; }
+    else if (s.trang_thai === "SUBMITTED") throw new Error("Bước PM không còn chức năng từ chối — PM chỉ phê duyệt");
     else throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — không thể từ chối");
     const lyDo = String(reason || "").trim();
     if (!lyDo) throw new Error("Vui lòng nhập lý do từ chối");
