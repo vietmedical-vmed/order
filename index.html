@@ -304,9 +304,9 @@ body.is-purchasing [data-view="approval"][data-need="approver"] { display: inlin
     </div>
 
     <nav class="px-6 flex items-center gap-1 border-t border-slate-100">
-      <button class="nav-tab active" data-view="order">Chi tiết đặt hàng</button>
+      <button class="nav-tab" data-view="order">Chi tiết đặt hàng</button>
       <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
-      <button class="nav-tab" data-view="catalog" data-need="admin">Cấu hình danh mục</button>
+      <button class="nav-tab" data-view="catalog" data-need="catalog">Cấu hình danh mục</button>
       <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
       <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
     </nav>
@@ -551,7 +551,7 @@ const state = {
   token: null,
   user: null,
   mien: 'MB',
-  view: 'order',
+  view: 'approval',   // mặc định khi login: bảng thông tin (Quản lý đặt hàng), không mở đợt cụ thể
   sessions: [],
   currentSession: null,
   rows: [],
@@ -734,6 +734,8 @@ async function showApp() {
   try { bindGlobalDraftActions(); } catch (e) { console.error('bindGlobalDraftActions:', e); }
   try { bindExportButton(); } catch (e) { console.error('bindExportButton:', e); }
   try {
+    // Highlight đúng tab mặc định theo state.view (mặc định: Quản lý đặt hàng)
+    $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
     await loadSessions();
     renderView();
   } catch (e) {
@@ -868,6 +870,8 @@ function bindLogout() {
 }
 
 function bindNav() {
+  // "Cấu hình danh mục": Admin + PM (PM chỉ thao tác vật tư trong nhóm mình phụ trách — backend đã giới hạn scope).
+  const okCatalog = ['ADMIN', 'PM', 'PRODUCT_MANAGER'].includes(state.user.role);
   $$('.nav-tab').forEach(a => {
     // AM được xem tab "Quản lý đặt hàng" (chỉ xem, miền mình); các tab approver khác vẫn ẩn.
     const isManageTab = a.dataset.view === 'approval';
@@ -876,11 +880,13 @@ function bindNav() {
     // Ẩn các tab cần quyền user không có
     if (a.dataset.need === 'approver' && !okApprover) a.style.display = 'none';
     if (a.dataset.need === 'admin' && state.user.role !== 'ADMIN') a.style.display = 'none';
+    if (a.dataset.need === 'catalog' && !okCatalog) a.style.display = 'none';
 
     a.addEventListener('click', e => {
       e.preventDefault();
       if (a.dataset.need === 'approver' && !okApprover) return;
       if (a.dataset.need === 'admin' && state.user.role !== 'ADMIN') return;
+      if (a.dataset.need === 'catalog' && !okCatalog) return;
       $$('.nav-tab').forEach(x => x.classList.remove('active'));
       a.classList.add('active');
       state.view = a.dataset.view;
@@ -2195,8 +2201,8 @@ const CAT_RENDER_CAP = 600;
 const MUC_DO_OPTS = ['', 'Hay sử dụng', 'Ít sử dụng', 'Hiếm khi sử dụng'];
 
 async function initCatalogView() {
-  if (state.user.role !== 'ADMIN') {
-    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin mới truy cập được tab này</div>';
+  if (!['ADMIN', 'PM', 'PRODUCT_MANAGER'].includes(state.user.role)) {
+    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin/PM mới truy cập được tab này</div>';
     return;
   }
   state.catalog = [];
