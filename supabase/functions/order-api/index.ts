@@ -175,6 +175,7 @@ async function fetchProducts(supa: SupabaseClient) {
     nhom_san_pham: v.nhom_san_pham || "",   // PM lọc theo nhóm sản phẩm
     bu: v.bu || "",                          // AM lọc theo BU
     muc_do_sd: v.muc_do_sd || "",
+    safety_stock: num(v.safety_stock),      // tồn kho an toàn (cấu hình danh mục)
     don_vi: v.don_vi || "",
     gia: num(v.don_gia_thau_moi),
     leadtime_ngay: num(v.leadtime_ngay),    // 0 nếu cột chưa có
@@ -422,7 +423,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async listCatalog(supa, u) {
     if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được xem cấu hình danh mục");
-    const cols = "ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, phan_loai_2, san_pham, don_gia_thau_moi, muc_do_sd, dat_hang";
+    const cols = "ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, phan_loai_2, san_pham, don_gia_thau_moi, muc_do_sd, safety_stock, dat_hang";
     // PostgREST giới hạn mỗi request tối đa = Max rows (mặc định 1000) → phải phân trang
     // để lấy đủ toàn bộ dm_vat_tu (>2300 dòng). Order 2 cấp cho phân trang ổn định.
     const PAGE = 1000;
@@ -449,6 +450,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       nhom_san_pham: v.nhom_san_pham || "",
       gia: num(v.don_gia_thau_moi),
       muc_do_sd: v.muc_do_sd || "",
+      safety_stock: num(v.safety_stock),
       dat_hang: v.dat_hang === true,
     }));
     // PM chỉ thấy vật tư thuộc nhóm sản phẩm mình phụ trách (scope).
@@ -490,6 +492,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const patch: any = {};
       if (typeof c.dat_hang === "boolean") patch.dat_hang = c.dat_hang;
       if (c.muc_do_sd !== undefined) patch.muc_do_sd = c.muc_do_sd || null;
+      if (c.safety_stock !== undefined) {
+        let sv = Math.floor(Number(c.safety_stock));
+        if (!Number.isFinite(sv) || sv < 0) sv = 0;
+        patch.safety_stock = sv;
+      }
       if (Object.keys(patch).length === 0) continue;
       const key = JSON.stringify(patch);
       const g = groups.get(key) || { patch, mas: [] };
@@ -641,6 +648,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ma_bravo: p.ma_bravo, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
         nhom_hang: p.nhom_hang, phan_loai: p.phan_loai, nhom_san_pham: p.nhom_san_pham,
         muc_do_sd: p.muc_do_sd,
+        safety_stock: num(p.safety_stock),
         don_vi: p.don_vi || "", gia: num(p.gia), leadtime_ngay: num(p.leadtime_ngay),
         tb_kh_3_thang, so_thang_dat,
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv),

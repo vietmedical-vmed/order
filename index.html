@@ -1323,7 +1323,8 @@ function groupCardHtml(grp, plMap, gIdx) {
           <th class="r" style="width:90px">TB tháng YTD</th>
           <th class="r" style="width:80px">% SD</th>
           <th class="c" style="width:75px">Leadtime</th>
-          <th class="r" style="width:90px">TB KH 3T tiếp theo</th>
+          <th class="r" style="width:90px">TB KH</th>
+          <th class="r" style="width:90px">Safety stock</th>
           <th class="c" style="width:70px">Số tháng đặt</th>
           <th class="c" style="width:60px">Gợi ý</th>
           <th class="c" style="width:80px">SL yêu cầu</th>
@@ -1359,12 +1360,13 @@ function plBlockHtml(pl, items, grp) {
     // TB KH ở mức san_pham (mọi mã bravo cùng phân loại chia sẻ 1 giá trị) -> KHÔNG cộng dồn,
     // lấy đúng giá trị đó (max phòng dòng lệch/0) để tổng phân loại không bị nhân số SKU.
     a.tb_kh_3_thang = Math.max(a.tb_kh_3_thang, Number(r.tb_kh_3_thang || 0));
+    a.safety_stock += Number(r.safety_stock || 0);
     a.goi_y_dat += Number(r.goi_y_dat || 0);
     a.sl_dat += slDat;
     a.sl_duyet += Number(r.sl_duyet || 0);
     a.sl_dat_hang += Number(r.sl_dat_hang || 0);
     return a;
-  }, { ton_kho:0, hang_ktv_bv:0, hang_vet_thau:0, hang_di_duong:0, tong_ton:0, xuat_2025:0, xuat_lk_2026:0, tb_kh_3_thang:0, goi_y_dat:0, sl_dat:0, sl_duyet:0, sl_dat_hang:0 });
+  }, { ton_kho:0, hang_ktv_bv:0, hang_vet_thau:0, hang_di_duong:0, tong_ton:0, xuat_2025:0, xuat_lk_2026:0, tb_kh_3_thang:0, safety_stock:0, goi_y_dat:0, sl_dat:0, sl_duyet:0, sl_dat_hang:0 });
 
   const parentRow = `<tr class="pl-parent" data-pl-toggle="${plId}">
     <td class="c">
@@ -1384,6 +1386,7 @@ function plBlockHtml(pl, items, grp) {
     <td class="r num text-slate-400">—</td>
     <td class="c num text-slate-400">—</td>
     <td class="r num">${dash0(agg.tb_kh_3_thang)}</td>
+    <td class="r num">${dash0(agg.safety_stock)}</td>
     <td class="c num text-slate-400">—</td>
     <td class="c num text-blue-700">${dash0(agg.goi_y_dat)}</td>
     <td class="c num text-amber-700" data-pl-sum-sldat="${plId}">${fmt(agg.sl_dat)}</td>
@@ -1445,6 +1448,7 @@ function productRowHtml(r, plId) {
     <td class="r num text-slate-700">${r.ty_le_sd_pct ? `${r.ty_le_sd_pct.toFixed(1)}%<div class="mini-bar"><i style="width:${pctBar}%"></i></div>` : '—'}</td>
     <td class="c num text-slate-600 text-[11px]">${leadtimeDisplay}</td>
     <td class="r num text-slate-300">—</td>
+    <td class="r num text-slate-600">${dash0(r.safety_stock)}</td>
     <td class="c num text-slate-600">${r.so_thang_dat || '—'}</td>
     <td class="c num"><span class="font-bold text-blue-700">${dash0(r.goi_y_dat)}</span></td>
     ${qtyCell('sl_dat', r.sl_dat, 'text-amber-700')}
@@ -2154,6 +2158,7 @@ function catEffective(r) {
   return {
     dat_hang: d.dat_hang !== undefined ? d.dat_hang : r.dat_hang,
     muc_do_sd: d.muc_do_sd !== undefined ? d.muc_do_sd : r.muc_do_sd,
+    safety_stock: d.safety_stock !== undefined ? d.safety_stock : (r.safety_stock ?? 0),
   };
 }
 
@@ -2177,7 +2182,8 @@ function markCatDirty(ma, field, value) {
   cur[field] = value;
   const effDat = cur.dat_hang !== undefined ? cur.dat_hang : r.dat_hang;
   const effMuc = cur.muc_do_sd !== undefined ? cur.muc_do_sd : r.muc_do_sd;
-  if (effDat === r.dat_hang && effMuc === r.muc_do_sd) state.catalogDirty.delete(ma);
+  const effSafety = cur.safety_stock !== undefined ? cur.safety_stock : (r.safety_stock ?? 0);
+  if (effDat === r.dat_hang && effMuc === r.muc_do_sd && effSafety === (r.safety_stock ?? 0)) state.catalogDirty.delete(ma);
   else state.catalogDirty.set(ma, cur);
 }
 
@@ -2214,6 +2220,7 @@ function renderCatalogBody() {
         <th style="width:130px">Phân loại 2</th>
         <th class="r" style="width:110px">Đơn giá thầu</th>
         <th class="c" style="width:150px">Mức độ SD</th>
+        <th class="c" style="width:120px">Safety stock</th>
       </tr></thead>
       <tbody>${rows.map(r => {
         const eff = catEffective(r);
@@ -2230,6 +2237,7 @@ function renderCatalogBody() {
           <td class="c"><select class="ctl-select" data-cat-muc="${esc(r.ma_bravo)}" style="width:100%">
             ${MUC_DO_OPTS.map(o => `<option value="${esc(o)}" ${eff.muc_do_sd === o ? 'selected' : ''}>${o || '—'}</option>`).join('')}
           </select></td>
+          <td class="c"><input type="number" class="qty-input" min="0" step="1" value="${eff.safety_stock ?? 0}" data-cat-safety="${esc(r.ma_bravo)}" style="width:100%"/></td>
         </tr>`;
       }).join('')}</tbody>
     </table>
@@ -2251,6 +2259,16 @@ function bindCatalogInputs() {
       const ma = sel.dataset.catMuc;
       markCatDirty(ma, 'muc_do_sd', sel.value);
       sel.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
+      updateCatHeader();
+    });
+  });
+  $$('#catalogHost input[data-cat-safety]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const ma = inp.dataset.catSafety;
+      let v = Math.floor(Number(inp.value));
+      if (!Number.isFinite(v) || v < 0) v = 0;
+      markCatDirty(ma, 'safety_stock', v);
+      inp.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
       updateCatHeader();
     });
   });
@@ -2277,6 +2295,7 @@ async function saveCatalog() {
       if (r) {
         if (c.dat_hang !== undefined) r.dat_hang = c.dat_hang;
         if (c.muc_do_sd !== undefined) r.muc_do_sd = c.muc_do_sd;
+        if (c.safety_stock !== undefined) r.safety_stock = c.safety_stock;
       }
     });
     state.catalogDirty.clear();
