@@ -902,17 +902,62 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       throw new Error("Chỉ Manager/Admin/Mua hàng được xuất file Excel");
     if (session.trang_thai !== "APPROVED" && session.trang_thai !== "CLOSED")
       throw new Error("Chỉ xuất được khi đợt đã được Manager phê duyệt (APPROVED)");
-    const { data: items } = await supa.from("order_items").select("*").eq("session_id", sessionId);
-    const prods = await fetchProducts(supa);
+
+    // Xuất đủ cột như màn Chi tiết → cần tính lại stock/usage/Gợi ý theo đúng logic loadOrderScreen.
+    const mienExp = session.mien;
+    const ngayMoExp = session.ngay_mo || null;
+    const [items, prods, cfg, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
+      supa.from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
+      fetchProducts(supa),
+      getKConfig(supa),
+      loadSpBoMap(supa),
+      stockMapFor(supa, mienExp, ngayMoExp),
+      usageMapFor(supa, mienExp),
+      saleTargetSumByBo(supa, mienExp),
+    ]);
     const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[p.ma_bravo] = p);
+
+    // Gợi ý tính ở mức sản phẩm rồi phân bổ theo %SD (giống loadOrderScreen).
+    const spGyE: Record<string, any> = {};
+    for (const p of prods) {
+      const spk = normKey(p.san_pham);
+      if (!spk) continue;
+      const us = usageMap[p.ma_bravo] || {};
+      const s = stockMap[p.ma_bravo] || {};
+      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
+      const a = spGyE[spk] || (spGyE[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
+      a.cknt += num(us.tb_cknt);
+      a.ytd += num(us.tb_ytd);
+      a.ton += num(s.tong_ton);
+      a.safety += num(p.safety_stock);
+      a.kh = tbKh3Thang(p, sumByBo, spBoMap);
+      a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
+    }
+    const spGoiYE: Record<string, number> = {};
+    for (const spk of Object.keys(spGyE)) {
+      const a = spGyE[spk];
+      spGoiYE[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.cknt, a.ytd, a.kh, a.safety, a.sothang, a.ton);
+    }
+
     const dmVal = session.de_nghi_mua_hang || "", poVal = session.po || "";
     const rows = (items || []).map((it) => {
       const p = pMap[it.ma_bravo] || {};
+      const s = stockMap[it.ma_bravo] || {};
+      const us = usageMap[it.ma_bravo] || {};
       const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
+      const ty_le_sd_pct = num(us.ty_le_sd_pct);
+      const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
+      const goi_y_dat = Math.max(0, Math.round((spGoiYE[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
       return {
         ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
-        nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", don_vi: p.don_vi || "",
-        gia, leadtime_ngay: num(p.leadtime_ngay),
+        nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", muc_do_sd: p.muc_do_sd || "",
+        don_vi: p.don_vi || "", gia,
+        ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
+        hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
+        ty_le_sd_pct, tb_cknt: num(us.tb_cknt), tb_ytd: num(us.tb_ytd),
+        tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap)),
+        safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay),
+        goi_y_dat,
         sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
         de_nghi_mua_hang: dmVal, po: poVal,
         thanh_tien: slDatHang * gia, ghi_chu_dat: it.ghi_chu_dat || "", ghi_chu_duyet: it.ghi_chu_duyet || "",

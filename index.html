@@ -778,20 +778,28 @@ async function exportToExcel(session) {
     ]);
     const rows = data.rows || [];
     if (!rows.length) { toast('Đợt này chưa có SKU nào', true); return; }
-    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Đơn vị','Đơn giá','Leadtime (ngày)','SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
+    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
+      'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
+      '% SD','TB tháng CKNT','TB tháng YTD','TB KH','Safety stock','Số tháng đặt','Leadtime (ngày)','Gợi ý',
+      'SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
+    const pct1 = v => Math.round((Number(v) || 0) * 10) / 10;
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
-        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.don_vi,
-        num0(r.gia), num0(r.leadtime_ngay), num0(r.sl_yeu_cau), num0(r.sl_pm_duyet),
-        num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
+        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
+        num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
+        pct1(r.ty_le_sd_pct), num0(r.tb_cknt), num0(r.tb_ytd), num0(r.tb_kh_3_thang), num0(r.safety_stock),
+        num0(r.so_thang_dat), num0(r.leadtime_ngay), num0(r.goi_y_dat),
+        num0(r.sl_yeu_cau), num0(r.sl_pm_duyet), num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
         num0(r.thanh_tien), r.ghi_chu_dat, r.ghi_chu_duyet,
       ]);
     });
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 8 },
-      { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
+      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 12 },
+      { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+      { wch: 8 }, { wch: 13 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
+      { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Đặt hàng');
@@ -1332,13 +1340,13 @@ function groupCardHtml(grp, plMap, gIdx) {
           <th class="r" style="width:80px">Vét thầu (GU)</th>
           <th class="r" style="width:90px">Hàng đi đường</th>
           <th class="r" style="width:80px">Tổng tồn</th>
+          <th class="r" style="width:80px">% SD</th>
           <th class="r" style="width:90px">TB tháng CKNT</th>
           <th class="r" style="width:90px">TB tháng YTD</th>
-          <th class="r" style="width:80px">% SD</th>
-          <th class="c" style="width:75px">Leadtime</th>
           <th class="r" style="width:90px">TB KH</th>
           <th class="r" style="width:90px">Safety stock</th>
           <th class="c" style="width:70px">Số tháng đặt</th>
+          <th class="c" style="width:75px">Leadtime</th>
           <th class="c" style="width:60px">Gợi ý</th>
           <th class="c" style="width:80px">SL yêu cầu</th>
           <th class="c" style="width:80px">SL PM duyệt</th>
@@ -1394,12 +1402,12 @@ function plBlockHtml(pl, items, grp) {
     <td class="r num">${dash0(agg.hang_vet_thau)}</td>
     <td class="r num">${dash0(agg.hang_di_duong)}</td>
     <td class="r num text-slate-900">${dash0(agg.tong_ton)}</td>
+    <td class="r num text-slate-400">—</td>
     <td class="r num">${dash0(agg.xuat_2025)}</td>
     <td class="r num">${dash0(agg.xuat_lk_2026)}</td>
-    <td class="r num text-slate-400">—</td>
-    <td class="c num text-slate-400">—</td>
     <td class="r num">${dash0(agg.tb_kh_3_thang)}</td>
     <td class="r num">${dash0(agg.safety_stock)}</td>
+    <td class="c num text-slate-400">—</td>
     <td class="c num text-slate-400">—</td>
     <td class="c num text-blue-700">${dash0(agg.goi_y_dat)}</td>
     <td class="c num text-amber-700" data-pl-sum-sldat="${plId}">${fmt(agg.sl_dat)}</td>
@@ -1456,13 +1464,13 @@ function productRowHtml(r, plId) {
     <td class="r num text-slate-600">${dash0(r.hang_vet_thau)}</td>
     <td class="r num text-slate-600">${dash0(r.hang_di_duong)}</td>
     <td class="r num font-semibold text-slate-800">${dash0(r.tong_ton)}</td>
+    <td class="r num text-slate-700">${r.ty_le_sd_pct ? `${r.ty_le_sd_pct.toFixed(1)}%<div class="mini-bar"><i style="width:${pctBar}%"></i></div>` : '—'}</td>
     <td class="r num text-slate-600">${dash0(r.tb_cknt)}</td>
     <td class="r num text-slate-600">${dash0(r.tb_ytd)}</td>
-    <td class="r num text-slate-700">${r.ty_le_sd_pct ? `${r.ty_le_sd_pct.toFixed(1)}%<div class="mini-bar"><i style="width:${pctBar}%"></i></div>` : '—'}</td>
-    <td class="c num text-slate-600 text-[11px]">${leadtimeDisplay}</td>
     <td class="r num text-slate-300">—</td>
     <td class="r num text-slate-600">${dash0(r.safety_stock)}</td>
     <td class="c num text-slate-600">${r.so_thang_dat || '—'}</td>
+    <td class="c num text-slate-600 text-[11px]">${leadtimeDisplay}</td>
     <td class="c num"><span class="font-bold text-blue-700">${dash0(r.goi_y_dat)}</span></td>
     ${qtyCell('sl_dat', r.sl_dat, 'text-amber-700')}
     ${qtyCell('sl_duyet', r.sl_duyet, 'text-emerald-700')}
