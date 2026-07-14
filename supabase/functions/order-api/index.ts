@@ -113,9 +113,10 @@ async function audit(supa: SupabaseClient, username: string, action: string, sid
 
 // ---------- goi_y + row builder ----------
 function buildGoiY(cfg: any, tb_cknt: number, tb_ytd: number, tb_kh_3_thang: number, safety_stock: number, so_thang_dat: number, tong_ton: number) {
-  // Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng + Safety stock) × Số tháng đặt − Tổng tồn
-  // 3 số TB đều là SL trung bình/THÁNG ⇒ ×số tháng đặt = nhu cầu kỳ đặt, trừ tồn hiện có.
-  const raw = (cfg.k1 * tb_cknt + cfg.k2 * tb_ytd + cfg.k3 * tb_kh_3_thang + safety_stock) * so_thang_dat;
+  // Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt + Safety stock − Tổng tồn
+  // 3 số TB đều là SL trung bình/THÁNG ⇒ ×số tháng đặt = nhu cầu kỳ đặt; Safety stock cộng
+  // thẳng (không nhân số tháng), rồi trừ tồn hiện có.
+  const raw = (cfg.k1 * tb_cknt + cfg.k2 * tb_ytd + cfg.k3 * tb_kh_3_thang) * so_thang_dat + safety_stock;
   return Math.max(0, Math.round(raw - tong_ton));
 }
 
