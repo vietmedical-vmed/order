@@ -62,12 +62,47 @@ const initials = (name: string) =>
 async function getKConfig(supa: SupabaseClient) {
   const { data } = await supa.from("app_config").select("value").eq("key", "goi_y").maybeSingle();
   const c = (data?.value as any) || {};
+  // Override theo nhóm sản phẩm: { "<nhom_san_pham>": { k1,k2,k3,so_thang_dat } }
+  const groups: Record<string, any> = {};
+  const gin = (c.groups && typeof c.groups === "object") ? c.groups : {};
+  for (const [g, raw] of Object.entries(gin)) {
+    if (!g || !raw || typeof raw !== "object") continue;
+    const e: any = {};
+    const r = raw as any;
+    for (const k of ["k1", "k2", "k3"]) {
+      if (r[k] !== undefined && r[k] !== null && r[k] !== "") e[k] = Number(r[k]);
+    }
+    if (r.so_thang_dat !== undefined && r.so_thang_dat !== null && r.so_thang_dat !== "") {
+      e.so_thang_dat = Number(r.so_thang_dat);
+    }
+    if (Object.keys(e).length) groups[g] = e;
+  }
   return {
     k1: Number(c.k1 ?? DEFAULT_CFG.k1),
     k2: Number(c.k2 ?? DEFAULT_CFG.k2),
     k3: Number(c.k3 ?? DEFAULT_CFG.k3),
     so_thang_dat_default: Number(c.so_thang_dat_default ?? DEFAULT_CFG.so_thang_dat_default),
+    groups,
   };
+}
+
+// Danh sách nhóm sản phẩm (nhom_san_pham) của các vật tư đang được đặt hàng.
+async function listOrderGroups(supa: SupabaseClient) {
+  const PAGE = 1000;
+  const set = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supa
+      .from("dm_vat_tu")
+      .select("nhom_san_pham")
+      .eq("dat_hang", true)
+      .order("ma_bravo", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = data || [];
+    batch.forEach((v: any) => { if (v.nhom_san_pham) set.add(v.nhom_san_pham); });
+    if (batch.length < PAGE) break;
+  }
+  return Array.from(set).sort();
 }
 
 async function audit(supa: SupabaseClient, username: string, action: string, sid = "", detail = "") {
@@ -77,11 +112,22 @@ async function audit(supa: SupabaseClient, username: string, action: string, sid
 }
 
 // ---------- goi_y + row builder ----------
-function buildGoiY(cfg: any, tb_cknt: number, tb_ytd: number, tb_kh_3_thang: number, so_thang_dat: number, tong_ton: number) {
-  // Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt − Tổng tồn
+function buildGoiY(cfg: any, tb_cknt: number, tb_ytd: number, tb_kh_3_thang: number, safety_stock: number, so_thang_dat: number, tong_ton: number) {
+  // Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng + Safety stock) × Số tháng đặt − Tổng tồn
   // 3 số TB đều là SL trung bình/THÁNG ⇒ ×số tháng đặt = nhu cầu kỳ đặt, trừ tồn hiện có.
-  const raw = (cfg.k1 * tb_cknt + cfg.k2 * tb_ytd + cfg.k3 * tb_kh_3_thang) * so_thang_dat;
+  const raw = (cfg.k1 * tb_cknt + cfg.k2 * tb_ytd + cfg.k3 * tb_kh_3_thang + safety_stock) * so_thang_dat;
   return Math.max(0, Math.round(raw - tong_ton));
+}
+
+// Cấu hình hiệu lực cho 1 nhóm sản phẩm: override của nhóm (nếu có) đè lên mặc định.
+function cfgForGroup(cfg: any, group: string) {
+  const g = (cfg.groups && group && cfg.groups[group]) || {};
+  return {
+    k1: g.k1 ?? cfg.k1,
+    k2: g.k2 ?? cfg.k2,
+    k3: g.k3 ?? cfg.k3,
+    so_thang_dat_default: g.so_thang_dat ?? cfg.so_thang_dat_default,
+  };
 }
 
 function mergeStock(a: any, b: any) {
@@ -406,16 +452,39 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async getConfig(supa) { return await getKConfig(supa); },
+  async getConfig(supa) {
+    const cfg = await getKConfig(supa);
+    const groups_list = await listOrderGroups(supa);
+    return { ...cfg, groups_list };
+  },
 
   async saveConfig(supa, u, [config]) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được sửa cấu hình");
-    const c = {
+    const c: any = {
       k1: Number(config.k1), k2: Number(config.k2), k3: Number(config.k3),
       so_thang_dat_default: Number(config.so_thang_dat_default || 3),
+      groups: {},
     };
     if ([c.k1, c.k2, c.k3].some((x) => isNaN(x))) throw new Error("k1/k2/k3 phải là số");
     if ([c.k1, c.k2, c.k3].some((x) => x < 0)) throw new Error("Hệ số k phải >= 0");
+    // Override theo nhóm sản phẩm — chỉ lưu các ô được nhập; validate số & dấu.
+    const gin = (config.groups && typeof config.groups === "object") ? config.groups : {};
+    for (const [g, raw] of Object.entries(gin) as [string, any][]) {
+      if (!g || !raw || typeof raw !== "object") continue;
+      const e: any = {};
+      for (const k of ["k1", "k2", "k3"]) {
+        if (raw[k] === undefined || raw[k] === null || raw[k] === "") continue;
+        const n = Number(raw[k]);
+        if (isNaN(n) || n < 0) throw new Error(`Hệ số ${k} của nhóm "${g}" không hợp lệ`);
+        e[k] = n;
+      }
+      if (raw.so_thang_dat !== undefined && raw.so_thang_dat !== null && raw.so_thang_dat !== "") {
+        const n = Number(raw.so_thang_dat);
+        if (isNaN(n) || n < 1) throw new Error(`Số tháng đặt của nhóm "${g}" phải >= 1`);
+        e.so_thang_dat = n;
+      }
+      if (Object.keys(e).length) c.groups[g] = e;
+    }
     await supa.from("app_config").upsert({ key: "goi_y", value: c });
     await audit(supa, u.username, "SAVE_CONFIG", "", JSON.stringify(c));
     return c;
@@ -614,23 +683,26 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     // 5a. Gợi ý tính ở mức SẢN PHẨM (công thức hệ số k), sau đó phân bổ cho từng mã bravo theo %SD YTD.
     //     Gom theo san_pham: Σ tb_cknt, Σ tb_ytd, Σ tong_ton; tb_kh là số của sản phẩm (chung).
-    const spGy: Record<string, { cknt: number; ytd: number; ton: number; kh: number; sothang: number }> = {};
+    const spGy: Record<string, { cknt: number; ytd: number; ton: number; kh: number; safety: number; sothang: number; grp: string }> = {};
     for (const p of products) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
       const us = usageMap[p.ma_bravo] || {};
       const s = stockMap[p.ma_bravo] || {};
-      const a = spGy[spk] || (spGy[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, sothang: 0 });
+      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);   // hệ số/số tháng đặt theo nhóm SP
+      const a = spGy[spk] || (spGy[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
       a.cknt += num(us.tb_cknt);
       a.ytd += num(us.tb_ytd);
       a.ton += num(s.tong_ton);
+      a.safety += num(p.safety_stock);          // safety stock cộng dồn theo sản phẩm
       a.kh = tbKh3Thang(p, sumByBo, spBoMap);   // mức sản phẩm, mọi mã bravo như nhau
-      a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || cfg.so_thang_dat_default));
+      a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
     }
     const spGoiY: Record<string, number> = {};
     for (const spk of Object.keys(spGy)) {
       const a = spGy[spk];
-      spGoiY[spk] = buildGoiY(cfg, a.cknt, a.ytd, a.kh, a.sothang, a.ton);
+      const gcfg = cfgForGroup(cfg, a.grp);
+      spGoiY[spk] = buildGoiY(gcfg, a.cknt, a.ytd, a.kh, a.safety, a.sothang, a.ton);
     }
 
     const rows = products.map((p) => {
@@ -639,7 +711,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const i = itemMap[p.ma_bravo] || {};
       const tb_cknt = num(us.tb_cknt), tb_ytd = num(us.tb_ytd);
       const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap));
-      const so_thang_dat = Number(p.so_thang_dat || cfg.so_thang_dat_default);
+      const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
       const tong_ton = num(s.tong_ton);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
       // Gợi ý mã bravo = Gợi ý sản phẩm × %SD YTD của mã bravo đó.

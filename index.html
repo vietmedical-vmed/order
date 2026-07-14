@@ -307,9 +307,9 @@ body.is-purchasing [data-view="approval"][data-need="approver"] { display: inlin
     <nav class="px-6 flex items-center gap-1 border-t border-slate-100">
       <button class="nav-tab active" data-view="order">Chi tiết đặt hàng</button>
       <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
-      <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
-      <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
       <button class="nav-tab" data-view="catalog" data-need="admin">Cấu hình danh mục</button>
+      <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
+      <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
     </nav>
   </header>
 
@@ -404,37 +404,52 @@ body.is-purchasing [data-view="approval"][data-need="approver"] { display: inlin
 </template>
 
 <template id="tpl-config">
-  <div class="px-6 pt-4 max-w-3xl">
+  <div class="px-6 pt-4 max-w-5xl">
     <div class="bg-white rounded-lg border border-slate-200 p-6">
-      <h2 class="text-lg font-semibold text-slate-800 mb-1">Cấu hình công thức Gợi ý</h2>
+      <h2 class="text-lg font-semibold text-slate-800 mb-1">Cấu hình công thức Gợi ý theo nhóm sản phẩm</h2>
       <p class="text-[13px] text-slate-500 mb-5">
-        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[12px]">Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt − Tổng tồn</code>
+        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[12px]">Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng + Safety stock) × Số tháng đặt − Tổng tồn</code>
       </p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <label class="block">
-          <span class="text-[12px] text-slate-600 font-medium">k1 — Hệ số TB tháng CKNT</span>
-          <input type="number" id="cfgK1" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
-        </label>
-        <label class="block">
-          <span class="text-[12px] text-slate-600 font-medium">k2 — Hệ số TB tháng YTD</span>
-          <input type="number" id="cfgK2" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
-        </label>
-        <label class="block">
-          <span class="text-[12px] text-slate-600 font-medium">k3 — Hệ số TB KH 3 tháng tiếp theo</span>
-          <input type="number" id="cfgK3" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
-        </label>
-      </div>
-      <div id="cfgSumNote" class="text-[12px] mb-5"></div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 pt-4 border-t border-slate-100">
-        <label class="block">
-          <span class="text-[12px] text-slate-600 font-medium">Số tháng đặt mặc định</span>
-          <input type="number" id="cfgSoThangDat" step="1" min="1" max="12" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
-          <div class="text-[11px] text-slate-400 mt-1">Dùng khi sản phẩm chưa có giá trị riêng trong sheet Products</div>
-        </label>
+      <div class="rounded-md bg-slate-50 border border-slate-200 p-4 mb-5">
+        <div class="text-[12px] font-semibold text-slate-700 mb-3">Mặc định — áp dụng cho nhóm sản phẩm chưa cấu hình riêng</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <label class="block">
+            <span class="text-[12px] text-slate-600 font-medium">k1 — TB tháng CKNT</span>
+            <input type="number" id="cfgK1" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+          </label>
+          <label class="block">
+            <span class="text-[12px] text-slate-600 font-medium">k2 — TB tháng YTD</span>
+            <input type="number" id="cfgK2" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+          </label>
+          <label class="block">
+            <span class="text-[12px] text-slate-600 font-medium">k3 — TB KH 3 tháng</span>
+            <input type="number" id="cfgK3" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+          </label>
+          <label class="block">
+            <span class="text-[12px] text-slate-600 font-medium">Số tháng đặt</span>
+            <input type="number" id="cfgSoThangDat" step="1" min="1" max="12" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"/>
+          </label>
+        </div>
+        <div id="cfgSumNote" class="text-[12px] mt-3"></div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="text-[12px] font-semibold text-slate-700 mb-2">Cấu hình riêng theo nhóm sản phẩm</div>
+      <div class="border border-slate-200 rounded-md overflow-x-auto scroll-area">
+        <table class="dt">
+          <thead><tr>
+            <th style="min-width:200px">Nhóm sản phẩm</th>
+            <th class="c" style="width:120px">k1 (TB CKNT)</th>
+            <th class="c" style="width:120px">k2 (TB YTD)</th>
+            <th class="c" style="width:120px">k3 (TB KH)</th>
+            <th class="c" style="width:120px">Số tháng đặt</th>
+          </tr></thead>
+          <tbody id="cfgGroupBody"></tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-slate-400 mt-2">Để trống một ô = dùng giá trị mặc định phía trên.</p>
+
+      <div class="flex items-center gap-3 mt-5">
         <button id="cfgSave" class="ctl-btn ctl-btn-primary">Lưu cấu hình</button>
         <button id="cfgReset" class="ctl-btn">Đặt lại mặc định (0.4 / 0.4 / 0.2)</button>
         <span id="cfgMsg" class="text-[12px] text-emerald-600"></span>
@@ -2065,6 +2080,7 @@ async function initConfigView() {
     $('#cfgK2').value = cfg.k2;
     $('#cfgK3').value = cfg.k3;
     $('#cfgSoThangDat').value = cfg.so_thang_dat_default;
+    renderCfgGroups(cfg.groups_list || [], cfg.groups || {});
     updateCfgSumNote();
   } catch (e) {
     $('#cfgMsg').textContent = 'Lỗi tải cấu hình: ' + e.message;
@@ -2074,6 +2090,10 @@ async function initConfigView() {
   ['cfgK1', 'cfgK2', 'cfgK3'].forEach(id => {
     $('#' + id).addEventListener('input', updateCfgSumNote);
   });
+  // Placeholder các ô nhóm cập nhật theo giá trị mặc định
+  ['cfgK1', 'cfgK2', 'cfgK3', 'cfgSoThangDat'].forEach(id => {
+    $('#' + id).addEventListener('input', updateCfgGroupPlaceholders);
+  });
 
   $('#cfgSave').addEventListener('click', async () => {
     const cfg = {
@@ -2081,6 +2101,7 @@ async function initConfigView() {
       k2: parseFloat($('#cfgK2').value),
       k3: parseFloat($('#cfgK3').value),
       so_thang_dat_default: parseFloat($('#cfgSoThangDat').value),
+      groups: collectCfgGroups(),
     };
     if (isNaN(cfg.k1) || isNaN(cfg.k2) || isNaN(cfg.k3)) {
       $('#cfgMsg').textContent = 'k1/k2/k3 phải là số';
@@ -2102,7 +2123,54 @@ async function initConfigView() {
     $('#cfgK1').value = 0.4; $('#cfgK2').value = 0.4; $('#cfgK3').value = 0.2;
     $('#cfgSoThangDat').value = 3;
     updateCfgSumNote();
+    updateCfgGroupPlaceholders();
   });
+}
+
+// Bảng cấu hình riêng theo nhóm sản phẩm — ô trống = dùng mặc định (hiển thị ở placeholder).
+function renderCfgGroups(list, groups) {
+  const body = $('#cfgGroupBody');
+  if (!body) return;
+  if (!list.length) {
+    body.innerHTML = `<tr><td colspan="5" class="text-slate-400 text-center py-3 text-[12px]">Chưa có nhóm sản phẩm nào — tích chọn vật tư ở tab "Cấu hình danh mục" trước.</td></tr>`;
+    return;
+  }
+  const cell = (g, k, step, min, max) => {
+    const gc = groups[g] || {};
+    const v = (gc[k] === undefined || gc[k] === null) ? '' : gc[k];
+    return `<td class="c"><input type="number" class="cfg-grp-input px-2 py-1 border border-slate-200 rounded text-[12px] w-full outline-none focus:border-emerald-500" data-k="${k}" step="${step}" min="${min}" max="${max}" value="${v}"/></td>`;
+  };
+  body.innerHTML = list.map(g => `<tr data-cfg-grp="${esc(g)}">
+    <td class="text-slate-700 text-[12px]">${esc(g)}</td>
+    ${cell(g, 'k1', '0.05', '0', '2')}
+    ${cell(g, 'k2', '0.05', '0', '2')}
+    ${cell(g, 'k3', '0.05', '0', '2')}
+    ${cell(g, 'so_thang_dat', '1', '1', '12')}
+  </tr>`).join('');
+  updateCfgGroupPlaceholders();
+}
+
+function updateCfgGroupPlaceholders() {
+  const ph = { k1: $('#cfgK1').value, k2: $('#cfgK2').value, k3: $('#cfgK3').value, so_thang_dat: $('#cfgSoThangDat').value };
+  $$('#cfgGroupBody .cfg-grp-input').forEach(inp => {
+    inp.placeholder = ph[inp.dataset.k] !== '' ? ph[inp.dataset.k] : '—';
+  });
+}
+
+function collectCfgGroups() {
+  const out = {};
+  $$('#cfgGroupBody tr[data-cfg-grp]').forEach(tr => {
+    const g = tr.dataset.cfgGrp;
+    const entry = {};
+    tr.querySelectorAll('.cfg-grp-input').forEach(inp => {
+      const val = inp.value.trim();
+      if (val === '') return;
+      const n = parseFloat(val);
+      if (!isNaN(n)) entry[inp.dataset.k] = n;
+    });
+    if (Object.keys(entry).length) out[g] = entry;
+  });
+  return out;
 }
 
 function updateCfgSumNote() {

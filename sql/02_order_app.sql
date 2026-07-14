@@ -86,8 +86,11 @@ create table if not exists public.app_config (
   key    text primary key,
   value  jsonb not null
 );
+-- goi_y: k1/k2/k3 + so_thang_dat_default là MẶC ĐỊNH; có thể override theo nhóm
+-- sản phẩm qua key "groups": { "<nhom_san_pham>": { k1,k2,k3,so_thang_dat } }.
+-- Công thức: (k1·TB CKNT + k2·TB YTD + k3·TB KH + Safety stock) × Số tháng đặt − Tổng tồn.
 insert into public.app_config(key, value)
-values ('goi_y', '{"k1":0.4,"k2":0.4,"k3":0.2,"so_thang_dat_default":3}'::jsonb)
+values ('goi_y', '{"k1":0.4,"k2":0.4,"k3":0.2,"so_thang_dat_default":3,"groups":{}}'::jsonb)
 on conflict (key) do nothing;
 
 -- ---------- Trigger updated_at ----------
