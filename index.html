@@ -1317,6 +1317,7 @@ function groupCardHtml(grp, plMap, gIdx) {
   }, 0);
   const lowStockCount = allItems.filter(r => r.tong_ton <= r.goi_y_dat && r.muc_do_sd === 'Hay sử dụng').length;
   const open = gIdx === 0;
+  const inSession = !!state.currentSession;   // bảng thông tin (danh mục) thì ẩn các cột đặt hàng sau "Gợi ý"
 
   return `<div class="group-card" data-grp="${esc(grp)}">
     <button class="group-header" data-toggle>
@@ -1354,12 +1355,12 @@ function groupCardHtml(grp, plMap, gIdx) {
           <th class="c" style="width:70px">Số tháng đặt</th>
           <th class="c" style="width:75px">Leadtime</th>
           <th class="c" style="width:60px">Gợi ý</th>
-          <th class="c" style="width:80px">SL yêu cầu</th>
+          ${inSession ? `<th class="c" style="width:80px">SL yêu cầu</th>
           <th class="c" style="width:80px">SL PM duyệt</th>
           <th class="c" style="width:80px">SL đặt hàng</th>
           <th class="c" style="width:120px" title="Đề nghị mua hàng">DM</th>
           <th class="c" style="width:120px" title="Số PO">PO</th>
-          <th style="min-width:160px">Ghi chú</th>
+          <th style="min-width:160px">Ghi chú</th>` : ''}
         </tr></thead>
         <tbody>${Array.from(plMap.entries()).map(([pl, items]) => plBlockHtml(pl, items, grp)).join('')}</tbody>
       </table>
@@ -1374,6 +1375,7 @@ function _plId(grp, pl) {
 
 function plBlockHtml(pl, items, grp) {
   const plId = _plId(grp, pl);
+  const inSession = !!state.currentSession;   // ẩn cột đặt hàng ở chế độ bảng thông tin
   const agg = items.reduce((a, r) => {
     const ch = state.changes.get(r.ma_bravo);
     const slDat = Number((ch ? ch.sl_dat : r.sl_dat) || 0);
@@ -1416,12 +1418,12 @@ function plBlockHtml(pl, items, grp) {
     <td class="c num text-slate-400">—</td>
     <td class="c num text-slate-400">—</td>
     <td class="c num text-blue-700">${dash0(agg.goi_y_dat)}</td>
-    <td class="c num text-amber-700" data-pl-sum-sldat="${plId}">${fmt(agg.sl_dat)}</td>
+    ${inSession ? `<td class="c num text-amber-700" data-pl-sum-sldat="${plId}">${fmt(agg.sl_dat)}</td>
     <td class="c num text-emerald-700">${agg.sl_duyet > 0 ? fmt(agg.sl_duyet) : '—'}</td>
     <td class="c num text-emerald-800 font-bold">${agg.sl_dat_hang > 0 ? fmt(agg.sl_dat_hang) : '—'}</td>
     <td class="c text-slate-300">—</td>
     <td class="c text-slate-300">—</td>
-    <td></td>
+    <td></td>` : ''}
   </tr>`;
 
   const childRows = items.map(r => productRowHtml(r, plId)).join('');
@@ -1478,12 +1480,12 @@ function productRowHtml(r, plId) {
     <td class="c num text-slate-600">${r.so_thang_dat || '—'}</td>
     <td class="c num text-slate-600 text-[11px]">${leadtimeDisplay}</td>
     <td class="c num"><span class="font-bold text-blue-700">${dash0(r.goi_y_dat)}</span></td>
-    ${qtyCell('sl_dat', r.sl_dat, 'text-amber-700')}
+    ${state.currentSession ? `${qtyCell('sl_dat', r.sl_dat, 'text-amber-700')}
     ${qtyCell('sl_duyet', r.sl_duyet, 'text-emerald-700')}
     ${qtyCell('sl_dat_hang', r.sl_dat_hang, 'text-emerald-800 font-bold')}
     <td class="c text-[11.5px] text-slate-600">${(state.currentSession && state.currentSession.de_nghi_mua_hang) ? esc(state.currentSession.de_nghi_mua_hang) : '—'}</td>
     <td class="c text-[11.5px] text-slate-600">${(state.currentSession && state.currentSession.po) ? esc(state.currentSession.po) : '—'}</td>
-    ${noteCell}
+    ${noteCell}` : ''}
   </tr>`;
 }
 
