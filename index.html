@@ -264,6 +264,35 @@ body.is-purchasing [data-view="approval"][data-need="approver"] { display: inlin
             class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-2 rounded-md text-[14px] font-medium transition-colors">
       Đăng nhập
     </button>
+    <button id="toChangePw" type="button"
+            class="w-full mt-3 text-[12.5px] text-slate-500 hover:text-emerald-600 transition-colors">
+      Đổi mật khẩu
+    </button>
+  </form>
+
+  <form id="pwForm" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 w-full max-w-sm">
+    <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white mb-4">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+    </div>
+    <h2 class="text-[18px] font-semibold m-0">Đổi mật khẩu</h2>
+    <p class="text-[13px] text-slate-500 mt-1 mb-5">Nhập mật khẩu hiện tại và mật khẩu mới</p>
+    <input id="pwUser" required placeholder="Tài khoản" autocomplete="username"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 mb-2.5"/>
+    <input id="pwOld" type="password" required placeholder="Mật khẩu hiện tại" autocomplete="current-password"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 mb-2.5"/>
+    <input id="pwNew" type="password" required placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" autocomplete="new-password" minlength="6"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 mb-2.5"/>
+    <input id="pwNew2" type="password" required placeholder="Nhập lại mật khẩu mới" autocomplete="new-password" minlength="6"
+           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"/>
+    <div id="pwErr" class="text-[12px] text-red-600 mt-3 min-h-[16px]"></div>
+    <button id="pwBtn" type="submit"
+            class="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-2 rounded-md text-[14px] font-medium transition-colors">
+      Đổi mật khẩu
+    </button>
+    <button id="pwCancel" type="button"
+            class="w-full mt-3 text-[12.5px] text-slate-500 hover:text-emerald-600 transition-colors">
+      ← Quay lại đăng nhập
+    </button>
   </form>
 </div>
 
@@ -631,6 +660,17 @@ async function rpcRaw(fn, ...args) {
     if (!res.ok || body.error) throw new Error(body.error || ('HTTP ' + res.status));
     return body;
   }
+  if (fn === 'changePassword') {
+    const [username, oldPassword, newPassword] = args;
+    const res = await fetchWithTimeout(API_BASE + '/order-login', {
+      method: 'POST', headers: _headers(),
+      body: JSON.stringify({ action: 'changePassword', username, oldPassword, newPassword })
+    });
+    let body = {};
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok || body.error) throw new Error(body.error || ('HTTP ' + res.status));
+    return body;
+  }
   return rpc(fn, ...args);
 }
 
@@ -703,6 +743,9 @@ function showLogin() {
   $('#loginScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
   $('#loginErr').textContent = '';
+  // Luôn hiện form đăng nhập (không kẹt ở form đổi mật khẩu nếu lần trước có mở).
+  $('#loginForm').classList.remove('hidden');
+  const _pf = $('#pwForm'); if (_pf) _pf.classList.add('hidden');
   // Reset nút về trạng thái sẵn sàng — nếu không, sau khi đăng nhập thành công rồi
   // đăng xuất, nút vẫn kẹt ở disabled + "Đang đăng nhập…".
   const _lb = $('#loginBtn');
@@ -727,6 +770,48 @@ function showLogin() {
       $('#loginErr').textContent = e.message;
       $('#loginBtn').disabled = false;
       $('#loginBtn').textContent = 'Đăng nhập';
+    }
+  };
+
+  // ---- Đổi mật khẩu (ngay ở màn login, chưa cần đăng nhập) ----
+  const showPwForm = (show) => {
+    $('#loginForm').classList.toggle('hidden', show);
+    $('#pwForm').classList.toggle('hidden', !show);
+    $('#pwErr').textContent = '';
+    if (show) {
+      $('#pwUser').value = $('#loginUser').value.trim();
+      $('#pwOld').value = ''; $('#pwNew').value = ''; $('#pwNew2').value = '';
+      ($('#pwUser').value ? $('#pwOld') : $('#pwUser')).focus();
+    }
+  };
+  $('#toChangePw').onclick = () => showPwForm(true);
+  $('#pwCancel').onclick = () => showPwForm(false);
+
+  $('#pwForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const u = $('#pwUser').value.trim();
+    const oldP = $('#pwOld').value;
+    const newP = $('#pwNew').value;
+    const newP2 = $('#pwNew2').value;
+    $('#pwErr').textContent = '';
+    if (!u || !oldP || !newP) return;
+    if (newP.length < 6) { $('#pwErr').textContent = 'Mật khẩu mới tối thiểu 6 ký tự'; return; }
+    if (newP !== newP2) { $('#pwErr').textContent = 'Nhập lại mật khẩu mới không khớp'; return; }
+    if (newP === oldP) { $('#pwErr').textContent = 'Mật khẩu mới phải khác mật khẩu hiện tại'; return; }
+    $('#pwBtn').disabled = true;
+    $('#pwBtn').textContent = 'Đang đổi…';
+    try {
+      await rpcRaw('changePassword', u, oldP, newP);
+      showPwForm(false);
+      $('#loginUser').value = u;
+      $('#loginPass').value = '';
+      $('#loginPass').focus();
+      toast('Đổi mật khẩu thành công — hãy đăng nhập lại');
+    } catch (e) {
+      $('#pwErr').textContent = e.message;
+    } finally {
+      $('#pwBtn').disabled = false;
+      $('#pwBtn').textContent = 'Đổi mật khẩu';
     }
   };
 }
@@ -1311,13 +1396,31 @@ function renderOrderBody() {
   bindScrollSyncAndDrag();
 }
 
+// Nguồn "gợi ý mặc định" để điền sẵn cho mỗi ô số lượng theo bước:
+//  SL yêu cầu ← Gợi ý · SL PM duyệt ← SL yêu cầu · SL đặt hàng ← SL PM duyệt.
+const QTY_DEFAULT_SRC = { sl_dat: 'goi_y_dat', sl_duyet: 'sl_dat', sl_dat_hang: 'sl_duyet' };
+
+// Giá trị điền sẵn (gợi ý) cho 1 ô số lượng của 1 dòng.
+function qtyDefault(r, field) {
+  const src = QTY_DEFAULT_SRC[field];
+  return src ? Number(r[src] || 0) : 0;
+}
+
+// Giá trị hiệu lực của 1 ô số lượng: đang sửa > đã lưu > điền sẵn theo gợi ý.
+// Chỉ điền sẵn cho cột đang nhập của bước hiện tại (và dòng trong phạm vi của user).
+function qtyEffective(r, field) {
+  const ch = state.changes.get(r.ma_bravo);
+  if (ch && ch[field] !== undefined) return Number(ch[field] || 0);
+  if (r[field] != null) return Number(r[field]);
+  const action = state.currentAction;
+  if (action && action.editField === field && r.editable !== false) return qtyDefault(r, field);
+  return 0;
+}
+
 function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
-  const totalOrdered = allItems.reduce((s, r) => {
-    const ch = state.changes.get(r.ma_bravo);
-    return s + Number((ch ? ch.sl_dat : r.sl_dat) || 0);
-  }, 0);
+  const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
   const totalStock = allItems.reduce((s, r) => {
     return s + (Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0) + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0));
   }, 0);
@@ -1383,8 +1486,7 @@ function plBlockHtml(pl, items, grp) {
   const plId = _plId(grp, pl);
   const inSession = !!state.currentSession;   // ẩn cột đặt hàng ở chế độ bảng thông tin
   const agg = items.reduce((a, r) => {
-    const ch = state.changes.get(r.ma_bravo);
-    const slDat = Number((ch ? ch.sl_dat : r.sl_dat) || 0);
+    const slDat = qtyEffective(r, 'sl_dat');
     a.ton_kho += Number(r.ton_kho || 0);
     a.hang_ktv_bv += Number(r.hang_ktv_bv || 0);
     a.hang_vet_thau += Number(r.hang_vet_thau || 0);
@@ -1398,8 +1500,8 @@ function plBlockHtml(pl, items, grp) {
     a.safety_stock += Number(r.safety_stock || 0);
     a.goi_y_dat += Number(r.goi_y_dat || 0);
     a.sl_dat += slDat;
-    a.sl_duyet += Number(r.sl_duyet || 0);
-    a.sl_dat_hang += Number(r.sl_dat_hang || 0);
+    a.sl_duyet += qtyEffective(r, 'sl_duyet');
+    a.sl_dat_hang += qtyEffective(r, 'sl_dat_hang');
     return a;
   }, { ton_kho:0, hang_ktv_bv:0, hang_vet_thau:0, hang_di_duong:0, tong_ton:0, xuat_2025:0, xuat_lk_2026:0, tb_kh_3_thang:0, safety_stock:0, goi_y_dat:0, sl_dat:0, sl_duyet:0, sl_dat_hang:0 });
 
@@ -1452,8 +1554,12 @@ function productRowHtml(r, plId) {
   const qtyCell = (field, currentValue, colorCls) => {
     const display = currentValue == null ? '—' : fmt(currentValue);
     if (field === editField && r.editable !== false) {
-      const editingValue = change ? (change[field] ?? '') : (currentValue ?? '');
-      return `<td class="c"><input type="number" class="qty-input ${dirty ? 'dirty' : ''}" min="0" value="${editingValue}" data-field="${field}" data-id="${esc(r.ma_bravo)}"/></td>`;
+      const def = qtyDefault(r, field);
+      // Điền sẵn: đang sửa > đã lưu > gợi ý mặc định. Ô lệch gợi ý -> highlight (dirty).
+      const shown = (change && change[field] !== undefined) ? Number(change[field] || 0)
+                  : (currentValue != null ? Number(currentValue) : def);
+      const adjusted = Number(shown || 0) !== def;
+      return `<td class="c"><input type="number" class="qty-input ${adjusted ? 'dirty' : ''}" min="0" value="${shown || ''}" data-field="${field}" data-id="${esc(r.ma_bravo)}" data-default="${def}"/></td>`;
     }
     const lockTitle = (field === editField && r.editable === false) ? ' title="Ngoài scope của bạn"' : '';
     return `<td class="c num font-medium ${currentValue != null ? colorCls : 'text-slate-300'}"${lockTitle}>${display}</td>`;
@@ -1504,19 +1610,21 @@ function bindOrderInputs() {
       if (!row) return;
       const existing = state.changes.get(id) || {};
       existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
-      // Check same-as-orig dựa trên action's editField/editNoteField
+      // Baseline giờ là gợi ý mặc định (đã điền sẵn), không phải giá trị đã lưu:
+      // lệch gợi ý (hoặc đổi ghi chú) = có chỉnh -> ghi vào changes để highlight & đếm.
       const action = state.currentAction;
-      const origQty = Number(row[action.editField] || 0);
+      const defQty = qtyDefault(row, action.editField);
       const origNote = row[action.editNoteField] || '';
-      const newQty = Number(existing[action.editField] || 0);
+      const newQty = existing[action.editField] !== undefined ? Number(existing[action.editField] || 0) : defQty;
       const newNote = existing[action.editNoteField] !== undefined ? existing[action.editNoteField] : origNote;
-      if (newQty === origQty && newNote === origNote) state.changes.delete(id);
+      if (newQty === defQty && newNote === origNote) state.changes.delete(id);
       else state.changes.set(id, existing);
 
       const tr = inp.closest('tr');
       tr.classList.toggle('dirty', state.changes.has(id));
       if (field === action.editField) {
-        inp.classList.toggle('dirty', state.changes.has(id));
+        const def = Number(inp.dataset.default || 0);
+        inp.classList.toggle('dirty', Number(inp.value || 0) !== def);
         const plId = tr.dataset.pl;
         if (plId) updatePLSumSlDat(plId);
       }
@@ -1806,11 +1914,8 @@ function bindPLToggles() {
 function updateOrderStats() {
   const rows = state.rows;
 
-  // Giá trị hiệu lực (đã lưu + đang sửa) cho 1 field số lượng.
-  const eff = (r, field) => {
-    const ch = state.changes.get(r.ma_bravo);
-    return (ch && ch[field] !== undefined) ? Number(ch[field] || 0) : Number(r[field] || 0);
-  };
+  // Giá trị hiệu lực (đang sửa > đã lưu > điền sẵn theo gợi ý) cho 1 field số lượng.
+  const eff = (r, field) => qtyEffective(r, field);
   // Tồn của 1 dòng theo công thức: DA + KG + Đi đường − GU
   const stockOf = r => Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0)
     + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0);
@@ -1832,7 +1937,7 @@ function updateOrderStats() {
     statCard({ label: 'Tổng sản phẩm', value: fmtInt(totalProducts), sub: 'phân loại khác nhau', accent: 'slate' }),
     statCard({ label: 'Tổng SKU', value: fmtInt(totalSku), sub: 'trong danh mục', accent: 'slate' }),
     statCard({ label: 'Tổng tồn', value: fmtInt(totalStock), sub: 'DA + Ký gửi + Đi đường − GU', accent: 'teal' }),
-    statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'đã lưu + đang sửa', accent: 'blue' }),
+    statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'gồm điền sẵn theo gợi ý', accent: 'blue' }),
     statCard({ label: 'Tổng giá trị yêu cầu', value: fmtVND(totalReqValue), sub: 'SL yêu cầu × đơn giá', accent: 'amber' }),
     statCard({ label: 'Tổng giá trị đặt hàng', value: fmtVND(totalOrderValue), sub: 'SL đặt hàng × đơn giá', accent: 'amber' }),
     statCard({ label: 'SKU tồn thấp', value: fmtInt(lowCount), sub: 'cần đặt thêm', accent: lowCount > 0 ? 'red' : 'slate' }),
@@ -1863,22 +1968,20 @@ function updateDraftIndicator() {
     return;
   }
 
-  const isAMConfirm = action.editField === 'sl_dat';
-  const suggN = state.rows.reduce((a, r) => a + (Number(r.goi_y_dat || 0) > 0 ? 1 : 0), 0);
+  // Số dòng sẽ gửi = số ô số lượng (bước hiện tại) có giá trị > 0 (đã gồm điền sẵn theo gợi ý).
+  const fillN = state.rows.reduce((a, r) => a + (qtyEffective(r, action.editField) > 0 ? 1 : 0), 0);
 
-  if (n > 0) {
+  if (fillN > 0) {
     draftActions.classList.remove('hidden');
     draftActions.classList.add('flex');
-    $('#btnPlaceLabel').textContent = `${action.label} (${n})`;
+    if (n > 0) {
+      $('#btnPlaceLabel').textContent = `${action.label} (${fillN} · ${n} chỉnh)`;
+      status.textContent = '';
+    } else {
+      $('#btnPlaceLabel').textContent = `${action.label} theo gợi ý (${fillN})`;
+      status.textContent = 'Đã điền sẵn theo gợi ý — chỉnh tay ở ô cần thay đổi rồi bấm xác nhận';
+    }
     $('#btnPlace').disabled = false;
-    status.textContent = '';
-  } else if (isAMConfirm && suggN > 0) {
-    // AM chưa nhập gì -> cho xác nhận nhanh theo số gợi ý (SL yêu cầu = gợi ý).
-    draftActions.classList.remove('hidden');
-    draftActions.classList.add('flex');
-    $('#btnPlaceLabel').textContent = `Xác nhận theo gợi ý (${suggN})`;
-    $('#btnPlace').disabled = false;
-    status.textContent = 'Chưa chỉnh sửa — bấm để đặt theo số gợi ý, hoặc nhập tay để điều chỉnh';
   } else {
     draftActions.classList.add('hidden');
     draftActions.classList.remove('flex');
@@ -1889,23 +1992,23 @@ function updateDraftIndicator() {
 async function placeOrder() {
   const action = state.currentAction;
   if (!action) return;
-  const noChange = state.changes.size === 0;
-  let items;
-  if (noChange) {
-    // "Xác nhận theo gợi ý" — chỉ ở bước AM: SL yêu cầu = gợi ý cho mọi dòng có gợi ý > 0.
-    if (action.editField !== 'sl_dat') return;
-    items = state.rows
-      .filter(r => Number(r.goi_y_dat || 0) > 0)
-      .map(r => ({ ma_bravo: r.ma_bravo, sl_dat: Number(r.goi_y_dat || 0), ghi_chu_dat: r.ghi_chu_dat || '' }));
-    if (!items.length) return;
-  } else {
-    items = Array.from(state.changes.entries()).map(([ma_bravo, v]) => {
-      const item = { ma_bravo };
-      item[action.editField] = Number(v[action.editField] || 0);
-      item[action.editNoteField] = v[action.editNoteField] || '';
-      return item;
-    });
-  }
+  // Gom từ ô nhập trên bảng: mọi dòng có SL > 0 (đã gồm giá trị điền sẵn theo gợi ý,
+  // không chỉ các dòng chỉnh tay). Ghi chú lấy theo từng mã.
+  const noteMap = {};
+  $$(`#orderTableHost input.note-input[data-field="${action.editNoteField}"]`).forEach(inp => {
+    noteMap[inp.dataset.id] = inp.value || '';
+  });
+  const items = [];
+  $$(`#orderTableHost input.qty-input[data-field="${action.editField}"]`).forEach(inp => {
+    const qty = Number(inp.value || 0);
+    if (qty <= 0) return;
+    const ma = inp.dataset.id;
+    const item = { ma_bravo: ma };
+    item[action.editField] = qty;
+    item[action.editNoteField] = noteMap[ma] || '';
+    items.push(item);
+  });
+  if (!items.length) return;
   const keepId = state.currentSession && state.currentSession.session_id;
   $('#btnPlace').disabled = true;
   $('#btnPlaceLabel').textContent = 'Đang lưu…';
@@ -2589,7 +2692,7 @@ async function closeSessionAction() {
 
 // ============ MÀN NHẬT KÝ ============
 const ACTION_LABELS = {
-  LOGIN: 'Đăng nhập', LOGOUT: 'Đăng xuất',
+  LOGIN: 'Đăng nhập', LOGOUT: 'Đăng xuất', CHANGE_PASSWORD: 'Đổi mật khẩu',
   PLACE_ORDER: 'Đặt hàng', PLACE_ORDER_BUSY: 'Bị khoá',
   APPROVE: 'Duyệt SKU', CLOSE_SESSION: 'Chốt đợt', CREATE_SESSION: 'Tạo đợt',
   CONFIG_CATALOG: 'Cấu hình danh mục', SAVE_CONFIG: 'Cấu hình công thức',

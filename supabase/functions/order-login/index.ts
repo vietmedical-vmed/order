@@ -5,7 +5,7 @@
 //  - Payload chứa username, ho_ten, role, mien, exp (8h)
 //  Secrets cần set: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +31,11 @@ async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function randomSaltHex(): string {
+  return [...crypto.getRandomValues(new Uint8Array(16))]
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function hmacSign(payloadB64: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
@@ -39,19 +44,68 @@ async function hmacSign(payloadB64: string, secret: string): Promise<string> {
   return b64urlFromBytes(new Uint8Array(sig));
 }
 
+// Đổi mật khẩu (không cần đăng nhập): xác thực mật khẩu hiện tại giống login rồi ghi hash mới.
+async function handleChangePassword(supa: SupabaseClient, body: any): Promise<Response> {
+  const { username, oldPassword, newPassword } = body;
+  if (!username || !oldPassword || !newPassword) {
+    return json({ error: "Thiếu tài khoản, mật khẩu hiện tại hoặc mật khẩu mới" }, 400);
+  }
+  if (String(newPassword).length < 6) {
+    return json({ error: "Mật khẩu mới tối thiểu 6 ký tự" }, 400);
+  }
+  if (String(oldPassword) === String(newPassword)) {
+    return json({ error: "Mật khẩu mới phải khác mật khẩu hiện tại" }, 400);
+  }
+  const uname = String(username).trim().toLowerCase();
+
+  const { data: user } = await supa
+    .from("users").select("*").eq("username", uname).maybeSingle();
+  if (!user || !user.password_hash || user.active === false) {
+    await new Promise((r) => setTimeout(r, 400)); // chống dò
+    return json({ error: "Tài khoản hoặc mật khẩu hiện tại không đúng" }, 401);
+  }
+  const oldToHash = user.salt ? (user.salt + ":" + oldPassword) : oldPassword;
+  if (await sha256Hex(oldToHash) !== user.password_hash) {
+    await new Promise((r) => setTimeout(r, 400));
+    return json({ error: "Tài khoản hoặc mật khẩu hiện tại không đúng" }, 401);
+  }
+
+  // users là bảng DÙNG CHUNG nhiều app -> giữ nguyên scheme salt:
+  //  - đang có salt   -> sinh salt mới (app khác vẫn đọc salt từ bản ghi nên chạy đúng)
+  //  - vốn không salt -> giữ không salt (tránh phá app chỉ hash SHA256(password))
+  let salt = user.salt || "";
+  if (salt) salt = randomSaltHex();
+  const newHash = await sha256Hex(salt ? (salt + ":" + newPassword) : newPassword);
+
+  const { error } = await supa.from("users")
+    .update({ password_hash: newHash, salt }).eq("username", uname);
+  if (error) return json({ error: error.message }, 500);
+
+  await supa.from("audit_log").insert({
+    username: user.username, action: "CHANGE_PASSWORD", session_id: "", detail: "",
+  });
+  return json({ ok: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    const { username, password } = await req.json();
-    if (!username || !password) {
-      return json({ error: "Thiếu tài khoản hoặc mật khẩu" }, 400);
-    }
-    const uname = String(username).trim().toLowerCase();
+    const body = await req.json();
 
     const supa = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    if (String(body.action || "") === "changePassword") {
+      return await handleChangePassword(supa, body);
+    }
+
+    const { username, password } = body;
+    if (!username || !password) {
+      return json({ error: "Thiếu tài khoản hoặc mật khẩu" }, 400);
+    }
+    const uname = String(username).trim().toLowerCase();
 
     // users = bảng DÙNG CHUNG (identity + mật khẩu + role + mien)
     const { data: user } = await supa
