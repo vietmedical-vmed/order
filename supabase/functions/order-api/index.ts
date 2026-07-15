@@ -59,16 +59,16 @@ const initials = (name: string) =>
   String(name || "").split(" ").filter(Boolean).map((s) => s[0]).slice(-2).join("").toUpperCase();
 
 // ---------- config ----------
-async function getKConfig(supa: SupabaseClient) {
-  const { data } = await supa.from("app_config").select("value").eq("key", "goi_y").maybeSingle();
-  const c = (data?.value as any) || {};
+// Chuẩn hoá 1 object cấu hình thô (từ app_config hoặc order_config_log) về dạng dùng được.
+function normalizeCfg(raw: any) {
+  const c = raw || {};
   // Override theo nhóm sản phẩm: { "<nhom_san_pham>": { k1,k2,k3,so_thang_dat } }
   const groups: Record<string, any> = {};
   const gin = (c.groups && typeof c.groups === "object") ? c.groups : {};
-  for (const [g, raw] of Object.entries(gin)) {
-    if (!g || !raw || typeof raw !== "object") continue;
+  for (const [g, r0] of Object.entries(gin)) {
+    if (!g || !r0 || typeof r0 !== "object") continue;
     const e: any = {};
-    const r = raw as any;
+    const r = r0 as any;
     for (const k of ["k1", "k2", "k3"]) {
       if (r[k] !== undefined && r[k] !== null && r[k] !== "") e[k] = Number(r[k]);
     }
@@ -84,6 +84,29 @@ async function getKConfig(supa: SupabaseClient) {
     so_thang_dat_default: Number(c.so_thang_dat_default ?? DEFAULT_CFG.so_thang_dat_default),
     groups,
   };
+}
+
+async function getKConfig(supa: SupabaseClient) {
+  const { data } = await supa.from("app_config").select("value").eq("key", "goi_y").maybeSingle();
+  return normalizeCfg(data?.value);
+}
+
+// Cấu hình công thức CÓ HIỆU LỰC tại thời điểm `atTime` (ISO string):
+// bản log mới nhất có created_at <= atTime. Nếu chưa có log nào trước thời điểm đó
+// (vd đợt cũ tạo trước khi bật tính năng log) -> fallback về cấu hình hiện hành.
+async function getConfigAt(supa: SupabaseClient, atTime?: string | null) {
+  if (atTime) {
+    const { data, error } = await supa
+      .from("order_config_log")
+      .select("value")
+      .eq("cfg_key", "goi_y")
+      .lte("created_at", atTime)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error && data && data.value) return normalizeCfg(data.value);
+  }
+  return await getKConfig(supa);
 }
 
 // Danh sách nhóm sản phẩm (nhom_san_pham) của các vật tư đang được đặt hàng.
@@ -487,8 +510,31 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       if (Object.keys(e).length) c.groups[g] = e;
     }
     await supa.from("app_config").upsert({ key: "goi_y", value: c });
+    // Ghi log phiên bản cấu hình — áp dụng từ thời điểm này đến khi có bản mới thay thế.
+    // Nhờ vậy khi xem lại 1 đợt đặt hàng cũ, Gợi ý dùng đúng công thức tại thời điểm đợt đó.
+    // Best-effort: nếu bảng log chưa được tạo (chưa chạy 05_config_log.sql) thì vẫn lưu được cấu hình.
+    try {
+      await supa.from("order_config_log").insert({ cfg_key: "goi_y", value: c, created_by: u.username });
+    } catch (_) { /* ignore — log là phụ, không chặn lưu cấu hình */ }
     await audit(supa, u.username, "SAVE_CONFIG", "", JSON.stringify(c));
     return c;
+  },
+
+  // Lịch sử các phiên bản cấu hình công thức (mới nhất trước).
+  async listConfigLog(supa, u, [limit]) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem lịch sử cấu hình");
+    const { data } = await supa
+      .from("order_config_log")
+      .select("id, value, created_at, created_by")
+      .eq("cfg_key", "goi_y")
+      .order("created_at", { ascending: false })
+      .limit(Math.min(Number(limit) || 50, 200));
+    return (data || []).map((r: any) => ({
+      id: String(r.id),
+      created_at: r.created_at ? new Date(r.created_at).toISOString() : "",
+      created_by: r.created_by || "",
+      value: normalizeCfg(r.value),
+    }));
   },
 
   async listCatalog(supa, u) {
@@ -635,7 +681,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async loadOrderScreen(supa, u, [sessionId, mien]) {
     // Phase 1: fetch session-independent data in parallel
     // (san_pham cho %SD nay lay trong usage_agg -> khong con loadSanPhamMap)
-    const [sessionRaw, products0, grants, spBoMap, cfg] = await Promise.all([
+    const [sessionRaw, products0, grants, spBoMap] = await Promise.all([
       // Chỉ mở đúng đợt được chỉ định (từ "Quản lý đặt hàng" hoặc sau khi tạo đợt).
       // Khi không truyền sessionId -> KHÔNG auto-chọn đợt: hiển thị "bảng thông tin"
       // (màn chi tiết ở chế độ danh mục, không thuộc đợt nào).
@@ -645,11 +691,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       fetchProducts(supa),
       getGrants(supa, u),
       loadSpBoMap(supa),
-      getKConfig(supa),
     ]);
 
     let session: any = sessionRaw;
     if (session && u.role === "AM" && u.mien !== session.mien) session = null;
+
+    // Cấu hình công thức: nếu đang xem 1 đợt -> dùng cấu hình CÓ HIỆU LỰC tại thời điểm mở đợt
+    // (theo log), để xem lại đợt cũ đúng công thức. Bảng thông tin (không đợt) -> cấu hình hiện hành.
+    const cfg = session ? await getConfigAt(supa, session.ngay_mo) : await getKConfig(supa);
 
     const visFilter = makeVisibleFilter(u.role, grants);
     let products = visFilter ? products0.filter(visFilter) : products0;
@@ -918,7 +967,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const [items, prods, cfg, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
       supa.from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
       fetchProducts(supa),
-      getKConfig(supa),
+      getConfigAt(supa, ngayMoExp),   // dùng đúng công thức có hiệu lực khi mở đợt
       loadSpBoMap(supa),
       stockMapFor(supa, mienExp, ngayMoExp),
       usageMapFor(supa, mienExp),

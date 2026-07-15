@@ -454,6 +454,12 @@ body.is-purchasing [data-view="approval"][data-need="approver"] { display: inlin
         <span id="cfgMsg" class="text-[12px] text-emerald-600"></span>
       </div>
     </div>
+
+    <div class="bg-white rounded-lg border border-slate-200 p-6 mt-5">
+      <h3 class="text-[14px] font-semibold text-slate-800 mb-1">Lịch sử cấu hình công thức</h3>
+      <p class="text-[12px] text-slate-500 mb-3">Mỗi bản có hiệu lực từ thời điểm lưu đến khi có bản mới. Khi xem lại một đợt, Gợi ý dùng bản có hiệu lực tại thời điểm mở đợt.</p>
+      <div id="cfgLogHost"></div>
+    </div>
   </div>
 </template>
 
@@ -2100,6 +2106,7 @@ async function initConfigView() {
     $('#cfgMsg').textContent = 'Lỗi tải cấu hình: ' + e.message;
     $('#cfgMsg').className = 'text-[12px] text-red-600';
   }
+  renderConfigLog();
 
   ['cfgK1', 'cfgK2', 'cfgK3'].forEach(id => {
     $('#' + id).addEventListener('input', updateCfgSumNote);
@@ -2127,6 +2134,7 @@ async function initConfigView() {
       $('#cfgMsg').textContent = '✓ Đã lưu cấu hình lúc ' + new Date().toLocaleTimeString('vi-VN');
       $('#cfgMsg').className = 'text-[12px] text-emerald-600';
       toast('Đã lưu cấu hình. Cột Gợi ý sẽ cập nhật khi mở tab Chi tiết.');
+      renderConfigLog();
     } catch (e) {
       $('#cfgMsg').textContent = 'Lỗi: ' + e.message;
       $('#cfgMsg').className = 'text-[12px] text-red-600';
@@ -2139,6 +2147,52 @@ async function initConfigView() {
     updateCfgSumNote();
     updateCfgGroupPlaceholders();
   });
+}
+
+// Lịch sử phiên bản cấu hình công thức (mới nhất trước).
+async function renderConfigLog() {
+  const host = $('#cfgLogHost');
+  if (!host) return;
+  host.innerHTML = `<div class="loading-state text-[12px]">Đang tải lịch sử…</div>`;
+  try {
+    const list = await rpc('listConfigLog', 50);
+    if (!Array.isArray(list) || !list.length) {
+      host.innerHTML = `<div class="empty-state text-[12px]">Chưa có bản ghi nào — lưu cấu hình để bắt đầu lưu log.</div>`;
+      return;
+    }
+    const grpSummary = (groups) => {
+      const n = groups ? Object.keys(groups).length : 0;
+      return n ? `${n} nhóm cấu hình riêng` : 'không có nhóm riêng';
+    };
+    host.innerHTML = `<div class="border border-slate-200 rounded-md overflow-x-auto scroll-area">
+      <table class="dt">
+        <thead><tr>
+          <th style="width:170px">Thời điểm áp dụng</th>
+          <th style="width:120px">Người lưu</th>
+          <th class="c" style="width:70px">k1</th>
+          <th class="c" style="width:70px">k2</th>
+          <th class="c" style="width:70px">k3</th>
+          <th class="c" style="width:90px">Số tháng đặt</th>
+          <th>Nhóm riêng</th>
+        </tr></thead>
+        <tbody>${list.map((r, i) => {
+          const v = r.value || {};
+          const now = i === 0 ? ` <span class="pill st-app">Hiện hành</span>` : '';
+          return `<tr>
+            <td class="text-slate-700">${esc(fmtDate(r.created_at))}${now}</td>
+            <td class="text-slate-600">${esc(r.created_by || '—')}</td>
+            <td class="c num text-slate-700">${v.k1}</td>
+            <td class="c num text-slate-700">${v.k2}</td>
+            <td class="c num text-slate-700">${v.k3}</td>
+            <td class="c num text-slate-700">${v.so_thang_dat_default}</td>
+            <td class="text-slate-500 text-[12px]">${esc(grpSummary(v.groups))}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+  } catch (e) {
+    host.innerHTML = `<div class="empty-state text-[12px] text-red-600">Lỗi tải lịch sử: ${esc(e.message)}</div>`;
+  }
 }
 
 // Bảng cấu hình riêng theo nhóm sản phẩm — ô trống = dùng mặc định (hiển thị ở placeholder).
