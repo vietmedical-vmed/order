@@ -636,9 +636,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Phase 1: fetch session-independent data in parallel
     // (san_pham cho %SD nay lay trong usage_agg -> khong con loadSanPhamMap)
     const [sessionRaw, products0, grants, spBoMap, cfg] = await Promise.all([
+      // Chỉ mở đúng đợt được chỉ định (từ "Quản lý đặt hàng" hoặc sau khi tạo đợt).
+      // Khi không truyền sessionId -> KHÔNG auto-chọn đợt: hiển thị "bảng thông tin"
+      // (màn chi tiết ở chế độ danh mục, không thuộc đợt nào).
       sessionId
         ? supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
-        : (mien && mien !== "ALL") ? findCurrentSession(supa, u, mien) : Promise.resolve(null),
+        : Promise.resolve(null),
       fetchProducts(supa),
       getGrants(supa, u),
       loadSpBoMap(supa),
@@ -650,6 +653,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     const visFilter = makeVisibleFilter(u.role, grants);
     let products = visFilter ? products0.filter(visFilter) : products0;
+    // AM: nếu cấu hình BU không khớp sản phẩm nào (BU trống/sai lệch dữ liệu) thì hiển thị
+    // toàn bộ danh mục thay vì màn trắng "không có SKU". AM vẫn bị giới hạn theo miền
+    // qua tồn kho & phạm vi đợt đặt hàng.
+    if (u.role === "AM" && visFilter && products.length === 0 && products0.length > 0) {
+      products = products0;
+    }
 
     const effMien: string = session ? session.mien : (mien || "");
     const ngayMo: string | null = session ? session.ngay_mo : null;

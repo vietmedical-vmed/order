@@ -551,7 +551,7 @@ const state = {
   token: null,
   user: null,
   mien: 'MB',
-  view: 'approval',   // mặc định khi login: bảng thông tin (Quản lý đặt hàng), không mở đợt cụ thể
+  view: 'order',   // mặc định khi login: màn chi tiết ở chế độ "bảng thông tin" (danh mục, không thuộc đợt nào)
   sessions: [],
   currentSession: null,
   rows: [],
@@ -2672,17 +2672,20 @@ function openCreateSessionModal() {
     try {
       let toastMsg;
       if (role === 'AM') {
-        await rpc('createSession', name, state.user.mien, ngayDong || '');
+        const s = await rpc('createSession', name, state.user.mien, ngayDong || '');
+        // Mở thẳng đợt vừa tạo (không còn auto-pick ở backend).
+        state.pinnedSessionId = (s && s.session_id) || null;
         toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}`;
         // AM luôn ở miền của mình, không cần switch
       } else {
-        await rpc('createSessionBoth', name, ngayDong || '');
+        const r = await rpc('createSessionBoth', name, ngayDong || '');
         toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền`;
-        // Khi đang xem 'ALL', switch về MB để hiển thị đợt MB mới tạo
-        if (state.mien === 'ALL') {
-          state.mien = 'MB';
-          $$('.mien-btn').forEach(x => x.classList.toggle('active', x.dataset.mien === 'MB'));
-        }
+        // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
+        const targetMien = state.mien === 'MN' ? 'MN' : 'MB';
+        const created = targetMien === 'MN' ? (r && r.mn) : (r && r.mb);
+        state.mien = targetMien;
+        state.pinnedSessionId = (created && created.session_id) || null;
+        $$('.mien-btn').forEach(x => x.classList.toggle('active', x.dataset.mien === targetMien));
       }
       toast(toastMsg);
       close();
