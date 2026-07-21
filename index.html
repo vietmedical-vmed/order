@@ -692,21 +692,27 @@ window.addEventListener('DOMContentLoaded', async () => {
   const boot = $('#boot');
   if (boot) boot.remove();
   try {
-    const saved = localStorage.getItem(TOKEN_KEY);
-    if (saved) {
-      state.token = saved;
+    // Bypass đăng nhập khi vào từ portal: ưu tiên token dùng chung (vmed_token),
+    // fallback token riêng của app. Có token hợp lệ -> vào thẳng, bỏ qua màn login.
+    const candidates = [...new Set([
+      localStorage.getItem('vmed_token'),
+      localStorage.getItem(TOKEN_KEY),
+    ].filter(Boolean))];
+    for (const tk of candidates) {
+      state.token = tk;
       try {
         const u = await rpc('getCurrentUser');
         if (!u || !u.username) throw new Error('User trống từ server');
         state.user = u;
+        localStorage.setItem(TOKEN_KEY, tk); // đồng bộ để phần còn lại của app dùng chung
         await safeShowApp();
         return;
       } catch (e) {
-        console.error('[boot] getCurrentUser fail:', e);
-        localStorage.removeItem(TOKEN_KEY);
-        state.token = null;
+        console.error('[boot] token bypass fail:', e);
       }
     }
+    state.token = null;
+    localStorage.removeItem(TOKEN_KEY);
     showLogin();
   } catch (e) {
     console.error('[boot] fatal:', e);
