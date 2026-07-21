@@ -139,8 +139,9 @@ Deno.serve(async (req) => {
     const payload = {
       username: user.username,
       ho_ten,
-      role,
+      role: String(user.role || "").toLowerCase(), // role gốc chữ thường (chuẩn chung; order-api tự map)
       mien: user.mien || "MB",
+      bu: user.bu || "",
       scope: user.scope || "",
       exp: Math.floor(Date.now() / 1000) + TOKEN_TTL,
     };

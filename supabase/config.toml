@@ -1,7 +1,7 @@
 project_id = "ctch-order"
 
-[functions.login]
+[functions.order-login]
 verify_jwt = false
 
-[functions.api]
+[functions.order-api]
 verify_jwt = false

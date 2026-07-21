@@ -13,11 +13,16 @@ const CORS = {
 const enc = new TextEncoder();
 const dec = new TextDecoder("utf-8"); // <- fix UTF-8 (không dùng atob trực tiếp cho payload)
 
-const ROLE_ALIASES: Record<string, string> = {
-  SALE_MANAGER: "AM", PRODUCT_MANAGER: "PM",
-  area_manager: "AM", product_manager: "PM", manager: "MANAGER", admin: "ADMIN",
-  purchasing: "PURCHASING", PURCHASING: "PURCHASING",
+// Map role CHUẨN CHUNG (chữ thường) -> mã nội bộ app Đặt hàng.
+// Chấp nhận cả role đã map cũ (am/pm/admin...) để tương thích token cũ.
+const ROLE_MAP: Record<string, string> = {
+  admin: "ADMIN", manager: "MANAGER",
+  area_manager: "AM", sale_manager: "AM", am: "AM",
+  product_manager: "PM", pm: "PM",
+  purchasing: "PURCHASING",
 };
+// Chỉ các role này được dùng app Đặt hàng (fail-closed cho token dùng chung).
+const ORDER_ROLES = new Set(["ADMIN", "MANAGER", "AM", "PM", "PURCHASING"]);
 const DEFAULT_CFG = { k1: 0.4, k2: 0.4, k3: 0.2, so_thang_dat_default: 3 };
 
 // ---------- token ----------
@@ -48,7 +53,9 @@ async function verifyToken(token: string, secret: string): Promise<any> {
   if (expect !== sig) throw new Error("AUTH_REQUIRED");
   const payload = JSON.parse(dec.decode(b64urlToBytes(payloadB64))); // UTF-8 decode
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) throw new Error("AUTH_REQUIRED");
-  if (ROLE_ALIASES[payload.role]) payload.role = ROLE_ALIASES[payload.role];
+  const mapped = ROLE_MAP[String(payload.role || "").toLowerCase()] || "";
+  if (!ORDER_ROLES.has(mapped)) throw new Error("Tài khoản không có quyền dùng app Đặt hàng CTCH");
+  payload.role = mapped;
   return payload;
 }
 
