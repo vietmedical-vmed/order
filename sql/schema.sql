@@ -73,16 +73,25 @@ create index if not exists idx_audit_ts on public.audit_log(timestamp desc);
 
 -- ---------- STOCK (đã aggregate trước — thay cho đọc live "Chi tiết") ----------
 --  Nạp bằng scripts/refresh_stock.py. Khoá kép (ma_bravo, mien).
+-- stock: tồn kho RAW ở mức LÔ (mỗi dòng = 1 lô/serial trong 1 kho tại 1 kỳ
+-- cycledate). Aggregate DA/GU/KG thực hiện lúc đọc trong RPC stock_agg
+-- (sql/03_rpc_aggregates.sql). Logistics (đi đường/ký gửi tay) ở logistics_input.
 create table if not exists public.stock (
   ma_bravo        text not null,
-  mien            text not null,           -- MB | MN
-  ton_kho         numeric default 0,       -- DA
-  hang_ktv_bv     numeric default 0,       -- KG (ký gửi)
-  hang_vet_thau   numeric default 0,       -- GU
-  hang_di_duong   numeric default 0,
-  tong_ton        numeric default 0,       -- DA + KG + đi đường − GU
-  primary key (ma_bravo, mien)
+  mien            text not null,           -- 'MB'|'MN' hoặc 'Miền Bắc'|'Miền Nam'
+  cycledate       date,                    -- ngày chốt snapshot
+  itemcode_ncc    text,                    -- mã hàng theo NCC
+  warehousetype   text,                    -- DA (tồn) | GU (vét thầu) | KG (ký gửi)
+  warehousecode   text,
+  warehousename   text,
+  serialcode      text,
+  so_lo           text,
+  quantity        numeric default 0,       -- SL của lô (có thể âm)
+  expirydate      date,
+  mfgdate         date,
+  note            text
 );
+create index if not exists idx_stock_mien_cycle on public.stock (mien, cycledate desc);
 
 -- ---------- USAGE (đã aggregate trước — thay cho đọc live "SDVT") ----------
 create table if not exists public.usage_stat (

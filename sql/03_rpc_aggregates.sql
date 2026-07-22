@@ -62,7 +62,8 @@ $$;
 
 -- =====================================================================
 --  stock_agg — thay stockMapFor (đọc bảng stock + logistics_input)
---  Chốt cycledate hiệu lực cho từng miền (mới nhất < p_ngaymo, hoặc mới nhất
+--  Chốt cycledate hiệu lực cho từng miền (mới nhất có ngày <= ngày mở đợt, so
+--  sánh theo DATE nên snapshot cùng ngày mở đợt vẫn được tính; hoặc mới nhất
 --  tuyệt đối nếu p_ngaymo null), gộp quantity theo warehousetype:
 --    DA -> ton_kho, GU -> hang_vet_thau  (lấy đuôi sau dấu '.' nếu có).
 --  Cộng hang_di_duong / hang_ktv_bv từ logistics_input.
@@ -83,13 +84,13 @@ begin
   if p_mien in ('ALL','MB') then
     select st.cycledate into cd_mb from public.stock st
     where st.mien = any(array['MB','Miền Bắc'])
-      and (p_ngaymo is null or st.cycledate < p_ngaymo)
+      and (p_ngaymo is null or st.cycledate::date <= p_ngaymo::date)
     order by st.cycledate desc nulls last limit 1;
   end if;
   if p_mien in ('ALL','MN') then
     select st.cycledate into cd_mn from public.stock st
     where st.mien = any(array['MN','Miền Nam'])
-      and (p_ngaymo is null or st.cycledate < p_ngaymo)
+      and (p_ngaymo is null or st.cycledate::date <= p_ngaymo::date)
     order by st.cycledate desc nulls last limit 1;
   end if;
 

@@ -284,7 +284,8 @@ async function resolveStockCycledate(
 
 // Tồn kho (DA) + Vét thầu (GU): bảng stock — phân biệt bằng cột warehousetype, SL ở cột quantity.
 // Hàng đi đường + Hàng ký gửi: bảng logistics_input (nhập tay từ Excel, tạm thời).
-// ngayMo = ngày mở đợt: chốt tồn kho theo cycledate mới nhất < ngày này để không lấy nhầm log mở sau.
+// ngayMo = ngày mở đợt: chốt tồn kho theo cycledate mới nhất có ngày <= ngày mở đợt (so theo DATE,
+// nên snapshot chốt cùng ngày mở đợt vẫn được tính) để không lấy nhầm log mở sau.
 async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string | null) {
   // Aggregate DA/GU + logistics ngay trong DB (stock_agg) -> 1 RPC thay cho hàng chục
   // request phân trang. Cycledate hiệu lực được chốt bên trong hàm SQL.

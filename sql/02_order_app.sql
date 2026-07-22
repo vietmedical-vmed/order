@@ -61,15 +61,26 @@ create table if not exists public.audit_log (
 create index if not exists idx_audit_ts on public.audit_log(timestamp desc);
 
 -- ---------- TỒN KHO / USAGE (aggregate sẵn) ----------
+-- stock: dữ liệu tồn kho RAW ở mức LÔ (mỗi dòng = 1 lô/serial trong 1 kho tại 1
+-- kỳ cycledate). KHÔNG aggregate — tổng DA/GU/KG được RPC stock_agg gộp lúc đọc.
+--   warehousetype: DA (tồn kho) | GU (vét thầu) | KG (ký gửi) — phân loại nguồn.
+--   quantity     : số lượng của lô (có thể âm khi điều chuyển/chênh lệch).
+--   cycledate    : ngày chốt snapshot; stock_agg chọn cycledate hiệu lực theo đợt.
+-- Không đặt primary key: 1 (ma_bravo, mien, cycledate) có nhiều lô trùng khoá.
 create table if not exists public.stock (
   ma_bravo      text not null,
-  mien          text not null,
-  ton_kho       numeric default 0,   -- DA
-  hang_ktv_bv   numeric default 0,   -- KG
-  hang_vet_thau numeric default 0,   -- GU
-  hang_di_duong numeric default 0,
-  tong_ton      numeric default 0,   -- DA + KG + đi đường − GU
-  primary key (ma_bravo, mien)
+  mien          text not null,       -- 'MB'|'MN' hoặc 'Miền Bắc'|'Miền Nam'
+  cycledate     date,                -- ngày chốt tồn (snapshot)
+  itemcode_ncc  text,                -- mã hàng theo NCC
+  warehousetype text,                -- DA | GU | KG (đuôi sau '.' nếu có)
+  warehousecode text,
+  warehousename text,
+  serialcode    text,
+  so_lo         text,
+  quantity      numeric default 0,
+  expirydate    date,
+  mfgdate       date,
+  note          text
 );
 create table if not exists public.usage_stat (
   ma_bravo     text not null,
