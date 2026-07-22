@@ -200,6 +200,32 @@ const num = (v: any) => Number(v || 0);
 const maKey = (s: unknown) =>
   String(s ?? "").replace(/^\s+|\s+$/g, "");
 
+// PostgREST chặn số dòng trả về (mặc định 1000). Các RPC aggregate trả tới vài NGHÌN
+// dòng -> gọi .rpc() trực tiếp sẽ bị CẮT còn 1000 (không ORDER BY -> thứ tự tuỳ ý),
+// khiến một số mã biến mất khỏi map -> tồn/usage hiển thị 0. Đọc phân trang bằng
+// .range() + .order() (khoá ổn định) để lấy ĐỦ mọi dòng.
+async function rpcAll(
+  supa: SupabaseClient, fn: string,
+  params: Record<string, unknown>, orderCols: string[],
+): Promise<any[]> {
+  const PAGE = 1000;
+  const all: any[] = [];
+  // Tiến theo SỐ DÒNG THẬT nhận được (không giả định giới hạn = PAGE) và chỉ dừng khi
+  // trả về rỗng -> đúng kể cả khi PostgREST cắt < PAGE. Cần .order() khoá ổn định để
+  // các trang không trùng/sót dòng.
+  for (let from = 0; ; ) {
+    let q: any = supa.rpc(fn, params);
+    for (const c of orderCols) q = q.order(c, { ascending: true });
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) throw new Error(`RPC ${fn}: ${error.message}`);
+    const batch = data || [];
+    all.push(...batch);
+    if (batch.length === 0) break;
+    from += batch.length;
+  }
+  return all;
+}
+
 // Chuẩn hoá scope: "Cột sống Ulrich, Khớp UOC" -> Set{"cột sống ulrich","khớp uoc"}
 function parseScope(scope: string): Set<string> {
   return new Set(
@@ -294,10 +320,10 @@ async function resolveStockCycledate(
 // ngayMo = ngày mở đợt: chốt tồn kho theo cycledate mới nhất có ngày <= ngày mở đợt (so theo DATE,
 // nên snapshot chốt cùng ngày mở đợt vẫn được tính) để không lấy nhầm log mở sau.
 async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string | null) {
-  // Aggregate DA/GU + logistics ngay trong DB (stock_agg) -> 1 RPC thay cho hàng chục
-  // request phân trang. Cycledate hiệu lực được chốt bên trong hàm SQL.
-  const { data, error } = await supa.rpc("stock_agg", { p_mien: mien, p_ngaymo: ngayMo ?? null });
-  if (error) throw new Error("Đọc stock (stock_agg): " + error.message);
+  // Aggregate DA/GU + logistics ngay trong DB (stock_agg). Cycledate hiệu lực chốt
+  // trong hàm SQL. Đọc phân trang để không bị PostgREST cắt 1000 dòng (xem rpcAll).
+  const data = await rpcAll(supa, "stock_agg",
+    { p_mien: mien, p_ngaymo: ngayMo ?? null }, ["ma_bravo", "mien"]);
 
   const buildOne = (rows: any[]) => {
     const map: Record<string, any> = {};
@@ -336,8 +362,8 @@ async function latestCycledate(supa: SupabaseClient): Promise<string> {
 async function usageMapFor(supa: SupabaseClient, mien: string) {
   const now = new Date();
   const Y = now.getFullYear(), M = now.getMonth() + 1;
-  const { data, error } = await supa.rpc("usage_agg", { p_mien: mien, p_y: Y, p_m: M });
-  if (error) throw new Error("Đọc sv (usage_agg): " + error.message);
+  const data = await rpcAll(supa, "usage_agg",
+    { p_mien: mien, p_y: Y, p_m: M }, ["item_code", "mien"]);
   const ytdMonths = Math.max(0, M - 1);        // 2026-07 -> 6 (T01..T06)
 
   const buildOne = (rows: any[]) => {
@@ -426,8 +452,8 @@ async function loadSpBoMap(supa: SupabaseClient): Promise<Record<string, SpBo>> 
 // ALL là phép cộng thuần nên gộp thẳng mọi dòng (cả 2 miền) không cần tách.
 async function saleTargetSumByBo(supa: SupabaseClient, mien: string): Promise<Record<string, number>> {
   const months = planMonths3();
-  const { data, error } = await supa.rpc("sale_target_agg", { p_mien: mien, p_months: months });
-  if (error) throw new Error("Đọc sale_target (sale_target_agg): " + error.message);
+  const data = await rpcAll(supa, "sale_target_agg",
+    { p_mien: mien, p_months: months }, ["san_pham", "mien"]);
   const sum: Record<string, number> = {};
   for (const r of (data || [])) {
     const key = normKey(r.san_pham);   // = tên bộ (bộ thực) hoặc tên vật tư lẻ
