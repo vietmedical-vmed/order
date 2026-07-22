@@ -193,6 +193,13 @@ function mergeUsage(a: any, b: any) {
 }
 const num = (v: any) => Number(v || 0);
 
+// Chuẩn hoá KHOÁ ma_bravo dùng để ghép map giữa các nguồn (dm_vat_tu / sv / stock).
+// Chỉ cắt khoảng trắng thừa đầu/cuối (\s đã gồm space/tab/NBSP/BOM/unicode-space) để
+// khớp mã giữa các nguồn. Lý do: feed stock có mã sạch còn danh mục/usage đôi khi
+// dính space thừa -> stockMap[dm_vat_tu.ma_bravo] bị trượt, tồn hiển thị 0.
+const maKey = (s: unknown) =>
+  String(s ?? "").replace(/^\s+|\s+$/g, "");
+
 // Chuẩn hoá scope: "Cột sống Ulrich, Khớp UOC" -> Set{"cột sống ulrich","khớp uoc"}
 function parseScope(scope: string): Set<string> {
   return new Set(
@@ -297,7 +304,7 @@ async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string |
     for (const r of rows) {
       const ton_kho = num(r.ton_kho), hang_vet_thau = num(r.hang_vet_thau);
       const hang_ktv_bv = num(r.hang_ktv_bv), hang_di_duong = num(r.hang_di_duong);
-      map[r.ma_bravo] = {
+      map[maKey(r.ma_bravo)] = {
         ton_kho, hang_vet_thau, hang_ktv_bv, hang_di_duong,
         tong_ton: ton_kho + hang_ktv_bv + hang_di_duong - hang_vet_thau,
       };
@@ -344,7 +351,7 @@ async function usageMapFor(supa: SupabaseClient, mien: string) {
       const sp = r.san_pham || ("__" + r.item_code);
       const py = perProdYear[sp] || 0;
       const year = num(r.yr);
-      map[r.item_code] = {
+      map[maKey(r.item_code)] = {
         tb_ytd: ytdMonths > 0 ? Math.round(num(r.ytd) / ytdMonths) : 0,
         tb_cknt: Math.round(num(r.cknt) / 3),
         ty_le_sd_pct: py > 0 ? Math.round((year / py) * 100) : 0,
@@ -733,7 +740,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
       stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
-      (its as any[]).forEach((r) => { itemMap[r.ma_bravo] = r; });
+      (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     } else if (effMien === "ALL") {
       const [sm, um, sb, sa, its] = await Promise.all([
         stockMapFor(supa, "ALL"),
@@ -743,7 +750,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
       stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
-      (its as any[]).forEach((r) => { itemMap[r.ma_bravo] = r; });
+      (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     }
 
     // 5. build rows
@@ -754,8 +761,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     for (const p of products) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
-      const us = usageMap[p.ma_bravo] || {};
-      const s = stockMap[p.ma_bravo] || {};
+      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const s = stockMap[maKey(p.ma_bravo)] || {};
       const gcfg = cfgForGroup(cfg, p.nhom_san_pham);   // hệ số/số tháng đặt theo nhóm SP
       const a = spGy[spk] || (spGy[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
       a.cknt += num(us.tb_cknt);
@@ -773,9 +780,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     }
 
     const rows = products.map((p) => {
-      const s = stockMap[p.ma_bravo] || {};
-      const us = usageMap[p.ma_bravo] || {};
-      const i = itemMap[p.ma_bravo] || {};
+      const s = stockMap[maKey(p.ma_bravo)] || {};
+      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const i = itemMap[maKey(p.ma_bravo)] || {};
       const tb_cknt = num(us.tb_cknt), tb_ytd = num(us.tb_ytd);
       const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap));
       const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
@@ -981,15 +988,15 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       usageMapFor(supa, mienExp),
       saleTargetSumByBo(supa, mienExp),
     ]);
-    const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[p.ma_bravo] = p);
+    const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
 
     // Gợi ý tính ở mức sản phẩm rồi phân bổ theo %SD (giống loadOrderScreen).
     const spGyE: Record<string, any> = {};
     for (const p of prods) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
-      const us = usageMap[p.ma_bravo] || {};
-      const s = stockMap[p.ma_bravo] || {};
+      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const s = stockMap[maKey(p.ma_bravo)] || {};
       const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
       const a = spGyE[spk] || (spGyE[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
       a.cknt += num(us.tb_cknt);
@@ -1007,9 +1014,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     const dmVal = session.de_nghi_mua_hang || "", poVal = session.po || "";
     const rows = (items || []).map((it) => {
-      const p = pMap[it.ma_bravo] || {};
-      const s = stockMap[it.ma_bravo] || {};
-      const us = usageMap[it.ma_bravo] || {};
+      const p = pMap[maKey(it.ma_bravo)] || {};
+      const s = stockMap[maKey(it.ma_bravo)] || {};
+      const us = usageMap[maKey(it.ma_bravo)] || {};
       const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
       const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
