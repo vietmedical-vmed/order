@@ -410,17 +410,24 @@ const normKey = (s: string) =>
   String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, "-");
 const isVatTuLe = (bo: string) => normKey(bo).startsWith(LE_PREFIX);
 
-// 3 tháng 'yyyy-mm' tính từ tháng hiện tại theo giờ VN (UTC+7) để không lệch ở biên tháng.
-function planMonths3(): string[] {
+// Cửa sổ 'TB KH' = các tháng hàng SẼ VỀ & ĐƯỢC DÙNG (không phải các tháng liền kề đợt đặt).
+// Trả `count` tháng 'yyyy-mm', bắt đầu lệch `offset` tháng so với tháng hiện tại (giờ VN, UTC+7).
+// VD tháng hiện tại 2026-07, số tháng đặt = 3 -> offset=3, count=3 -> [2026-10, 2026-11, 2026-12].
+function planMonthsKH(count: number, offset: number): string[] {
   const now = new Date(Date.now() + 7 * 3600 * 1000);
-  let y = now.getUTCFullYear(), m = now.getUTCMonth(); // 0-based
+  let m = now.getUTCMonth() + offset;                 // 0-based + lệch offset tháng
+  let y = now.getUTCFullYear() + Math.floor(m / 12);
+  m = ((m % 12) + 12) % 12;
   const out: string[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < count; i++) {
     out.push(y + "-" + String(m + 1).padStart(2, "0"));
     if (++m > 11) { m = 0; y++; }
   }
   return out;
 }
+
+// Số tháng đặt "mặc định" (dùng cho cửa sổ TB KH toàn màn) — luôn >= 1.
+const khWindow = (cfg: any) => Math.max(1, Math.round(Number(cfg?.so_thang_dat_default) || 3));
 
 // { normKey(san_pham): { le, bos } } — 1 san_pham -> nhiều bo_vat_tu. Không theo miền.
 type SpBo = { le: boolean; bos: string[] };
@@ -450,8 +457,9 @@ async function loadSpBoMap(supa: SupabaseClient): Promise<Record<string, SpBo>> 
 // { normKey(sale_target.san_pham): Σ 3 tháng } theo miền (CHƯA chia 3).
 // sale_target_agg group sẵn theo san_pham THÔ trong DB; JS chuẩn hoá normKey rồi cộng dồn.
 // ALL là phép cộng thuần nên gộp thẳng mọi dòng (cả 2 miền) không cần tách.
-async function saleTargetSumByBo(supa: SupabaseClient, mien: string): Promise<Record<string, number>> {
-  const months = planMonths3();
+async function saleTargetSumByBo(supa: SupabaseClient, mien: string, soThangDat: number): Promise<Record<string, number>> {
+  // Cửa sổ = số tháng đặt tháng, bắt đầu lệch đúng số tháng đặt (tháng hàng về & được dùng).
+  const months = planMonthsKH(soThangDat, soThangDat);
   const data = await rpcAll(supa, "sale_target_agg",
     { p_mien: mien, p_months: months }, ["san_pham", "mien"]);
   const sum: Record<string, number> = {};
@@ -463,8 +471,8 @@ async function saleTargetSumByBo(supa: SupabaseClient, mien: string): Promise<Re
   return sum;
 }
 
-// TB KH 3 tháng cho 1 dòng dm_vat_tu (theo san_pham).
-function tbKh3Thang(p: any, sumByBo: Record<string, number>, spBoMap: Record<string, SpBo>): number {
+// TB KH cho 1 dòng dm_vat_tu (theo san_pham). Chia cho đúng số tháng của cửa sổ (soThangDat).
+function tbKh3Thang(p: any, sumByBo: Record<string, number>, spBoMap: Record<string, SpBo>, soThangDat: number): number {
   const spKey = normKey(p.san_pham);
   const m = spBoMap[spKey];
   let total = 0;
@@ -473,7 +481,7 @@ function tbKh3Thang(p: any, sumByBo: Record<string, number>, spBoMap: Record<str
   } else {
     for (const bo of m.bos) total += (sumByBo[bo] || 0); // cộng dồn các bộ chứa san_pham
   }
-  return total / 3;                                    // chia số tháng
+  return total / Math.max(1, soThangDat);              // chia số tháng của cửa sổ
 }
 
 // ============================ HANDLERS ============================
@@ -495,8 +503,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const { data: p } = await supa.from("dm_vat_tu")
       .select("ma_bravo, san_pham").eq("ma_bravo", maBravo).maybeSingle();
     if (!p) return { error: "Không thấy ma_bravo=" + maBravo };
+    const cfg = await getKConfig(supa);
+    const kh = khWindow(cfg);
     const spBoMap = await loadSpBoMap(supa);
-    const sumByBo = await saleTargetSumByBo(supa, mm);
+    const sumByBo = await saleTargetSumByBo(supa, mm, kh);
     const spKey = normKey(p.san_pham);
     const m = spBoMap[spKey];
     const detail: Record<string, number> = {};
@@ -506,12 +516,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       for (const bo of m.bos) detail[bo] = sumByBo[bo] || 0;
     }
     return {
-      ma_bravo: p.ma_bravo, san_pham: p.san_pham, mien: mm, months: planMonths3(),
+      ma_bravo: p.ma_bravo, san_pham: p.san_pham, mien: mm, months: planMonthsKH(kh, kh),
       co_trong_mapping: !!m,
       nhanh: (!m || m.le) ? "vật tư lẻ / không mapping" : "bộ",
       cac_bo: m ? m.bos : [],
-      tong_theo_bo_3thang: detail,       // Σ 3 tháng của từng khoá đã tra
-      tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap)),
+      tong_theo_bo_3thang: detail,       // Σ các tháng cửa sổ của từng khoá đã tra
+      tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap, kh)),
       so_key_sumByBo: Object.keys(sumByBo).length,
       vai_key_mau: Object.keys(sumByBo).slice(0, 8),
     };
@@ -740,6 +750,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Cấu hình công thức: nếu đang xem 1 đợt -> dùng cấu hình CÓ HIỆU LỰC tại thời điểm mở đợt
     // (theo log), để xem lại đợt cũ đúng công thức. Bảng thông tin (không đợt) -> cấu hình hiện hành.
     const cfg = session ? await getConfigAt(supa, session.ngay_mo) : await getKConfig(supa);
+    const kh = khWindow(cfg);   // cửa sổ TB KH: số tháng đặt mặc định (tháng hàng về & được dùng)
 
     const visFilter = makeVisibleFilter(u.role, grants);
     let products = visFilter ? products0.filter(visFilter) : products0;
@@ -761,7 +772,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const [sm, um, sb, sa, its] = await Promise.all([
         stockMapFor(supa, effMien, ngayMo),
         usageMapFor(supa, effMien),
-        saleTargetSumByBo(supa, effMien),
+        saleTargetSumByBo(supa, effMien, kh),
         resolveStockCycledate(supa, effMien, ngayMo),
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
@@ -771,7 +782,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const [sm, um, sb, sa, its] = await Promise.all([
         stockMapFor(supa, "ALL"),
         usageMapFor(supa, "ALL"),
-        saleTargetSumByBo(supa, "ALL"),
+        saleTargetSumByBo(supa, "ALL", kh),
         latestCycledate(supa),
         session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
@@ -795,7 +806,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       a.ytd += num(us.tb_ytd);
       a.ton += num(s.tong_ton);
       a.safety += num(p.safety_stock);          // safety stock cộng dồn theo sản phẩm
-      a.kh = tbKh3Thang(p, sumByBo, spBoMap);   // mức sản phẩm, mọi mã bravo như nhau
+      a.kh = tbKh3Thang(p, sumByBo, spBoMap, kh);   // mức sản phẩm, mọi mã bravo như nhau
       a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
     }
     const spGoiY: Record<string, number> = {};
@@ -810,7 +821,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const us = usageMap[maKey(p.ma_bravo)] || {};
       const i = itemMap[maKey(p.ma_bravo)] || {};
       const tb_cknt = num(us.tb_cknt), tb_ytd = num(us.tb_ytd);
-      const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap));
+      const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap, kh));
       const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
       const tong_ton = num(s.tong_ton);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
@@ -1005,14 +1016,15 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Xuất đủ cột như màn Chi tiết → cần tính lại stock/usage/Gợi ý theo đúng logic loadOrderScreen.
     const mienExp = session.mien;
     const ngayMoExp = session.ngay_mo || null;
-    const [items, prods, cfg, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
+    const cfg = await getConfigAt(supa, ngayMoExp);   // dùng đúng công thức có hiệu lực khi mở đợt
+    const kh = khWindow(cfg);                          // cửa sổ TB KH (tháng hàng về & được dùng)
+    const [items, prods, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
       supa.from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
       fetchProducts(supa),
-      getConfigAt(supa, ngayMoExp),   // dùng đúng công thức có hiệu lực khi mở đợt
       loadSpBoMap(supa),
       stockMapFor(supa, mienExp, ngayMoExp),
       usageMapFor(supa, mienExp),
-      saleTargetSumByBo(supa, mienExp),
+      saleTargetSumByBo(supa, mienExp, kh),
     ]);
     const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
 
@@ -1029,7 +1041,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       a.ytd += num(us.tb_ytd);
       a.ton += num(s.tong_ton);
       a.safety += num(p.safety_stock);
-      a.kh = tbKh3Thang(p, sumByBo, spBoMap);
+      a.kh = tbKh3Thang(p, sumByBo, spBoMap, kh);
       a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
     }
     const spGoiYE: Record<string, number> = {};
@@ -1054,7 +1066,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
         hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
         ty_le_sd_pct, tb_cknt: num(us.tb_cknt), tb_ytd: num(us.tb_ytd),
-        tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap)),
+        tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap, kh)),
         safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay),
         goi_y_dat,
         sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
