@@ -161,7 +161,32 @@ language sql stable as $$
   group by 1, st.san_pham;
 $$;
 
+-- =====================================================================
+--  session_stats — thay đoạn listSessions kéo toàn bộ order_items về JS
+--  Trước đây: select("session_id, sl_dat, sl_duyet, sl_dat_hang") KHÔNG lọc,
+--  KHÔNG phân trang -> PostgREST cắt 1000 dòng khi tổng items toàn hệ thống
+--  vượt 1000 (thống kê SKU/SL trên màn Quản lý sai) + càng nhiều đợt càng chậm,
+--  mà listSessions được gọi rất thường xuyên (boot, đổi miền, sau mỗi lần lưu).
+--  Group ngay trong DB, trả 1 dòng / đợt (rất ít dòng so với order_items).
+-- =====================================================================
+create or replace function public.session_stats()
+returns table (session_id uuid, sku bigint, sl_dat numeric, sl_duyet numeric,
+               sl_dat_hang numeric, approved_sku bigint, ordered_sku bigint)
+language sql stable as $$
+  select
+    oi.session_id,
+    count(*)                          as sku,
+    sum(coalesce(oi.sl_dat, 0))       as sl_dat,
+    sum(coalesce(oi.sl_duyet, 0))     as sl_duyet,
+    sum(coalesce(oi.sl_dat_hang, 0))  as sl_dat_hang,
+    count(oi.sl_duyet)                as approved_sku,
+    count(oi.sl_dat_hang)             as ordered_sku
+  from public.order_items oi
+  group by oi.session_id;
+$$;
+
 -- ---------- Quyền thực thi ----------
 grant execute on function public.usage_agg(text, int, int)          to anon, authenticated, service_role;
 grant execute on function public.stock_agg(text, timestamptz)       to anon, authenticated, service_role;
 grant execute on function public.sale_target_agg(text, text[])      to anon, authenticated, service_role;
+grant execute on function public.session_stats()                   to anon, authenticated, service_role;

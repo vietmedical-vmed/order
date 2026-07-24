@@ -5,7 +5,7 @@
 //  - Payload chứa username, ho_ten, role, mien, exp (8h)
 //  Secrets cần set: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];

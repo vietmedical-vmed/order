@@ -1,0 +1,12 @@
+{
+  "name": "order",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Đặt hàng CTCH — frontend tĩnh (Supabase + GitHub Pages)",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/tailwind.css -o ./dist/app.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.19"
+  }
+}

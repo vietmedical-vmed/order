@@ -73,8 +73,12 @@ python scripts/refresh_stock.py --stock ./chi_tiet.xlsx --usage ./sdvt.xlsx
 ```
 
 ### 6. Cấu hình + deploy frontend
-Sửa `window.CTCH_CONFIG` trong `web/index.html` (apiBase + anonKey), push GitHub,
-Settings → Pages → Source = **GitHub Actions**.
+Sửa `window.CTCH_CONFIG` trong `index.html` (apiBase + anonKey), push GitHub.
+
+**CSS build (Tailwind CLI, không còn CDN):** sau khi sửa class Tailwind trong `index.html`,
+chạy `npm install` (lần đầu) rồi `npm run build:css` và **commit lại `dist/app.css`** — GitHub
+Pages ở repo này serve tĩnh trực tiếp từ nhánh `master` (không có bước build CI), nên nếu quên
+build/commit thì giao diện trên Pages sẽ không khớp với thay đổi class mới.
 
 ## Ghi chú kỹ thuật
 

@@ -3,7 +3,7 @@
 //  Xác thực token HMAC (giải mã payload bằng TextDecoder UTF-8 — tránh mojibake tiếng Việt).
 //  Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -285,7 +285,7 @@ async function fetchProducts(supa: SupabaseClient) {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
       .from("dm_vat_tu")
-      .select("*")
+      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, muc_do_sd, safety_stock, don_vi, don_gia_thau_moi, leadtime_ngay, so_thang_dat")
       .eq("dat_hang", true)
       .order("ma_bravo", { ascending: true })
       .range(from, from + PAGE - 1);
@@ -714,15 +714,17 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const { data: sessions } = await q;
     const list = sessions || [];
 
-    const { data: items } = await supa.from("order_items").select("session_id, sl_dat, sl_duyet, sl_dat_hang");
+    // Thống kê SKU/SL theo đợt: group ngay trong DB (RPC session_stats) thay vì
+    // kéo toàn bộ order_items về JS — tránh PostgREST cắt 1000 dòng khi tổng
+    // items toàn hệ thống vượt 1000 (bug cũ khiến thống kê sai), và nhanh hơn
+    // hẳn khi càng nhiều đợt (listSessions gọi rất thường xuyên).
+    const statRows = await rpcAll(supa, "session_stats", {}, ["session_id"]);
     const stat: Record<string, any> = {};
-    (items || []).forEach((it) => {
-      const k = it.session_id;
-      if (!stat[k]) stat[k] = { sku: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0, approved_sku: 0, ordered_sku: 0 };
-      stat[k].sku++;
-      stat[k].sl_dat += num(it.sl_dat);
-      if (it.sl_duyet != null) { stat[k].sl_duyet += num(it.sl_duyet); stat[k].approved_sku++; }
-      if (it.sl_dat_hang != null) { stat[k].sl_dat_hang += num(it.sl_dat_hang); stat[k].ordered_sku++; }
+    statRows.forEach((r) => {
+      stat[String(r.session_id)] = {
+        sku: num(r.sku), sl_dat: num(r.sl_dat), sl_duyet: num(r.sl_duyet),
+        sl_dat_hang: num(r.sl_dat_hang), approved_sku: num(r.approved_sku), ordered_sku: num(r.ordered_sku),
+      };
     });
 
     const out = list.map((s) => ({

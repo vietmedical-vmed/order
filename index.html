@@ -7,232 +7,10 @@
   <title>Đặt hàng CH&CS</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%231877f2'/%3E%3Ctext x='12' y='17' font-size='13' font-family='Arial' fill='white' text-anchor='middle' font-weight='bold'%3ED%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://nrfxymnfmjhbsgpipvkb.supabase.co">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-tailwind.config = { theme: { extend: { colors: {
-  slate: {50:'#f0f2f5',100:'#e4e6eb',200:'#dadde1',300:'#ccd0d5',400:'#8a8d91',500:'#65676b',600:'#4b4f56',700:'#3a3b3c',800:'#242526',900:'#18191a'},
-  emerald: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
-  blue: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
-  sky: {50:'#e7f3ff',100:'#cfe4ff',200:'#a8c8ff',300:'#7aa7fb',400:'#4a90f2',500:'#1877f2',600:'#166fe5',700:'#0c5dc7',800:'#0a4fa8',900:'#0a3a7a'},
-  red: {50:'#fdecee',100:'#fad3d6',200:'#f5aab0',300:'#ef7d85',400:'#f9525c',500:'#fa383e',600:'#e41e3f',700:'#c81f3d',800:'#9f1830',900:'#7a1225'}
-}}}};
-  </script>
-  <style>
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif; background: #f0f2f5; }
-
-/* Loading spinner */
-.spinner { width: 32px; height: 32px; border: 3px solid #dadde1; border-top-color: #1877f2; border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Scrollbar gọn */
-.scroll-area::-webkit-scrollbar { height: 8px; width: 8px; }
-.scroll-area::-webkit-scrollbar-thumb { background: #ccd0d5; border-radius: 4px; }
-.scroll-area::-webkit-scrollbar-track { background: transparent; }
-
-/* Mien toggle */
-.mien-btn, .mmien-btn { color: #4b4f56; transition: all 0.15s; }
-.mien-btn:hover, .mmien-btn:hover { background: #fff; }
-.mien-btn.active, .mmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-
-/* Nav tabs */
-.nav-tab { padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; color: #65676b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; }
-.nav-tab:hover { color: #3a3b3c; }
-.nav-tab.active { color: #0c5dc7; border-bottom-color: #1877f2; }
-
-/* Controls */
-.ctl-select { padding: 6px 10px; font-size: 13px; border: 1px solid #dadde1; border-radius: 6px; background: #fff; outline: none; color: #242526; }
-.ctl-select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
-.ctl-select.ctl-active { border-color: #1877f2; color: #0c5dc7; background: #e7f3ff; }
-.ctl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; border: 1px solid #dadde1; border-radius: 6px; background: #fff; color: #3a3b3c; cursor: pointer; transition: all 0.15s; }
-.ctl-btn:hover { background: #f0f2f5; }
-.ctl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ctl-btn-primary { background: #1877f2; color: #fff; border-color: #1877f2; }
-.ctl-btn-primary:hover { background: #166fe5; }
-.ctl-btn-primary:disabled { background: #ccd0d5; border-color: #ccd0d5; color: #fff; }
-.ctl-btn-ok { background: #0c5dc7; color: #fff; border-color: #0c5dc7; }
-.ctl-btn-ok:hover { background: #0a4fa8; }
-.ctl-btn-warn { background: #d97706; color: #fff; border-color: #d97706; }
-.ctl-btn-warn:hover { background: #b45309; }
-
-/* Stat card */
-.stat-card { background: #fff; border-radius: 12px; border: 1px solid #dadde1; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-.stat-card-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #65676b; font-weight: 600; margin-bottom: 6px; }
-.stat-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.stat-card-value { font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.stat-card-sub { font-size: 10.5px; color: #8a8d91; margin-top: 4px; }
-
-/* Cards group */
-.group-card { background: #fff; border-radius: 12px; border: 1px solid #dadde1; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-.group-card .group-body { overflow-x: auto; scrollbar-width: none; }
-.group-card .group-body::-webkit-scrollbar { display: none; height: 0; }
-.group-header { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; background: none; border: none; text-align: left; transition: background 0.15s; }
-.group-header:hover { background: #f0f2f5; }
-.group-title { font-size: 14px; font-weight: 600; color: #242526; }
-.group-meta { font-size: 11.5px; color: #65676b; }
-.group-stat { text-align: right; }
-.group-stat-label { font-size: 9.5px; letter-spacing: 0.04em; color: #8a8d91; text-transform: uppercase; }
-.group-stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* Data table */
-.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-.dt thead th {
-  background: #e4e6eb;
-  font-weight: 600;
-  color: #3a3b3c;
-  text-align: center;
-  padding: 10px 8px;
-  border-bottom: 2px solid #ccd0d5;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  white-space: nowrap;
-  vertical-align: middle;
-  cursor: grab;
-  user-select: none;
-}
-.dt thead th.r { text-align: center; }
-.dt thead th.c { text-align: center; }
-.dt thead th.l { text-align: center; }
-.dt thead.grabbing th { cursor: grabbing; }
-.dt tbody td { padding: 8px; border-bottom: 1px solid #e4e6eb; vertical-align: middle; }
-.dt tbody td.nowrap { white-space: nowrap; }
-.dt tbody tr:hover { background: #f0f2f5; }
-
-/* Top horizontal scrollbar (mirror của .group-body scroll) */
-.scroll-top-bar {
-  overflow-x: auto;
-  overflow-y: hidden;
-  height: 12px;
-  border-top: 1px solid #dadde1;
-  background: #f0f2f5;
-}
-.scroll-top-bar::-webkit-scrollbar { height: 10px; }
-.scroll-top-bar::-webkit-scrollbar-thumb { background: #8a8d91; border-radius: 5px; }
-.scroll-top-bar::-webkit-scrollbar-thumb:hover { background: #65676b; }
-.scroll-top-bar::-webkit-scrollbar-track { background: #e4e6eb; border-radius: 5px; }
-.scroll-top-inner { height: 1px; }
-
-/* Floating thead (clone hiển thị khi cuộn dọc) */
-.floating-thead-container {
-  background: #e4e6eb;
-  border-bottom: 2px solid #ccd0d5;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-.floating-thead-container table { width: auto; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-.floating-thead-container thead th {
-  background: #e4e6eb; font-weight: 600; color: #3a3b3c; text-align: center;
-  padding: 10px 8px; font-size: 10.5px; text-transform: uppercase;
-  letter-spacing: 0.03em; white-space: nowrap; vertical-align: middle;
-}
-.dt tbody tr.dirty { background: #fffbeb; }
-.dt tbody tr.dirty:hover { background: #fef3c7; }
-
-/* PL parent row (thẻ mẹ phân loại) */
-.dt tbody tr.pl-parent { background: #dadde1; cursor: pointer; font-weight: 600; }
-.dt tbody tr.pl-parent:hover { background: #ccd0d5; }
-.dt tbody tr.pl-parent td { background: inherit; }
-.dt tbody tr.pl-parent .chev { transition: transform 0.15s; display: inline-block; }
-.dt tbody tr.pl-parent.collapsed .chev { transform: rotate(-90deg); }
-.dt tbody tr.pl-child.hidden { display: none; }
-.dt .r { text-align: right; }
-.dt .c { text-align: center; }
-.dt .num { font-variant-numeric: tabular-nums; }
-
-/* ===== Đông cứng 4 cột đầu (#, Mã Bravo, Mã NCC, Tên hàng) — chỉ bảng đặt hàng ===== */
-/* border-collapse của .dt là 'separate' nên position:sticky hoạt động chuẩn. */
-.group-body .dt thead th:nth-child(-n+4),
-.group-body .dt tbody td:nth-child(-n+4) {
-  position: sticky;
-}
-/* Clone floating thead: container overflow:hidden cuộn ngang bằng translateX, nên KHÔNG dùng
-   sticky (sticky ngang không giữ trong overflow:hidden). Ghim cột đông cứng bằng transform:
-   bảng clone dịch -sx, từng ô đông cứng dịch lại +sx => đứng yên ở mép trái. */
-.floating-thead-container thead th:nth-child(-n+4) {
-  position: relative;
-  left: auto !important;
-  transform: translateX(var(--sx, 0px));
-  z-index: 30;
-}
-/* left offset lấy từ CSS var (JS tính theo bề rộng thực); có fallback theo width khai báo */
-.group-body .dt thead th:nth-child(1),
-.group-body .dt tbody td:nth-child(1),
-.floating-thead-container thead th:nth-child(1) { left: var(--l1, 0px); }
-.group-body .dt thead th:nth-child(2),
-.group-body .dt tbody td:nth-child(2),
-.floating-thead-container thead th:nth-child(2) { left: var(--l2, 42px); }
-.group-body .dt thead th:nth-child(3),
-.group-body .dt tbody td:nth-child(3),
-.floating-thead-container thead th:nth-child(3) { left: var(--l3, 172px); }
-.group-body .dt thead th:nth-child(4),
-.group-body .dt tbody td:nth-child(4),
-.floating-thead-container thead th:nth-child(4) { left: var(--l4, 272px); }
-/* z-index: cột đông cứng phải > cột cuộn ở MỌI ngữ cảnh.
-   Clone thead cũng mang class .dt nên ô cột cuộn thừa hưởng z-index:10 từ ".dt thead th";
-   ô cột đông cứng của clone vì thế PHẢI cao hơn 10, nếu không cột cuộn sẽ đè lên khi cuộn ngang. */
-.group-body .dt tbody td:nth-child(-n+4) { z-index: 5; }
-.group-body .dt thead th:nth-child(-n+4) { z-index: 20; }
-.floating-thead-container thead th:nth-child(-n+4) { z-index: 30; }
-/* Nền cột đông cứng phải khớp trạng thái từng dòng (nếu trong suốt sẽ lộ nội dung cuộn phía sau) */
-.group-body .dt tbody td:nth-child(-n+4) { background: #fff; }
-.group-body .dt tbody tr:hover td:nth-child(-n+4) { background: #f0f2f5; }
-.group-body .dt tbody tr.dirty td:nth-child(-n+4) { background: #fffbeb; }
-.group-body .dt tbody tr.dirty:hover td:nth-child(-n+4) { background: #fef3c7; }
-.group-body .dt tbody tr.pl-parent td:nth-child(-n+4) { background: #dadde1; }
-.group-body .dt tbody tr.pl-parent:hover td:nth-child(-n+4) { background: #ccd0d5; }
-/* Đường phân cách mép phải khối cột đông cứng */
-.group-body .dt thead th:nth-child(4),
-.group-body .dt tbody td:nth-child(4),
-.floating-thead-container thead th:nth-child(4) {
-  box-shadow: 6px 0 8px -6px rgba(0,0,0,0.15);
-}
-
-.qty-input { width: 60px; height: 28px; border: 1px solid #ccd0d5; border-radius: 6px; text-align: center; font-size: 12px; background: #fff; color: #18191a; font-weight: 500; font-variant-numeric: tabular-nums; outline: none; padding: 0 4px; }
-.qty-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
-.qty-input.dirty { border-color: #f59e0b; background: #fffbeb; color: #78350f; }
-.qty-input.approved { border-color: #166fe5; background: #cfe4ff; color: #0a3a7a; }
-.qty-input:disabled { background: #f0f2f5; color: #8a8d91; cursor: not-allowed; }
-
-.note-input { width: 100%; height: 28px; border: 1px solid #dadde1; border-radius: 6px; padding: 0 8px; font-size: 12px; background: #fff; outline: none; }
-.note-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
-.note-input:disabled { background: #f0f2f5; color: #8a8d91; }
-
-/* Pills */
-.pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 500; }
-.pill-hot { background: #fdecee; color: #c81f3d; }
-.pill-mid { background: #fef3c7; color: #92400e; }
-.pill-low { background: #e4e6eb; color: #65676b; }
-.pill-info { background: #e7f3ff; color: #0c5dc7; }
-.pill-ok { background: #cfe4ff; color: #0a4fa8; }
-
-/* Status pill */
-.st-draft { background: #e4e6eb; color: #4b4f56; }
-.st-sub { background: #fef3c7; color: #92400e; }
-.st-app { background: #cfe4ff; color: #0a4fa8; }
-.st-close { background: #e7f3ff; color: #0c5dc7; }
-
-/* Mini bar */
-.mini-bar { height: 4px; background: #e4e6eb; border-radius: 2px; overflow: hidden; margin-top: 3px; }
-.mini-bar > i { display: block; height: 100%; background: #1877f2; }
-
-[data-need=approver], [data-need=creator] { display: none !important; }
-body.is-approver [data-need=approver] { display: inline-flex !important; }
-body.is-creator [data-need=creator] { display: inline-flex !important; }
-/* AM được thấy DUY NHẤT tab "Quản lý đặt hàng" (view-only), không mở khoá nút export/miền ALL */
-body.is-am [data-view="approval"][data-need="approver"] { display: inline-flex !important; }
-/* Mua hàng cũng thấy tab "Quản lý đặt hàng" */
-body.is-purchasing [data-view="approval"][data-need="approver"] { display: inline-flex !important; }
-
-.toast-show { opacity: 1; transform: translateY(0); }
-#toast { opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
-#toast.show { display: block; opacity: 1; transform: translateY(0); }
-#toast.err { background: #c81f3d; }
-
-.empty-state { padding: 48px 24px; text-align: center; color: #8a8d91; font-size: 13px; }
-.loading-state { padding: 48px 24px; text-align: center; color: #65676b; font-size: 13px; }
-</style>
+  <!-- CSS build tĩnh (Tailwind CLI, xem src/tailwind.css). Sửa class Tailwind trong file này
+       xong PHẢI chạy `npm run build:css` rồi commit lại dist/app.css (GitHub Pages ở đây
+       serve trực tiếp nhánh master, không có bước build CI). -->
+  <link rel="stylesheet" href="dist/app.css">
   <script>
     // >>> ĐIỀN URL + ANON KEY CỦA DỰ ÁN SUPABASE VÀO ĐÂY <<<
     window.CTCH_CONFIG = {
@@ -1052,6 +830,7 @@ async function initOrderView() {
   initMucDoFilter();
   $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
+  bindOrderInputs();
 
   // Bind mien buttons (chúng nằm trong template tpl-order, phải bind lại sau mỗi render)
   const role = state.user.role;
@@ -1112,6 +891,7 @@ async function loadOrderData(pinSessionId) {
       throw new Error('Server trả về dữ liệu rỗng (' + (data === null ? 'null' : typeof data) + '). Kiểm tra Apps Script Executions panel.');
     }
     state.rows = Array.isArray(data.rows) ? data.rows : [];
+    state.rowIndex = new Map(state.rows.map(r => [r.ma_bravo, r]));
     state.readOnly = !!data.readOnly;
     state.currentSession = data.session || null;
     // Giữ đúng đợt đang xem cho các lần tải lại sau (đến khi đổi miền).
@@ -1385,7 +1165,6 @@ function renderOrderBody() {
     });
 
   host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
-  bindOrderInputs();
   bindGroupToggles();
   bindPLToggles();
   bindScrollSyncAndDrag();
@@ -1596,36 +1375,38 @@ function productRowHtml(r, plId) {
   </tr>`;
 }
 
+// 1 listener delegation trên host (thay vì gắn cho từng input — bảng có thể có hàng nghìn ô)
+// + tra dòng qua state.rowIndex (Map) thay vì state.rows.find() O(n) mỗi phím gõ.
 function bindOrderInputs() {
-  $$('#orderTableHost input[data-id]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const id = inp.dataset.id;
-      const field = inp.dataset.field;
-      const row = state.rows.find(r => r.ma_bravo === id);
-      if (!row) return;
-      const existing = state.changes.get(id) || {};
-      existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
-      // Baseline giờ là gợi ý mặc định (đã điền sẵn), không phải giá trị đã lưu:
-      // lệch gợi ý (hoặc đổi ghi chú) = có chỉnh -> ghi vào changes để highlight & đếm.
-      const action = state.currentAction;
-      const defQty = qtyDefault(row, action.editField);
-      const origNote = row[action.editNoteField] || '';
-      const newQty = existing[action.editField] !== undefined ? Number(existing[action.editField] || 0) : defQty;
-      const newNote = existing[action.editNoteField] !== undefined ? existing[action.editNoteField] : origNote;
-      if (newQty === defQty && newNote === origNote) state.changes.delete(id);
-      else state.changes.set(id, existing);
+  $('#orderTableHost').addEventListener('input', e => {
+    const inp = e.target.closest('input[data-id]');
+    if (!inp) return;
+    const id = inp.dataset.id;
+    const field = inp.dataset.field;
+    const row = state.rowIndex.get(id);
+    if (!row) return;
+    const existing = state.changes.get(id) || {};
+    existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
+    // Baseline giờ là gợi ý mặc định (đã điền sẵn), không phải giá trị đã lưu:
+    // lệch gợi ý (hoặc đổi ghi chú) = có chỉnh -> ghi vào changes để highlight & đếm.
+    const action = state.currentAction;
+    const defQty = qtyDefault(row, action.editField);
+    const origNote = row[action.editNoteField] || '';
+    const newQty = existing[action.editField] !== undefined ? Number(existing[action.editField] || 0) : defQty;
+    const newNote = existing[action.editNoteField] !== undefined ? existing[action.editNoteField] : origNote;
+    if (newQty === defQty && newNote === origNote) state.changes.delete(id);
+    else state.changes.set(id, existing);
 
-      const tr = inp.closest('tr');
-      tr.classList.toggle('dirty', state.changes.has(id));
-      if (field === action.editField) {
-        const def = Number(inp.dataset.default || 0);
-        inp.classList.toggle('dirty', Number(inp.value || 0) !== def);
-        const plId = tr.dataset.pl;
-        if (plId) updatePLSumSlDat(plId);
-      }
-      updateOrderStats();
-      updateDraftIndicator();
-    });
+    const tr = inp.closest('tr');
+    tr.classList.toggle('dirty', state.changes.has(id));
+    if (field === action.editField) {
+      const def = Number(inp.dataset.default || 0);
+      inp.classList.toggle('dirty', Number(inp.value || 0) !== def);
+      const plId = tr.dataset.pl;
+      if (plId) updatePLSumSlDat(plId);
+    }
+    updateOrderStats();
+    updateDraftIndicator();
   });
 }
 
@@ -2042,6 +1823,7 @@ async function initApprovalView() {
   // Mua hàng: mặc định lọc "Đã duyệt" cho gọn (backend cũng chỉ trả APPROVED/CLOSED).
   if (isPurchasing()) { const st = $('#mStatus'); if (st) st.value = 'APPROVED'; }
   $('#mRefresh').addEventListener('click', async () => { await loadSessions(); renderManageList(); });
+  bindManageActions();
   await renderManageList();
 }
 
@@ -2129,61 +1911,64 @@ async function renderManageList() {
         }).join('')}</tbody>
       </table>
     </div>`;
-    // Wire tác vụ
-    host.querySelectorAll('button[data-act]').forEach(b => {
-      b.addEventListener('click', async () => {
-        const id = b.dataset.id;
-        const act = b.dataset.act;
-        if (act === 'open') {
-          // Switch sang tab Chi tiết với session này (PM/Manager: sửa cột của mình rồi "Xác nhận")
-          const targetMien = b.dataset.mien;
-          state.mien = targetMien;
-          state.pinnedSessionId = id;   // mở đúng đợt được chọn, không auto-pick
-          state.currentSession = state.sessions.find(s => s.session_id === id) || null;
-          $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === 'order'));
-          state.view = 'order';
-          renderView();
-        } else if (act === 'approve') {
-          if (!confirm('Phê duyệt nhanh đợt này? Số lượng giữ nguyên từ bước trước, đợt sẽ chuyển sang bước kế tiếp.')) return;
-          b.disabled = true;
-          try {
-            const r = await rpc('approveSession', id);
-            toast('Đã phê duyệt · trạng thái → ' + (r.newStatus || ''));
-            await loadSessions();
-            renderManageList();
-          } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
-        } else if (act === 'reject') {
-          const reason = prompt('Nhập lý do từ chối (bắt buộc). Đợt sẽ trả về AM để chỉnh sửa lại:');
-          if (reason === null) return;
-          if (!reason.trim()) { toast('Cần nhập lý do từ chối', true); return; }
-          b.disabled = true;
-          try {
-            await rpc('rejectSession', id, reason.trim());
-            toast('Đã từ chối · trả đợt về AM');
-            await loadSessions();
-            renderManageList();
-          } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
-        } else if (act === 'export') {
-          const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: 'dot', mien: '' };
-          await exportToExcel(sess);
-        } else if (act === 'purchase') {
-          const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
-          openPurchaseModal(sess);
-        } else if (act === 'close') {
-          if (!confirm('Chốt đợt này? Sẽ không sửa được nữa.')) return;
-          try {
-            await rpc('closeSession', id);
-            toast('Đã chốt đợt');
-            await loadSessions();
-            renderManageList();
-          } catch (e) { toast('Lỗi: ' + e.message, true); }
-        }
-      });
-    });
   } catch (e) {
     console.error('[renderManageList]', e);
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">Lỗi: ${esc(e.message)}</div>`;
   }
+}
+
+// 1 listener delegation trên host (thay vì gắn cho từng nút mỗi lần render danh sách đợt).
+function bindManageActions() {
+  $('#manageHost').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const id = b.dataset.id;
+    const act = b.dataset.act;
+    if (act === 'open') {
+      // Switch sang tab Chi tiết với session này (PM/Manager: sửa cột của mình rồi "Xác nhận")
+      const targetMien = b.dataset.mien;
+      state.mien = targetMien;
+      state.pinnedSessionId = id;   // mở đúng đợt được chọn, không auto-pick
+      state.currentSession = state.sessions.find(s => s.session_id === id) || null;
+      $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === 'order'));
+      state.view = 'order';
+      renderView();
+    } else if (act === 'approve') {
+      if (!confirm('Phê duyệt nhanh đợt này? Số lượng giữ nguyên từ bước trước, đợt sẽ chuyển sang bước kế tiếp.')) return;
+      b.disabled = true;
+      try {
+        const r = await rpc('approveSession', id);
+        toast('Đã phê duyệt · trạng thái → ' + (r.newStatus || ''));
+        await loadSessions();
+        renderManageList();
+      } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
+    } else if (act === 'reject') {
+      const reason = prompt('Nhập lý do từ chối (bắt buộc). Đợt sẽ trả về AM để chỉnh sửa lại:');
+      if (reason === null) return;
+      if (!reason.trim()) { toast('Cần nhập lý do từ chối', true); return; }
+      b.disabled = true;
+      try {
+        await rpc('rejectSession', id, reason.trim());
+        toast('Đã từ chối · trả đợt về AM');
+        await loadSessions();
+        renderManageList();
+      } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
+    } else if (act === 'export') {
+      const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: 'dot', mien: '' };
+      await exportToExcel(sess);
+    } else if (act === 'purchase') {
+      const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
+      openPurchaseModal(sess);
+    } else if (act === 'close') {
+      if (!confirm('Chốt đợt này? Sẽ không sửa được nữa.')) return;
+      try {
+        await rpc('closeSession', id);
+        toast('Đã chốt đợt');
+        await loadSessions();
+        renderManageList();
+      } catch (e) { toast('Lỗi: ' + e.message, true); }
+    }
+  });
 }
 
 // ============ MÀN CẤU HÌNH (chỉ admin) ============
@@ -2369,6 +2154,7 @@ async function initCatalogView() {
   $('#catSelectAll').addEventListener('click', () => bulkSelectCatalog(true));
   $('#catUnselectAll').addEventListener('click', () => bulkSelectCatalog(false));
   $('#catSave').addEventListener('click', saveCatalog);
+  bindCatalogInputs();
 
   await loadCatalog();
 }
@@ -2379,6 +2165,7 @@ async function loadCatalog() {
   try {
     const list = await rpc('listCatalog');
     state.catalog = Array.isArray(list) ? list : [];
+    state.catalogIndex = new Map(state.catalog.map(r => [r.ma_bravo, r]));
     const grps = [...new Set(state.catalog.map(r => r.nhom_san_pham).filter(Boolean))].sort();
     $('#catGrp').innerHTML = '<option value="">Tất cả nhóm sản phẩm</option>' + grps.map(g => `<option>${esc(g)}</option>`).join('');
     renderCatalogBody();
@@ -2410,7 +2197,7 @@ function filteredCatalog() {
 }
 
 function markCatDirty(ma, field, value) {
-  const r = state.catalog.find(x => x.ma_bravo === ma);
+  const r = state.catalogIndex.get(ma);
   if (!r) return;
   const cur = state.catalogDirty.get(ma) || {};
   cur[field] = value;
@@ -2476,35 +2263,37 @@ function renderCatalogBody() {
       }).join('')}</tbody>
     </table>
   </div>`;
-  bindCatalogInputs();
 }
 
+// 1 listener delegation trên host (thay vì gắn cho từng checkbox/select/input mỗi lần render).
 function bindCatalogInputs() {
-  $$('#catalogHost input[data-cat-chk]').forEach(chk => {
-    chk.addEventListener('change', () => {
+  const host = $('#catalogHost');
+  host.addEventListener('change', e => {
+    const chk = e.target.closest('input[data-cat-chk]');
+    if (chk) {
       const ma = chk.dataset.catChk;
       markCatDirty(ma, 'dat_hang', chk.checked);
       chk.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
       updateCatHeader();
-    });
-  });
-  $$('#catalogHost select[data-cat-muc]').forEach(sel => {
-    sel.addEventListener('change', () => {
+      return;
+    }
+    const sel = e.target.closest('select[data-cat-muc]');
+    if (sel) {
       const ma = sel.dataset.catMuc;
       markCatDirty(ma, 'muc_do_sd', sel.value);
       sel.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
       updateCatHeader();
-    });
+    }
   });
-  $$('#catalogHost input[data-cat-safety]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const ma = inp.dataset.catSafety;
-      let v = Math.floor(Number(inp.value));
-      if (!Number.isFinite(v) || v < 0) v = 0;
-      markCatDirty(ma, 'safety_stock', v);
-      inp.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
-      updateCatHeader();
-    });
+  host.addEventListener('input', e => {
+    const inp = e.target.closest('input[data-cat-safety]');
+    if (!inp) return;
+    const ma = inp.dataset.catSafety;
+    let v = Math.floor(Number(inp.value));
+    if (!Number.isFinite(v) || v < 0) v = 0;
+    markCatDirty(ma, 'safety_stock', v);
+    inp.closest('tr').classList.toggle('dirty', state.catalogDirty.has(ma));
+    updateCatHeader();
   });
 }
 
@@ -2525,7 +2314,7 @@ async function saveCatalog() {
     const res = await rpcOpts({ timeoutMs: 60000 }, 'saveCatalog', changes);
     toast(`Đã lưu ${res.updated} vật tư vào danh mục đặt hàng`);
     changes.forEach(c => {
-      const r = state.catalog.find(x => x.ma_bravo === c.ma_bravo);
+      const r = state.catalogIndex.get(c.ma_bravo);
       if (r) {
         if (c.dat_hang !== undefined) r.dat_hang = c.dat_hang;
         if (c.muc_do_sd !== undefined) r.muc_do_sd = c.muc_do_sd;
