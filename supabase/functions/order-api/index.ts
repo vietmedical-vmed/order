@@ -285,7 +285,11 @@ async function fetchProducts(supa: SupabaseClient) {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
       .from("dm_vat_tu")
-      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, muc_do_sd, safety_stock, don_vi, don_gia_thau_moi, leadtime_ngay, so_thang_dat")
+      // Chú ý: don_vi / leadtime_ngay / so_thang_dat KHÔNG tồn tại trong bảng dm_vat_tu hiện tại
+      // (mapping bên dưới cố tình đọc undefined -> fallback 0/''/null, phòng khi cột được thêm
+      // sau) — TUYỆT ĐỐI không thêm các tên này vào select() vì PostgREST sẽ lỗi "column does
+      // not exist" (đã từng gây lỗi 500 toàn màn Chi tiết đặt hàng, xem OPTIMIZATION_PLAN).
+      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, muc_do_sd, safety_stock, don_gia_thau_moi")
       .eq("dat_hang", true)
       .order("ma_bravo", { ascending: true })
       .range(from, from + PAGE - 1);
