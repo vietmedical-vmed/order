@@ -781,6 +781,7 @@ function bindGlobalDraftActions() {
     if (state.changes.size === 0) return;
     if (!confirm('Huỷ toàn bộ thay đổi chưa lưu?')) return;
     state.changes.clear();
+    saveDraftLocalNow();
     renderOrderBody();
     updateOrderStats();
     updateDraftIndicator();
@@ -899,6 +900,7 @@ async function loadOrderData(pinSessionId) {
     state.pinnedSessionId = data.session ? data.session.session_id : null;
     state.currentAction = data.action || null;
     state.stockAsof = data.stock_asof || '';
+    tryRestoreDraft();
     populateGrpAndPLOptions();
     renderSessionBanner();
     renderOrderBody();
@@ -1747,7 +1749,49 @@ function fmtVND(n) {
   return n.toLocaleString('vi-VN') + ' đ';
 }
 
+// Tự lưu nháp state.changes vào localStorage (debounce 1s) — khôi phục được nếu mất mạng/
+// token hết hạn giữa chừng. Khoá theo session_id, chỉ 1 đợt gần nhất/trình duyệt.
+const DRAFT_KEY = 'ctch_order_draft';
+function saveDraftLocalNow() {
+  const sess = state.currentSession;
+  if (sess && state.changes.size > 0) {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        sessionId: sess.session_id,
+        changes: Array.from(state.changes.entries()),
+        savedAt: Date.now(),
+      }));
+    } catch {}
+    return;
+  }
+  // changes trống (hoặc chưa mở đợt nào) -> chỉ xoá nháp cũ nếu nó ĐÚNG là của đợt đang xem
+  // (tránh xoá nhầm nháp của đợt khác khi vừa mở 1 đợt/màn khác mà chưa kịp gõ gì).
+  if (!sess) return;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (draft && draft.sessionId === sess.session_id) localStorage.removeItem(DRAFT_KEY);
+  } catch {}
+}
+const saveDraftLocal = debounce(saveDraftLocalNow, 1000);
+
+// Hỏi khôi phục nếu có nháp khớp đúng đợt đang mở và chưa có thay đổi nào trong phiên hiện tại.
+function tryRestoreDraft() {
+  const sess = state.currentSession;
+  if (!sess || state.changes.size > 0) return;
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { draft = null; }
+  if (!draft || draft.sessionId !== sess.session_id || !Array.isArray(draft.changes) || !draft.changes.length) return;
+  if (confirm(`Khôi phục ${draft.changes.length} thay đổi chưa gửi từ lần trước?`)) {
+    draft.changes.forEach(([k, v]) => state.changes.set(k, v));
+  } else {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  }
+}
+
 function updateDraftIndicator() {
+  saveDraftLocal();
   const n = state.changes.size;
   const draftActions = $('#draftActions');
   const status = $('#saveStatus');
@@ -1809,6 +1853,7 @@ async function placeOrder() {
     const res = await rpc(action.endpoint, keepId, items);
     toast(`Đã ${action.label.toLowerCase()}: +${res.created} ~${res.updated} -${res.deleted}. Trạng thái → ${res.newStatus}`);
     state.changes.clear();
+    saveDraftLocalNow();
     await loadSessions();
     await loadOrderData(keepId);   // ở lại đúng đợt vừa xác nhận, không nhảy sang đợt khác
   } catch (e) {
