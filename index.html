@@ -831,6 +831,7 @@ async function initOrderView() {
   $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
   bindOrderInputs();
+  bindPLToggles();
 
   // Bind mien buttons (chúng nằm trong template tpl-order, phải bind lại sau mỗi render)
   const role = state.user.role;
@@ -1164,9 +1165,11 @@ function renderOrderBody() {
       return [grp, sortedPl];
     });
 
+  // Cache plMap theo tên nhóm để render lười: nhóm đóng chỉ dựng tbody khi mở lần đầu
+  // (xem bindGroupToggles) — placeOrder() không phụ thuộc DOM nên an toàn (xem 3.4).
+  state.orderGroupsCache = new Map(sortedGroups);
   host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
   bindGroupToggles();
-  bindPLToggles();
   bindScrollSyncAndDrag();
 }
 
@@ -1252,7 +1255,7 @@ function groupCardHtml(grp, plMap, gIdx) {
           <th class="c" style="width:120px" title="Số PO">PO</th>
           <th style="min-width:160px">Ghi chú</th>` : ''}
         </tr></thead>
-        <tbody>${Array.from(plMap.entries()).map(([pl, items]) => plBlockHtml(pl, items, grp)).join('')}</tbody>
+        <tbody${open ? '' : ' data-lazy="1"'}>${open ? Array.from(plMap.entries()).map(([pl, items]) => plBlockHtml(pl, items, grp)).join('') : ''}</tbody>
       </table>
     </div>
   </div>`;
@@ -1437,7 +1440,17 @@ function bindGroupToggles() {
       body.classList.toggle('hidden');
       if (scrollTop) scrollTop.classList.toggle('hidden');
       chev.classList.toggle('-rotate-90', !isHidden);
-      if (isHidden) { lockColumnWidths(card); syncScrollWidths(); applyStickyCols(card); buildFloatingHeaders(); }  // vừa mở
+      if (isHidden) {   // vừa mở
+        const tbody = body.querySelector('tbody[data-lazy]');
+        if (tbody) {   // lần đầu mở nhóm này -> dựng tbody bây giờ (render lười, xem 1.4)
+          const plMap = state.orderGroupsCache && state.orderGroupsCache.get(card.dataset.grp);
+          if (plMap) {
+            tbody.innerHTML = Array.from(plMap.entries()).map(([pl, items]) => plBlockHtml(pl, items, card.dataset.grp)).join('');
+          }
+          tbody.removeAttribute('data-lazy');
+        }
+        lockColumnWidths(card); syncScrollWidths(); applyStickyCols(card); buildFloatingHeaders();
+      }
     };
   });
 }
@@ -1679,16 +1692,18 @@ function buildFloatingHeaders() {
   update();
 }
 
+// 1 listener delegation trên host (không phải bind từng dòng mỗi lần render) — nhóm render
+// lười (1.4) dựng tbody sau khi mở vẫn hoạt động đúng vì không cần bind lại.
 function bindPLToggles() {
-  $$('[data-pl-toggle]').forEach(row => {
-    row.addEventListener('click', e => {
-      if (e.target.closest('input, button, a')) return;
-      const plId = row.dataset.plToggle;
-      const children = $$(`.pl-child-${plId}`);
-      const isOpen = children.length && !children[0].classList.contains('hidden');
-      children.forEach(c => c.classList.toggle('hidden', isOpen));
-      row.classList.toggle('collapsed', isOpen);
-    });
+  $('#orderTableHost').addEventListener('click', e => {
+    if (e.target.closest('input, button, a')) return;
+    const row = e.target.closest('[data-pl-toggle]');
+    if (!row) return;
+    const plId = row.dataset.plToggle;
+    const children = $$(`.pl-child-${plId}`);
+    const isOpen = children.length && !children[0].classList.contains('hidden');
+    children.forEach(c => c.classList.toggle('hidden', isOpen));
+    row.classList.toggle('collapsed', isOpen);
   });
 }
 
