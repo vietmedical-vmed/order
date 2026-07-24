@@ -1191,6 +1191,13 @@ function qtyEffective(r, field) {
   return 0;
 }
 
+// Ghi chú hiệu lực của 1 dòng: đang sửa > đã lưu (đúng field) > ghi chú các bước trước.
+function noteEffective(r, field) {
+  const ch = state.changes.get(r.ma_bravo);
+  if (ch && ch[field] !== undefined) return ch[field];
+  return r[field] || r.ghi_chu_dat || r.ghi_chu_duyet || r.ghi_chu_dat_hang || '';
+}
+
 function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
@@ -1340,9 +1347,7 @@ function productRowHtml(r, plId) {
   };
 
   // Ghi chú: 1 cột dùng chung — sửa được theo role
-  const noteValue = change && change[editNoteField] !== undefined
-    ? change[editNoteField]
-    : (r[editNoteField] || r.ghi_chu_dat || r.ghi_chu_duyet || r.ghi_chu_dat_hang || '');
+  const noteValue = noteEffective(r, editNoteField);
   const noteCell = (editNoteField && r.editable !== false)
     ? `<td><input type="text" class="note-input" value="${esc(noteValue)}" placeholder="—" data-field="${editNoteField}" data-id="${esc(r.ma_bravo)}"/></td>`
     : `<td class="text-[11.5px] text-slate-500 italic">${esc(noteValue || '—')}</td>`;
@@ -1768,20 +1773,17 @@ function updateDraftIndicator() {
 async function placeOrder() {
   const action = state.currentAction;
   if (!action) return;
-  // Gom từ ô nhập trên bảng: mọi dòng có SL > 0 (đã gồm giá trị điền sẵn theo gợi ý,
-  // không chỉ các dòng chỉnh tay). Ghi chú lấy theo từng mã.
-  const noteMap = {};
-  $$(`#orderTableHost input.note-input[data-field="${action.editNoteField}"]`).forEach(inp => {
-    noteMap[inp.dataset.id] = inp.value || '';
-  });
+  // Gom từ state (không phải DOM): mọi dòng có SL hiệu lực > 0 (đã gồm giá trị điền sẵn
+  // theo gợi ý, không chỉ các dòng chỉnh tay) — không phụ thuộc dòng có đang render hay
+  // không (bộ lọc ẩn dòng, nhóm đang đóng…), tránh sót thay đổi khi dòng không có trong DOM.
   const items = [];
-  $$(`#orderTableHost input.qty-input[data-field="${action.editField}"]`).forEach(inp => {
-    const qty = Number(inp.value || 0);
+  state.rows.forEach(r => {
+    if (r.editable === false) return; // ngoài scope -> không render input, không gửi
+    const qty = qtyEffective(r, action.editField);
     if (qty <= 0) return;
-    const ma = inp.dataset.id;
-    const item = { ma_bravo: ma };
+    const item = { ma_bravo: r.ma_bravo };
     item[action.editField] = qty;
-    item[action.editNoteField] = noteMap[ma] || '';
+    item[action.editNoteField] = noteEffective(r, action.editNoteField);
     items.push(item);
   });
   if (!items.length) return;
