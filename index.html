@@ -377,6 +377,38 @@ const state = {
 };
 const TOKEN_KEY = 'ctch_auth_token';
 
+// 3.3: cảnh báo token sắp hết hạn — decode payload (base64url + UTF-8, giống server) để đọc
+// exp mà không cần gọi API. Đặt hẹn giờ hiện banner trước hạn 15 phút thay vì để user bị đá
+// về login bất ngờ giữa lúc đang nhập liệu.
+let tokenExpiryTimer = null;
+function decodeTokenPayload(token) {
+  try {
+    const b64 = String(token || '').split('.')[0];
+    if (!b64) return null;
+    let s = b64.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+  } catch { return null; }
+}
+function scheduleTokenExpiryWarning() {
+  if (tokenExpiryTimer) { clearTimeout(tokenExpiryTimer); tokenExpiryTimer = null; }
+  const payload = decodeTokenPayload(state.token);
+  if (!payload || !payload.exp) return;
+  const WARN_BEFORE_MS = 15 * 60 * 1000;
+  const delay = payload.exp * 1000 - WARN_BEFORE_MS - Date.now();
+  const showExpiryBanner = () => {
+    const el = $('#banner');
+    if (!el) return;
+    el.textContent = 'Phiên đăng nhập sắp hết hạn — hãy lưu lại thay đổi rồi đăng nhập lại để không bị gián đoạn.';
+    el.classList.remove('hidden');
+  };
+  if (delay <= 0) showExpiryBanner();
+  else tokenExpiryTimer = setTimeout(showExpiryBanner, delay);
+}
+
 // ============ UTILS ============
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -532,6 +564,9 @@ function showLogin() {
   $('#loginScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
   $('#loginErr').textContent = '';
+  // Không còn phiên nào để cảnh báo hết hạn -> huỷ hẹn giờ + ẩn banner cũ (nếu có).
+  if (tokenExpiryTimer) { clearTimeout(tokenExpiryTimer); tokenExpiryTimer = null; }
+  const banner = $('#banner'); if (banner) { banner.classList.add('hidden'); banner.textContent = ''; }
   // Luôn hiện form đăng nhập (không kẹt ở form đổi mật khẩu nếu lần trước có mở).
   $('#loginForm').classList.remove('hidden');
   const _pf = $('#pwForm'); if (_pf) _pf.classList.add('hidden');
@@ -613,6 +648,7 @@ async function showApp() {
   try { bindLogout(); } catch (e) { console.error('bindLogout:', e); }
   try { bindGlobalDraftActions(); } catch (e) { console.error('bindGlobalDraftActions:', e); }
   try { bindExportButton(); } catch (e) { console.error('bindExportButton:', e); }
+  try { scheduleTokenExpiryWarning(); } catch (e) { console.error('scheduleTokenExpiryWarning:', e); }
   try {
     // Highlight đúng tab mặc định theo state.view (mặc định: Quản lý đặt hàng)
     $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
