@@ -359,6 +359,28 @@
   </div>
 </div>
 
+<!-- ============ MODAL XÁC NHẬN DÙNG CHUNG (thay window.confirm/prompt/alert) ============ -->
+<div id="modalConfirm" class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+      <h3 id="mcTitle" class="font-semibold text-[15px]">Xác nhận</h3>
+      <button id="mcClose" aria-label="Đóng" class="text-slate-400 hover:text-slate-700 text-[22px] leading-none">×</button>
+    </div>
+    <div class="p-5">
+      <div id="mcMessage" class="text-[13px] text-slate-700 whitespace-pre-line"></div>
+      <div id="mcReasonWrap" class="hidden mt-3">
+        <label id="mcReasonLabel" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Lý do</label>
+        <textarea id="mcReason" rows="3" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 resize-none"></textarea>
+      </div>
+      <div id="mcErr" class="text-[12px] text-red-600 mt-2 min-h-[16px]"></div>
+    </div>
+    <div class="flex justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">
+      <button id="mcCancel" class="px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-100 rounded-md">Huỷ</button>
+      <button id="mcOk" class="px-4 py-1.5 text-[13px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="hidden fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-lg text-[13px] shadow-lg z-50"></div>
 
 <script>
@@ -429,6 +451,63 @@ function toast(msg, isErr) {
   el.classList.add('show');
   el.classList.toggle('err', !!isErr);
   setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// Modal xác nhận dùng chung (thay window.confirm/prompt/alert) — trả Promise:
+//  - infoOnly:    resolve() khi bấm OK/× (không có lựa chọn Huỷ)
+//  - requireReason: resolve(chuỗi lý do đã trim) khi xác nhận, null khi Huỷ/Esc/×
+//  - còn lại:     resolve(true) khi xác nhận, resolve(false) khi Huỷ/Esc/×
+function askConfirm(opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    const modal = $('#modalConfirm');
+    const wrap = $('#mcReasonWrap');
+    const reasonInput = $('#mcReason');
+    const okBtn = $('#mcOk');
+    const cancelBtn = $('#mcCancel');
+    const needReason = !!opts.requireReason;
+
+    $('#mcTitle').textContent = opts.title || 'Xác nhận';
+    $('#mcMessage').textContent = opts.message || '';
+    $('#mcErr').textContent = '';
+    wrap.classList.toggle('hidden', !needReason);
+    if (needReason) {
+      $('#mcReasonLabel').textContent = opts.reasonLabel || 'Lý do';
+      reasonInput.value = '';
+    }
+    okBtn.textContent = opts.okLabel || (needReason ? 'Xác nhận' : (opts.infoOnly ? 'Đã hiểu' : 'Xác nhận'));
+    okBtn.classList.toggle('bg-emerald-600', !opts.danger);
+    okBtn.classList.toggle('hover:bg-emerald-700', !opts.danger);
+    okBtn.classList.toggle('bg-red-600', !!opts.danger);
+    okBtn.classList.toggle('hover:bg-red-700', !!opts.danger);
+    cancelBtn.classList.toggle('hidden', !!opts.infoOnly);
+
+    modal.classList.remove('hidden');
+    (needReason ? reasonInput : okBtn).focus();
+
+    const finish = (value) => {
+      modal.classList.add('hidden');
+      $('#mcClose').onclick = null;
+      cancelBtn.onclick = null;
+      okBtn.onclick = null;
+      modal.removeEventListener('keydown', onKeydown);
+      resolve(value);
+    };
+    const cancelValue = () => needReason ? null : false;
+    const onKeydown = (e) => { if (e.key === 'Escape') finish(cancelValue()); };
+    modal.addEventListener('keydown', onKeydown);
+    $('#mcClose').onclick = () => finish(cancelValue());
+    cancelBtn.onclick = () => finish(cancelValue());
+    okBtn.onclick = () => {
+      if (needReason) {
+        const val = reasonInput.value.trim();
+        if (opts.reasonRequired !== false && !val) { $('#mcErr').textContent = 'Cần nhập lý do'; return; }
+        finish(val);
+      } else {
+        finish(true);
+      }
+    };
+  });
 }
 
 // ==== Supabase Edge Function bridge (thay google.script.run) ====
@@ -770,7 +849,7 @@ function setupUserUI() {
 
 function bindLogout() {
   $('#btnLogout').onclick = async () => {
-    if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Đăng xuất sẽ mất. Tiếp tục?')) return;
+    if (state.changes.size > 0 && !(await askConfirm({ title: 'Đăng xuất', message: 'Có thay đổi chưa lưu. Đăng xuất sẽ mất. Tiếp tục?', danger: true }))) return;
     const oldToken = state.token;
     localStorage.removeItem(TOKEN_KEY);
     state.token = null; state.user = null; state.changes.clear();
@@ -813,9 +892,9 @@ function bindNav() {
 
 function bindGlobalDraftActions() {
   $('#btnPlace').onclick = placeOrder;
-  $('#btnReset').onclick = () => {
+  $('#btnReset').onclick = async () => {
     if (state.changes.size === 0) return;
-    if (!confirm('Huỷ toàn bộ thay đổi chưa lưu?')) return;
+    if (!(await askConfirm({ title: 'Huỷ thay đổi', message: 'Huỷ toàn bộ thay đổi chưa lưu?', danger: true, okLabel: 'Huỷ thay đổi' }))) return;
     state.changes.clear();
     saveDraftLocalNow();
     renderOrderBody();
@@ -886,7 +965,7 @@ async function initOrderView() {
     b.addEventListener('click', async () => {
       const m = b.dataset.mien;
       if (m === state.mien) return;
-      if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?')) return;
+      if (state.changes.size > 0 && !(await askConfirm({ title: 'Chuyển miền', message: 'Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?', danger: true }))) return;
       state.mien = m;
       state.changes.clear();
       state.pinnedSessionId = null;   // đổi miền -> chọn lại đợt của miền mới
@@ -936,7 +1015,7 @@ async function loadOrderData(pinSessionId) {
     state.pinnedSessionId = data.session ? data.session.session_id : null;
     state.currentAction = data.action || null;
     state.stockAsof = data.stock_asof || '';
-    tryRestoreDraft();
+    await tryRestoreDraft();
     populateGrpAndPLOptions();
     renderSessionBanner();
     renderOrderBody();
@@ -1813,13 +1892,14 @@ function saveDraftLocalNow() {
 const saveDraftLocal = debounce(saveDraftLocalNow, 1000);
 
 // Hỏi khôi phục nếu có nháp khớp đúng đợt đang mở và chưa có thay đổi nào trong phiên hiện tại.
-function tryRestoreDraft() {
+async function tryRestoreDraft() {
   const sess = state.currentSession;
   if (!sess || state.changes.size > 0) return;
   let draft;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { draft = null; }
   if (!draft || draft.sessionId !== sess.session_id || !Array.isArray(draft.changes) || !draft.changes.length) return;
-  if (confirm(`Khôi phục ${draft.changes.length} thay đổi chưa gửi từ lần trước?`)) {
+  const ok = await askConfirm({ title: 'Khôi phục thay đổi', message: `Khôi phục ${draft.changes.length} thay đổi chưa gửi từ lần trước?` });
+  if (ok) {
     draft.changes.forEach(([k, v]) => state.changes.set(k, v));
   } else {
     try { localStorage.removeItem(DRAFT_KEY); } catch {}
@@ -2032,7 +2112,7 @@ function bindManageActions() {
       state.view = 'order';
       renderView();
     } else if (act === 'approve') {
-      if (!confirm('Phê duyệt nhanh đợt này? Số lượng giữ nguyên từ bước trước, đợt sẽ chuyển sang bước kế tiếp.')) return;
+      if (!(await askConfirm({ title: 'Phê duyệt đợt', message: 'Phê duyệt nhanh đợt này? Số lượng giữ nguyên từ bước trước, đợt sẽ chuyển sang bước kế tiếp.' }))) return;
       b.disabled = true;
       try {
         const r = await rpc('approveSession', id);
@@ -2041,12 +2121,14 @@ function bindManageActions() {
         renderManageList();
       } catch (e) { toast('Lỗi: ' + e.message, true); b.disabled = false; }
     } else if (act === 'reject') {
-      const reason = prompt('Nhập lý do từ chối (bắt buộc). Đợt sẽ trả về AM để chỉnh sửa lại:');
+      const reason = await askConfirm({
+        title: 'Từ chối đợt', message: 'Đợt sẽ trả về AM để chỉnh sửa lại.', requireReason: true,
+        reasonLabel: 'Lý do từ chối (bắt buộc)', okLabel: 'Từ chối', danger: true,
+      });
       if (reason === null) return;
-      if (!reason.trim()) { toast('Cần nhập lý do từ chối', true); return; }
       b.disabled = true;
       try {
-        await rpc('rejectSession', id, reason.trim());
+        await rpc('rejectSession', id, reason);
         toast('Đã từ chối · trả đợt về AM');
         await loadSessions();
         renderManageList();
@@ -2058,7 +2140,7 @@ function bindManageActions() {
       const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
       openPurchaseModal(sess);
     } else if (act === 'close') {
-      if (!confirm('Chốt đợt này? Sẽ không sửa được nữa.')) return;
+      if (!(await askConfirm({ title: 'Chốt đợt', message: 'Chốt đợt này? Sẽ không sửa được nữa.', danger: true, okLabel: 'Chốt đợt' }))) return;
       try {
         await rpc('closeSession', id);
         toast('Đã chốt đợt');
@@ -2395,10 +2477,10 @@ function bindCatalogInputs() {
   });
 }
 
-function bulkSelectCatalog(value) {
+async function bulkSelectCatalog(value) {
   const all = filteredCatalog();
   if (!all.length) return;
-  if (!confirm(`${value ? 'Chọn' : 'Bỏ chọn'} ${all.length} vật tư đang lọc?`)) return;
+  if (!(await askConfirm({ title: value ? 'Chọn tất cả' : 'Bỏ chọn tất cả', message: `${value ? 'Chọn' : 'Bỏ chọn'} ${all.length} vật tư đang lọc?` }))) return;
   all.forEach(r => markCatDirty(r.ma_bravo, 'dat_hang', value));
   renderCatalogBody();
 }
@@ -2503,7 +2585,7 @@ async function renderAudit() {
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state text-red-600">
       <div class="font-medium mb-2">Lỗi: ${esc(e.message)}</div>
       <button id="auditPingBtn" class="ctl-btn">Test ping server</button>
-      <div class="text-[11px] text-slate-400 mt-3">Bấm Test ping → nếu OK thì server deploy đúng. Lỗi là trong loadAuditLog — xem Apps Script Executions panel.</div>
+      <div class="text-[11px] text-slate-400 mt-3">Bấm Test ping → nếu OK thì server deploy đúng. Lỗi là trong loadAuditLog — xem log Supabase Edge Function.</div>
     </div>`;
     bindAuditPing();
   }
@@ -2519,12 +2601,12 @@ function bindAuditPing() {
       const r = await rpc('auditPing');
       console.log('[auditPing] result:', r);
       if (Array.isArray(r) && r.length > 0) {
-        alert('✓ Deploy server OK!\n\nNhận được:\n' + JSON.stringify(r, null, 2) + '\n\nNếu loadAuditLog vẫn lỗi → vấn đề trong code function. Xem Apps Script Executions.');
+        await askConfirm({ title: 'Test ping server', infoOnly: true, message: '✓ Deploy server OK!\n\nNhận được:\n' + JSON.stringify(r, null, 2) + '\n\nNếu loadAuditLog vẫn lỗi → vấn đề trong code function. Xem log Supabase Edge Function.' });
       } else {
-        alert('✗ auditPing trả về: ' + JSON.stringify(r) + '\n\nĐiều này CHỨNG TỎ deploy CHƯA cập nhật code mới. Bạn cần Deploy → Manage deployments → Edit → New version.');
+        await askConfirm({ title: 'Test ping server', infoOnly: true, message: '✗ auditPing trả về: ' + JSON.stringify(r) + '\n\nĐiều này CHỨNG TỎ deploy CHƯA cập nhật code mới. Bạn cần supabase functions deploy order-api.' });
       }
     } catch (e) {
-      alert('✗ auditPing throw error: ' + e.message + '\n\nHàm auditPing chưa tồn tại = chưa deploy. Hoặc lỗi auth.');
+      await askConfirm({ title: 'Test ping server', infoOnly: true, danger: true, message: '✗ auditPing throw error: ' + e.message + '\n\nHàm auditPing chưa tồn tại = chưa deploy. Hoặc lỗi auth.' });
     } finally {
       btn.disabled = false;
       btn.textContent = 'Test ping server';
