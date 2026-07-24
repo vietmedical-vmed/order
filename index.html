@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ứng dụng đặt hàng cho CH&CS — tạo đợt, nhập số lượng, duyệt và theo dõi trạng thái đơn hàng.">
   <title>Đặt hàng CH&CS</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%231877f2'/%3E%3Ctext x='12' y='17' font-size='13' font-family='Arial' fill='white' text-anchor='middle' font-weight='bold'%3ED%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://nrfxymnfmjhbsgpipvkb.supabase.co">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
 tailwind.config = { theme: { extend: { colors: {
@@ -67,7 +70,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .group-title { font-size: 14px; font-weight: 600; color: #242526; }
 .group-meta { font-size: 11.5px; color: #65676b; }
 .group-stat { text-align: right; }
-.group-stat-label { font-size: 9.5px; uppercase; letter-spacing: 0.04em; color: #8a8d91; text-transform: uppercase; }
+.group-stat-label { font-size: 9.5px; letter-spacing: 0.04em; color: #8a8d91; text-transform: uppercase; }
 .group-stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Data table */
@@ -593,8 +596,6 @@ const state = {
   readOnly: true,
   changes: new Map(),
   filters: { grp: '', pl: [], mucDo: [], search: '', lowStock: false },
-  approvalRows: [],
-  approvalDirty: new Map(),
 };
 const TOKEN_KEY = 'ctch_auth_token';
 
@@ -688,6 +689,10 @@ function fetchWithTimeout(url, options, timeoutMs) {
 }
 
 // ============ BOOT ============
+window.addEventListener('beforeunload', e => {
+  if (state.changes.size || state.catalogDirty?.size) { e.preventDefault(); e.returnValue = ''; }
+});
+
 window.addEventListener('DOMContentLoaded', async () => {
   const boot = $('#boot');
   if (boot) boot.remove();
@@ -958,7 +963,7 @@ function bindLogout() {
     showLogin();
     // Báo server biết (best-effort) — không chờ, không chặn UI dù server chậm/treo
     if (oldToken) {
-      fetchWithTimeout(API_BASE + '/api', {
+      fetchWithTimeout(API_BASE + '/order-api', {
         method: 'POST', headers: _headers(),
         body: JSON.stringify({ action: 'logout', token: oldToken, args: [] })
       }).catch(() => {});
@@ -987,22 +992,6 @@ function bindNav() {
       $$('.nav-tab').forEach(x => x.classList.remove('active'));
       a.classList.add('active');
       state.view = a.dataset.view;
-      renderView();
-    });
-  });
-}
-
-function bindMienToggle() {
-  $$('.mien-btn').forEach(b => {
-    b.addEventListener('click', async () => {
-      const m = b.dataset.mien;
-      if (m === state.mien) return;
-      if (state.changes.size > 0 && !confirm('Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?')) return;
-      state.mien = m;
-      state.changes.clear();
-      state.pinnedSessionId = null;   // đổi miền -> chọn lại đợt của miền mới
-      $$('.mien-btn').forEach(x => x.classList.toggle('active', x === b));
-      await loadSessions();
       renderView();
     });
   });
@@ -1062,7 +1051,7 @@ async function initOrderView() {
   initPLFilter();
   initMucDoFilter();
   $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
-  $('#fSearch').addEventListener('input', e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); });
+  $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
 
   // Bind mien buttons (chúng nằm trong template tpl-order, phải bind lại sau mỗi render)
   const role = state.user.role;
@@ -2549,151 +2538,6 @@ async function saveCatalog() {
     toast(e.message, true);
     updateCatHeader();
   }
-}
-
-function filteredApprovalRows() {
-  const grp = $('#aGrp').value;
-  const who = $('#aWho').value;
-  const st = $('#aStatus').value;
-  return state.approvalRows.filter(r => {
-    if (grp && r.nhom_hang !== grp) return false;
-    if (who && r.requester_name !== who) return false;
-    const dirty = state.approvalDirty.get(r.item_id);
-    const slDuyet = dirty ? dirty.sl_duyet : r.sl_duyet;
-    if (st === 'PENDING' && slDuyet != null) return false;
-    if (st === 'DONE' && slDuyet == null) return false;
-    return true;
-  });
-}
-
-function renderApprovalBody() {
-  const rows = filteredApprovalRows();
-  const host = $('#approvalTableHost');
-  if (!rows.length) {
-    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có dòng nào phù hợp</div>`;
-    updateApprovalStats();
-    return;
-  }
-  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
-    <table class="dt">
-      <thead><tr>
-        <th class="c" style="width:40px"><input type="checkbox" id="aAll"/></th>
-        <th>SKU / người đặt</th>
-        <th>Tên hàng</th>
-        <th>Tồn · LK</th>
-        <th class="c">Gợi ý</th>
-        <th class="c">SL đặt</th>
-        <th class="c">SL duyệt</th>
-        <th>Ghi chú</th>
-      </tr></thead>
-      <tbody>${rows.map(approvalRowHtml).join('')}</tbody>
-    </table>
-  </div>`;
-  bindApprovalInputs();
-  updateApprovalStats();
-}
-
-function approvalRowHtml(r) {
-  const dirty = state.approvalDirty.get(r.item_id);
-  const slApp = dirty ? dirty.sl_duyet : r.sl_duyet;
-  const note = dirty ? dirty.ghi_chu_duyet : r.ghi_chu_duyet;
-  const inputVal = slApp == null ? '' : slApp;
-  const diff = slApp != null && Number(slApp) !== Number(r.sl_dat);
-  const delta = diff ? `<span class="ml-1 text-[11px] font-medium ${slApp < r.sl_dat ? 'text-red-600' : 'text-emerald-700'}">${slApp - r.sl_dat > 0 ? '+' : ''}${slApp - r.sl_dat}</span>` : '';
-  return `<tr class="${dirty ? 'dirty' : ''}">
-    <td class="c"><input type="checkbox" data-app-id="${esc(r.item_id)}"/></td>
-    <td>
-      <div class="font-mono text-[11px] text-slate-700">${esc(r.ma_bravo)}</div>
-      <div class="flex items-center gap-1.5 mt-1">
-        <div class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[9px] font-medium">${esc(r.requester_initials || '?')}</div>
-        <span class="text-[11px] text-slate-500">${esc(r.requester_name || '')}</span>
-      </div>
-    </td>
-    <td><div class="font-medium text-slate-800">${esc(r.ten_hang || '')}</div><div class="text-[11px] text-slate-500">${esc(r.nhom_hang || '')} · ${esc(r.phan_loai || '')}</div></td>
-    <td class="num text-slate-600">${r.tong_ton} · ${r.tb_ytd}</td>
-    <td class="c num"><span class="font-bold text-blue-700">${r.goi_y_dat}</span></td>
-    <td class="c num font-semibold text-slate-800 text-[13px]">${r.sl_dat}</td>
-    <td class="c">
-      <input type="number" min="0" class="qty-input ${diff ? 'dirty' : ''}" value="${inputVal}" data-app-id="${esc(r.item_id)}" data-field="sl_duyet"/>
-      ${delta}
-    </td>
-    <td>
-      <div class="text-[11px] text-slate-500 italic mb-1">${esc(r.ghi_chu_dat || '—')}</div>
-      <input type="text" class="note-input" placeholder="Ghi chú duyệt…" value="${esc(note || '')}" data-app-id="${esc(r.item_id)}" data-field="ghi_chu_duyet"/>
-    </td>
-  </tr>`;
-}
-
-function bindApprovalInputs() {
-  $$('#approvalTableHost input[data-app-id][data-field]').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const id = inp.dataset.appId;
-      const field = inp.dataset.field;
-      const r = state.approvalRows.find(x => x.item_id === id);
-      if (!r) return;
-      const existing = state.approvalDirty.get(id) || { sl_duyet: r.sl_duyet, ghi_chu_duyet: r.ghi_chu_duyet || '' };
-      existing[field] = field === 'sl_duyet' ? (inp.value === '' ? null : Number(inp.value)) : inp.value;
-      state.approvalDirty.set(id, existing);
-      renderApprovalBody();
-    });
-  });
-}
-
-function updateApprovalStats() {
-  const all = state.approvalRows;
-  const merged = all.map(r => {
-    const d = state.approvalDirty.get(r.item_id);
-    return { ...r, sl_duyet: d ? d.sl_duyet : r.sl_duyet };
-  });
-  $('#approvalStats').innerHTML = [
-    statCard({ label: 'SKU đã đặt', value: fmt(all.length), sub: 'trong đợt', accent: 'slate' }),
-    statCard({ label: 'SL đặt', value: fmt(all.reduce((s, r) => s + Number(r.sl_dat || 0), 0)), sub: 'từ sale', accent: 'slate' }),
-    statCard({ label: 'SL duyệt', value: fmt(merged.reduce((s, r) => s + Number(r.sl_duyet || 0), 0)), sub: 'đã + đang', accent: 'blue' }),
-    statCard({ label: 'Đã duyệt', value: fmt(merged.filter(r => r.sl_duyet != null).length), sub: 'số SKU', accent: 'emerald' }),
-    statCard({ label: 'Còn lại', value: fmt(merged.filter(r => r.sl_duyet == null).length), sub: 'chờ duyệt', accent: 'amber' }),
-  ].join('');
-  $('#aSaveApproval').disabled = state.approvalDirty.size === 0;
-}
-
-function bulkApprove(kind) {
-  const checked = $$('#approvalTableHost input[type=checkbox][data-app-id]:checked').map(c => c.dataset.appId);
-  const ids = checked.length ? checked : filteredApprovalRows().map(r => r.item_id);
-  ids.forEach(id => {
-    const r = state.approvalRows.find(x => x.item_id === id);
-    if (!r) return;
-    state.approvalDirty.set(id, {
-      sl_duyet: kind === 'requested' ? r.sl_dat : r.goi_y_dat,
-      ghi_chu_duyet: (state.approvalDirty.get(id) || {}).ghi_chu_duyet || r.ghi_chu_duyet || '',
-    });
-  });
-  renderApprovalBody();
-}
-
-async function saveApproval() {
-  if (state.approvalDirty.size === 0) return;
-  const approvals = Array.from(state.approvalDirty.entries()).map(([item_id, v]) => ({
-    item_id, sl_duyet: v.sl_duyet || 0, ghi_chu_duyet: v.ghi_chu_duyet || '',
-  }));
-  $('#aSaveApproval').disabled = true;
-  try {
-    const res = await rpc('approveItems', state.currentSession.session_id, approvals);
-    toast(`Đã duyệt ${res.count} SKU`);
-    state.approvalDirty.clear();
-    await loadApprovalData();
-  } catch (e) {
-    toast(e.message, true);
-    $('#aSaveApproval').disabled = false;
-  }
-}
-
-async function closeSessionAction() {
-  if (!confirm('Chốt đợt sẽ khoá toàn bộ chỉnh sửa. Tiếp tục?')) return;
-  try {
-    await rpc('closeSession', state.currentSession.session_id);
-    toast('Đã chốt đợt');
-    await loadSessions();
-    await initApprovalView();
-  } catch (e) { toast(e.message, true); }
 }
 
 // ============ MÀN NHẬT KÝ ============

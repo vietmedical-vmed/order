@@ -5,11 +5,21 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
+const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
+const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) || LOCALHOST_RE.test(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
 const enc = new TextEncoder();
 const dec = new TextDecoder("utf-8"); // <- fix UTF-8 (không dùng atob trực tiếp cho payload)
 
@@ -46,11 +56,19 @@ async function hmacSign(data: string, secret: string): Promise<string> {
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
   return b64urlFromBytes(new Uint8Array(sig));
 }
+async function hmacVerify(data: string, sigB64url: string, secret: string): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"],
+  );
+  let sigBytes: Uint8Array;
+  try { sigBytes = b64urlToBytes(sigB64url); } catch { return false; }
+  // crypto.subtle.verify tự so sánh constant-time, tránh timing attack so với `expect !== sig`.
+  return crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(data));
+}
 async function verifyToken(token: string, secret: string): Promise<any> {
   if (!token || token.indexOf(".") < 0) throw new Error("AUTH_REQUIRED");
   const [payloadB64, sig] = token.split(".");
-  const expect = await hmacSign(payloadB64, secret);
-  if (expect !== sig) throw new Error("AUTH_REQUIRED");
+  if (!(await hmacVerify(payloadB64, sig, secret))) throw new Error("AUTH_REQUIRED");
   const payload = JSON.parse(dec.decode(b64urlToBytes(payloadB64))); // UTF-8 decode
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) throw new Error("AUTH_REQUIRED");
   const mapped = ROLE_MAP[String(payload.role || "").toLowerCase()] || "";
@@ -1214,7 +1232,8 @@ async function saveAndAdvance(
 
 // ============================ ENTRY ============================
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const cors = corsHeadersFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const { action, token, args } = await req.json();
     if (!action || !H[action]) throw new Error("Hành động không hợp lệ: " + action);
@@ -1225,16 +1244,16 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const result = await H[action](supa, user, Array.isArray(args) ? args : []);
-    return json({ ok: true, data: result });
+    return json({ ok: true, data: result }, 200, cors);
   } catch (e) {
     const msg = String(e?.message || e);
     const status = msg === "AUTH_REQUIRED" ? 401 : 400;
-    return json({ error: msg }, status);
+    return json({ error: msg }, status, cors);
   }
 });
 
-function json(obj: unknown, status = 200): Response {
+function json(obj: unknown, status: number, cors: Record<string, string>): Response {
   return new Response(JSON.stringify(obj), {
-    status, headers: { ...CORS, "Content-Type": "application/json" },
+    status, headers: { ...cors, "Content-Type": "application/json" },
   });
 }
