@@ -26,14 +26,16 @@ Danh mục hiển thị trong app = `order_catalog ⋈ dm_vat_tu` (join trong Ed
 ```
 sql/01_shared_catalog.sql   -- bảng dm_* dùng chung (IF NOT EXISTS)
 sql/02_order_app.sql        -- ctch_order_roles, order_catalog, order_* , stock…
-supabase/functions/login/   -- verify users (chung) + lấy role/mien (ctch_order_roles)
-supabase/functions/api/     -- RPC; danh mục = order_catalog ⋈ dm_vat_tu
+supabase/functions/order-login/ -- verify users (chung) + lấy role/mien
+supabase/functions/order-api/   -- RPC; danh mục = order_catalog ⋈ dm_vat_tu
 scripts/migrate_catalog.py  -- nạp dm_* từ 4 file Excel master
 scripts/migrate_order.py    -- nạp ctch_order_roles + order_catalog + sessions/items/log
 scripts/refresh_stock.py    -- aggregate + nạp tồn kho & usage (chạy định kỳ)
 scripts/set_password.py     -- đặt/đổi mật khẩu trong bảng users dùng chung
-web/index.html              -- frontend tĩnh
-.github/workflows/deploy.yml
+index.html                  -- markup SPA (frontend tĩnh)
+js/**                       -- JS frontend (ES modules) — xem PROJECT_STRUCTURE.md
+src/tailwind.css → dist/app.css -- CSS build bằng Tailwind CLI
+.github/workflows/deploy-edge.yml
 ```
 
 ## Các bước triển khai
@@ -46,8 +48,8 @@ Supabase → SQL Editor → chạy lần lượt `sql/01_shared_catalog.sql` r�
 ```bash
 supabase secrets set TOKEN_SECRET="chuỗi-random-dài"
 supabase link --project-ref YOUR_PROJECT_REF
-supabase functions deploy login
-supabase functions deploy api
+supabase functions deploy order-login
+supabase functions deploy order-api
 ```
 (config.toml đã đặt verify_jwt=false cho cả hai.)
 
@@ -73,9 +75,10 @@ python scripts/refresh_stock.py --stock ./chi_tiet.xlsx --usage ./sdvt.xlsx
 ```
 
 ### 6. Cấu hình + deploy frontend
-Sửa `window.CTCH_CONFIG` trong `index.html` (apiBase + anonKey), push GitHub.
+Sửa `js/config.js` (apiBase + anonKey), push GitHub.
 
-**CSS build (Tailwind CLI, không còn CDN):** sau khi sửa class Tailwind trong `index.html`,
+**CSS build (Tailwind CLI, không còn CDN):** sau khi sửa class Tailwind trong `index.html`
+hoặc trong `js/**/*.js`,
 chạy `npm install` (lần đầu) rồi `npm run build:css` và **commit lại `dist/app.css`** — GitHub
 Pages ở repo này serve tĩnh trực tiếp từ nhánh `master` (không có bước build CI), nên nếu quên
 build/commit thì giao diện trên Pages sẽ không khớp với thay đổi class mới.

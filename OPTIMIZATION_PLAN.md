@@ -7,12 +7,20 @@
 
 ## Trạng thái thực hiện
 
-**✅ Đã làm (Đợt 1 + một phần Đợt 5):** 0.1, 0.2, 0.3, 1.2, 3.1, 1.6, 5.3, 5.4.
-CORS thu hẹp về `https://vietmedical-vmed.github.io` (+ localhost khi dev) — xác nhận qua
-AskUserQuestion vì repo không có file CNAME xác định domain. 5.1/5.2 (hash mật khẩu, rate-limit)
-**chưa làm** vì ảnh hưởng bảng `users` dùng chung nhiều app khác, cần phối hợp trước.
+**✅ Đợt 1:** 0.1, 0.2, 0.3, 1.2, 3.1, 1.6.
+**✅ Đợt 2:** 1.1 (bỏ Tailwind CDN), 2.1 (RPC `session_stats`), 2.2, 2.3, 1.3 (event delegation).
+**✅ Đợt 3:** 3.4, 1.4 (render lười theo nhóm), 3.2 (nháp localStorage), 3.3, 3.5, 3.6.
+**✅ Đợt 4:** 4.1 (palette `primary/danger/warning/slate`), 4.2 (responsive), 1.5 (header nổi
+dùng IntersectionObserver + cache toạ độ, vẫn cuộn theo trang), 6.1 (tách `index.html` thành
+ES modules trong `js/`), 4.3 (a11y), 3.9 (toast xếp chồng), 3.7 (sắp xếp cột + đếm kết quả lọc).
+Làm kèm luôn vì nằm trong cùng file đang sửa: 3.8 (skeleton), 3.10 (nút Thử lại), 6.3 (đồng bộ
+README/PROJECT_STRUCTURE), phần lớn 0.4 (dọn `console.log` + thông báo nhắc Apps Script).
+**✅ Đợt 5 (phần an toàn):** 5.3, 5.4 — CORS thu hẹp về `https://vietmedical-vmed.github.io`
+(+ localhost khi dev); 5.1/5.2 đã làm bản không phá vỡ tương thích (hash v2 + rate-limit).
 
-**⏳ Chưa làm:** Đợt 2, 3, 4 và phần còn lại của Đợt 5 (5.1, 5.2) — xem chi tiết bên dưới.
+**⏳ Còn lại:** 0.5 (dọn thư mục `abc/`, `scereen/`), 1.7 (giảm gọi API trùng),
+2.4/2.5 (cache & `Promise.all` trong Edge Function), 6.2 (ESLint + smoke test CI),
+và phần cuối của 4.4 (icon khoá cho ô nhập ngoài scope — tooltip các bước & empty state đã làm).
 
 ---
 

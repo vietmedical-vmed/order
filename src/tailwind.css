@@ -19,7 +19,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .mien-btn.active, .mmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
 /* Nav tabs */
-.nav-tab { padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; color: #65676b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; }
+/* 4.2: không cho tiêu đề tab xuống dòng — màn hẹp thì thanh tab cuộn ngang thay vì cao 3 dòng */
+.nav-tab { padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; color: #65676b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
 .nav-tab:hover { color: #3a3b3c; }
 .nav-tab.active { color: #0c5dc7; border-bottom-color: #1877f2; }
 
@@ -43,7 +44,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .stat-card-label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #65676b; font-weight: 600; margin-bottom: 6px; }
 .stat-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .stat-card-value { font-size: 20px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.stat-card-sub { font-size: 10.5px; color: #8a8d91; margin-top: 4px; }
+.stat-card-sub { font-size: 10.5px; color: #65676b; margin-top: 4px; }
 
 /* Cards group */
 .group-card { background: #fff; border-radius: 12px; border: 1px solid #dadde1; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
@@ -54,7 +55,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .group-title { font-size: 14px; font-weight: 600; color: #242526; }
 .group-meta { font-size: 11.5px; color: #65676b; }
 .group-stat { text-align: right; }
-.group-stat-label { font-size: 9.5px; letter-spacing: 0.04em; color: #8a8d91; text-transform: uppercase; }
+.group-stat-label { font-size: 9.5px; letter-spacing: 0.04em; color: #65676b; text-transform: uppercase; }
 .group-stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Data table */
@@ -77,6 +78,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
   cursor: grab;
   user-select: none;
 }
+/* 3.7: cột sắp xếp được — vẫn kéo ngang thead để cuộn bình thường, click (không kéo) thì sắp xếp */
+.dt thead th.th-sort:hover { background: #dadde1; }
+.dt thead th.th-sort-active { color: #0c5dc7; background: #dadde1; }
 .dt thead th.r { text-align: center; }
 .dt thead th.c { text-align: center; }
 .dt thead th.l { text-align: center; }
@@ -173,6 +177,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
   box-shadow: 6px 0 8px -6px rgba(0,0,0,0.15);
 }
 
+/* 4.2: trên màn hẹp chỉ đông cứng 2 cột đầu (#, Mã Bravo) — giữ 4 cột (có cả "Tên hàng"
+   min-width 240px) sẽ ăn gần hết bề ngang điện thoại, không còn chỗ cho cột nhập liệu. */
+@media (max-width: 767px) {
+  .group-body .dt thead th:nth-child(3),
+  .group-body .dt tbody td:nth-child(3),
+  .group-body .dt thead th:nth-child(4),
+  .group-body .dt tbody td:nth-child(4),
+  .floating-thead-container thead th:nth-child(3),
+  .floating-thead-container thead th:nth-child(4) {
+    position: static;
+    box-shadow: none;
+    transform: none;
+  }
+  .group-body .dt thead th:nth-child(2),
+  .group-body .dt tbody td:nth-child(2),
+  .floating-thead-container thead th:nth-child(2) {
+    box-shadow: 6px 0 8px -6px rgba(0,0,0,0.15);
+  }
+}
+
 .qty-input { width: 60px; height: 28px; border: 1px solid #ccd0d5; border-radius: 6px; text-align: center; font-size: 12px; background: #fff; color: #18191a; font-weight: 500; font-variant-numeric: tabular-nums; outline: none; padding: 0 4px; }
 .qty-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
 .qty-input.dirty { border-color: #f59e0b; background: #fffbeb; color: #78350f; }
@@ -209,10 +233,24 @@ body.is-am [data-view="approval"][data-need="approver"] { display: inline-flex !
 /* Mua hàng cũng thấy tab "Quản lý đặt hàng" */
 body.is-purchasing [data-view="approval"][data-need="approver"] { display: inline-flex !important; }
 
-.toast-show { opacity: 1; transform: translateY(0); }
-#toast { opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
-#toast.show { display: block; opacity: 1; transform: translateY(0); }
-#toast.err { background: #c81f3d; }
+/* Toast xếp chồng (3.9) — mỗi toast là 1 phần tử trong #toastStack */
+.toast-item { opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
+.toast-item.toast-in { opacity: 1; transform: translateY(0); }
 
-.empty-state { padding: 48px 24px; text-align: center; color: #8a8d91; font-size: 13px; }
+/* Skeleton khi đang tải (3.8) — thay dòng chữ "Đang tải…" */
+.skeleton-line {
+  height: 14px; margin: 10px 0; border-radius: 6px;
+  background: linear-gradient(90deg, #e4e6eb 25%, #f0f2f5 37%, #e4e6eb 63%);
+  background-size: 400% 100%;
+  animation: skeleton 1.4s ease infinite;
+}
+.skeleton-line:nth-child(odd) { width: 92%; }
+@keyframes skeleton { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line { animation: none; }
+  .toast-item { transition: none; }
+}
+
+/* 4.3: chữ phụ dùng #65676b (tương phản ~5.4:1 trên nền trắng) thay #8a8d91 (~3:1, dưới chuẩn AA) */
+.empty-state { padding: 48px 24px; text-align: center; color: #65676b; font-size: 13px; }
 .loading-state { padding: 48px 24px; text-align: center; color: #65676b; font-size: 13px; }

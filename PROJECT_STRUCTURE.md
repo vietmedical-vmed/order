@@ -8,14 +8,39 @@ khác của công ty. Chi tiết kiến trúc & triển khai xem [README.md](REA
 
 ```
 order/
-├── index.html                      # Frontend tĩnh (SPA) — deploy lên GitHub Pages
+├── index.html                      # Markup SPA (5 màn dạng <template>) — GitHub Pages serve thẳng
 ├── README.md                       # Tài liệu kiến trúc & hướng dẫn triển khai
 ├── PROJECT_STRUCTURE.md            # File này
+├── OPTIMIZATION_PLAN.md            # Kế hoạch tối ưu theo đợt (trạng thái từng mục)
+├── package.json                    # Chỉ dùng cho Tailwind CLI (npm run build:css)
+├── tailwind.config.js              # Bảng màu ngữ nghĩa: primary/danger/warning/slate
 ├── .gitignore
+│
+├── js/                             # Toàn bộ JS frontend (ES modules, không cần bundler)
+│   ├── app.js                      # Điểm vào: boot, đăng nhập, nav, đăng xuất
+│   ├── config.js                   # URL + anon key Supabase, khoá localStorage
+│   ├── api.js                      # rpc/rpcOpts/rpcRaw + fetch có timeout
+│   ├── state.js                    # State dùng chung + hàm kiểm tra quyền theo role
+│   ├── auth.js                     # Decode token, cảnh báo sắp hết hạn
+│   ├── session.js                  # Nạp danh sách đợt
+│   ├── router.js                   # Đổi màn hình theo state.view
+│   ├── utils.js                    # $, $$, định dạng số/ngày, debounce, esc
+│   ├── modal.js                    # askConfirm + focus trap dùng chung
+│   ├── toast.js                    # Toast xếp chồng (tối đa 3)
+│   ├── table-sticky.js             # Đông cứng cột + header nổi của bảng đặt hàng
+│   ├── export-excel.js             # Nạp lười SheetJS + xuất .xlsx
+│   └── views/
+│       ├── order.js                # Màn Chi tiết đặt hàng (bảng, lọc, sắp xếp, nhập liệu)
+│       ├── manage.js               # Màn Quản lý đợt (duyệt/từ chối/chốt/DM-PO)
+│       ├── catalog.js              # Màn Cấu hình danh mục
+│       ├── config.js               # Màn Cấu hình công thức Gợi ý
+│       └── audit.js                # Màn Nhật ký
+│
+├── src/tailwind.css                # Nguồn CSS (Tailwind + component tự viết)
+├── dist/app.css                    # CSS đã build — PHẢI commit lại sau khi đổi class
 │
 ├── .github/
 │   └── workflows/
-│       ├── deploy.yml              # Build & deploy frontend lên GitHub Pages
 │       └── deploy-edge.yml         # Auto-deploy Edge Functions khi có thay đổi
 │
 ├── sql/                            # Định nghĩa schema Postgres (chạy trong SQL Editor)
@@ -44,7 +69,8 @@ order/
 
 | Lớp | Công nghệ | Vị trí |
 |-----|-----------|--------|
-| Frontend | HTML/JS tĩnh (SPA) | `index.html` |
+| Frontend | HTML tĩnh + ES modules (SPA) | `index.html`, `js/**` |
+| CSS | Tailwind build tĩnh (`npm run build:css`) | `src/tailwind.css` → `dist/app.css` |
 | Backend API | Supabase Edge Functions (Deno/TypeScript) | `supabase/functions/order-api` |
 | Đăng nhập | Edge Function | `supabase/functions/order-login` |
 | Cơ sở dữ liệu | Postgres (Supabase) | `sql/*.sql` |
@@ -53,9 +79,11 @@ order/
 
 ## Luồng dữ liệu
 
-1. Người dùng mở `index.html` (GitHub Pages) → gọi Edge Function `order-login` để xác thực,
-   lấy `role`/`mien` từ bảng `users` dùng chung.
+1. Người dùng mở `index.html` (GitHub Pages) → `js/app.js` thử token sẵn có, nếu không có thì
+   gọi Edge Function `order-login` để xác thực, lấy `role`/`mien` từ bảng `users` dùng chung.
 2. Frontend gọi Edge Function `order-api` cho các thao tác danh mục/đặt hàng; danh mục
    hiển thị = `order_catalog ⋈ dm_vat_tu`.
 3. Dữ liệu master (`dm_*`) và dữ liệu đặt hàng được nạp qua các script trong `scripts/`.
-4. Push lên GitHub → `deploy.yml` deploy frontend, `deploy-edge.yml` deploy Edge Functions.
+4. Push lên GitHub → GitHub Pages serve thẳng nhánh `master` (không có bước build CI, nên
+   **đổi class Tailwind xong phải chạy `npm run build:css` và commit `dist/app.css`**);
+   `deploy-edge.yml` deploy Edge Functions.
