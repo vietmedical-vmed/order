@@ -94,12 +94,14 @@ create table if not exists public.stock (
 create index if not exists idx_stock_mien_cycle on public.stock (mien, cycledate desc);
 
 -- ---------- USAGE (đã aggregate trước — thay cho đọc live "SDVT") ----------
+-- LEGACY: các cột xuat_* theo năm không còn được Edge Function dùng. Chỉ số hiển thị
+-- hiện nay là "TB tháng TH", tính trực tiếp từ bảng sv qua RPC usage_agg.
 create table if not exists public.usage_stat (
   ma_bravo        text not null,
   mien            text not null,
   xuat_2024       numeric default 0,
-  xuat_2025       numeric default 0,       -- TB tháng CKNT
-  xuat_lk_2026    numeric default 0,       -- TB tháng YTD
+  xuat_2025       numeric default 0,
+  xuat_lk_2026    numeric default 0,
   ty_le_sd_pct    numeric default 0,
   primary key (ma_bravo, mien)
 );
@@ -110,7 +112,8 @@ create table if not exists public.app_config (
   value           jsonb not null
 );
 insert into public.app_config(key, value)
-values ('goi_y', '{"k1":0.4,"k2":0.4,"k3":0.2,"so_thang_dat_default":3}'::jsonb)
+-- k1 = TB tháng TH, k2 = TB KH (bản cũ 3 hệ số vẫn được quy đổi khi đọc).
+values ('goi_y', '{"k1":0.8,"k2":0.2,"so_thang_dat_default":3}'::jsonb)
 on conflict (key) do nothing;
 
 -- ---------- Trigger updated_at cho order_items ----------

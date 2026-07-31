@@ -35,7 +35,9 @@ const ROLE_MAP: Record<string, string> = {
 const ORDER_ROLES = new Set(["ADMIN", "MANAGER", "AM", "PM", "PURCHASING"]);
 // leadtime_thang_default = số tháng để hàng về (offset cửa sổ TB KH). Nếu chưa cấu hình
 // -> fallback về so_thang_dat_default (giữ hành vi cũ khi leadtime ~ số tháng đặt).
-const DEFAULT_CFG = { k1: 0.4, k2: 0.4, k3: 0.2, so_thang_dat_default: 3, leadtime_thang_default: 3 };
+// k1 = TB tháng TH (thực hiện), k2 = TB KH. Trước đây có 3 hệ số (CKNT/YTD/KH = .4/.4/.2);
+// CKNT + YTD đã gộp thành TB TH nên mặc định mới = .8/.2 (giữ nguyên tổng trọng số).
+const DEFAULT_CFG = { k1: 0.8, k2: 0.2, so_thang_dat_default: 3, leadtime_thang_default: 3 };
 
 // ---------- token ----------
 function b64urlToBytes(s: string): Uint8Array {
@@ -86,17 +88,49 @@ const initials = (name: string) =>
   String(name || "").split(" ").filter(Boolean).map((s) => s[0]).slice(-2).join("").toUpperCase();
 
 // ---------- config ----------
+// Cấu hình CŨ có 3 hệ số (k1·TB CKNT + k2·TB YTD + k3·TB KH). Sau khi gộp CKNT+YTD
+// thành TB TH, dạng mới chỉ còn 2 (k1·TB TH + k2·TB KH). Các bản đã lưu (app_config +
+// order_config_log của những đợt cũ) vẫn ở dạng 3 hệ số -> quy đổi khi đọc:
+//   k1_mới = k1_cũ + k2_cũ (cùng nhân với chỉ số thực hiện), k2_mới = k3_cũ.
+// Nhờ vậy tổng trọng số không đổi và xem lại đợt cũ vẫn ra công thức tương đương.
+const OLD_DEFAULT_K = { k1: 0.4, k2: 0.4, k3: 0.2 };
+const hasNum = (v: any) => v !== undefined && v !== null && v !== "" && !isNaN(Number(v));
+
+// Quy đổi 1 object hệ số (mức mặc định hoặc mức nhóm) từ dạng 3 hệ số về dạng 2 hệ số.
+// `base` = k1/k2 mặc định của chính bản cấu hình đó — cần khi override nhóm chỉ nhập 1
+// trong 2 ô k1/k2 (ô còn lại thừa kế mặc định), để k1 gộp ra đúng trọng số hiệu lực.
+// Ô nào không được set thì vẫn bỏ trống (tiếp tục thừa kế mặc định).
+function migrateK(r: any, base: any) {
+  const out: any = { ...r };
+  delete out.k3;
+  if (hasNum(r.k1) || hasNum(r.k2)) {
+    out.k1 = (hasNum(r.k1) ? Number(r.k1) : Number(base.k1)) +
+             (hasNum(r.k2) ? Number(r.k2) : Number(base.k2));
+  } else {
+    delete out.k1;
+  }
+  if (hasNum(r.k3)) out.k2 = Number(r.k3); else delete out.k2;
+  return out;
+}
+
 // Chuẩn hoá 1 object cấu hình thô (từ app_config hoặc order_config_log) về dạng dùng được.
 function normalizeCfg(raw: any) {
-  const c = raw || {};
-  // Override theo nhóm sản phẩm: { "<nhom_san_pham>": { k1,k2,k3,so_thang_dat } }
+  const r0 = raw || {};
+  // Bản CŨ nhận diện bằng k3 ở mức mặc định; khi đó mọi override nhóm cũng ở dạng cũ.
+  const legacy = hasNum(r0.k3);
+  const oldBase = {                                   // mặc định cũ của chính bản cấu hình này
+    k1: hasNum(r0.k1) ? Number(r0.k1) : OLD_DEFAULT_K.k1,
+    k2: hasNum(r0.k2) ? Number(r0.k2) : OLD_DEFAULT_K.k2,
+  };
+  const c = legacy ? migrateK(r0, oldBase) : r0;
+  // Override theo nhóm sản phẩm: { "<nhom_san_pham>": { k1,k2,so_thang_dat,leadtime_thang } }
   const groups: Record<string, any> = {};
   const gin = (c.groups && typeof c.groups === "object") ? c.groups : {};
-  for (const [g, r0] of Object.entries(gin)) {
-    if (!g || !r0 || typeof r0 !== "object") continue;
+  for (const [g, rg] of Object.entries(gin)) {
+    if (!g || !rg || typeof rg !== "object") continue;
     const e: any = {};
-    const r = r0 as any;
-    for (const k of ["k1", "k2", "k3"]) {
+    const r = legacy ? migrateK(rg as any, oldBase) : (rg as any);
+    for (const k of ["k1", "k2"]) {
       if (r[k] !== undefined && r[k] !== null && r[k] !== "") e[k] = Number(r[k]);
     }
     if (r.so_thang_dat !== undefined && r.so_thang_dat !== null && r.so_thang_dat !== "") {
@@ -111,7 +145,6 @@ function normalizeCfg(raw: any) {
   return {
     k1: Number(c.k1 ?? DEFAULT_CFG.k1),
     k2: Number(c.k2 ?? DEFAULT_CFG.k2),
-    k3: Number(c.k3 ?? DEFAULT_CFG.k3),
     so_thang_dat_default,
     // Chưa cấu hình leadtime -> dùng số tháng đặt (offset = số tháng đặt) như hiện tại.
     leadtime_thang_default: Number(c.leadtime_thang_default ?? so_thang_dat_default),
@@ -168,11 +201,11 @@ async function audit(supa: SupabaseClient, username: string, action: string, sid
 }
 
 // ---------- goi_y + row builder ----------
-function buildGoiY(cfg: any, tb_cknt: number, tb_ytd: number, tb_kh_3_thang: number, safety_stock: number, so_thang_dat: number, tong_ton: number) {
-  // Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt + Safety stock − Tổng tồn
-  // 3 số TB đều là SL trung bình/THÁNG ⇒ ×số tháng đặt = nhu cầu kỳ đặt; Safety stock cộng
+function buildGoiY(cfg: any, tb_th: number, tb_kh_3_thang: number, safety_stock: number, so_thang_dat: number, tong_ton: number) {
+  // Gợi ý = (k1·TB tháng TH + k2·TB KH 3 tháng) × Số tháng đặt + Safety stock − Tổng tồn
+  // 2 số TB đều là SL trung bình/THÁNG ⇒ ×số tháng đặt = nhu cầu kỳ đặt; Safety stock cộng
   // thẳng (không nhân số tháng), rồi trừ tồn hiện có.
-  const raw = (cfg.k1 * tb_cknt + cfg.k2 * tb_ytd + cfg.k3 * tb_kh_3_thang) * so_thang_dat + safety_stock;
+  const raw = (cfg.k1 * tb_th + cfg.k2 * tb_kh_3_thang) * so_thang_dat + safety_stock;
   return Math.max(0, Math.round(raw - tong_ton));
 }
 
@@ -182,7 +215,6 @@ function cfgForGroup(cfg: any, group: string) {
   return {
     k1: g.k1 ?? cfg.k1,
     k2: g.k2 ?? cfg.k2,
-    k3: g.k3 ?? cfg.k3,
     so_thang_dat_default: g.so_thang_dat ?? cfg.so_thang_dat_default,
     leadtime_thang_default: g.leadtime_thang ?? cfg.leadtime_thang_default,
   };
@@ -207,11 +239,10 @@ function mergeUsage(a: any, b: any) {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const k of keys) {
     const x = a[k] || {}, y = b[k] || {};
-    const iy = num(x._iy) + num(y._iy);       // tổng SL vật tư cả năm (2 miền)
-    const py = num(x._py) + num(y._py);       // tổng SL sản phẩm cả năm (2 miền)
+    const iy = num(x._iy) + num(y._iy);       // Σ SL vật tư trong cửa sổ TH (2 miền)
+    const py = num(x._py) + num(y._py);       // Σ SL sản phẩm trong cửa sổ TH (2 miền)
     out[k] = {
-      tb_ytd: num(x.tb_ytd) + num(y.tb_ytd),   // SL TB/tháng -> cộng 2 miền
-      tb_cknt: num(x.tb_cknt) + num(y.tb_cknt),
+      tb_th: num(x.tb_th) + num(y.tb_th),      // SL TB/tháng -> cộng 2 miền
       ty_le_sd_pct: py > 0 ? Math.round((iy / py) * 100) : 0,  // %SD -> tính lại từ raw
       _iy: iy, _py: py,
     };
@@ -386,33 +417,36 @@ async function latestCycledate(supa: SupabaseClient): Promise<string> {
 
 // ---------- usage đọc từ bảng sv qua RPC usage_agg ----------
 // sv: { month, item_code, quantity, area }  — area = miền ('MB' | 'MN')
-// YTD / CKNT (cửa sổ 3 tháng vắt năm) / tổng năm được tính trong SQL (xem usage_agg).
+// Tổng SL thực hiện + SỐ THÁNG có phát sinh (cửa sổ T01 năm trước..tháng liền trước)
+// được tính trong SQL (xem usage_agg).
 //
 // usage_agg trả per (mien, item_code) các tổng THÔ + san_pham; phần chia trung bình /
-// %SD / làm tròn giữ nguyên ở JS như logic cũ nên số hiển thị không đổi.
+// %SD / làm tròn nằm ở JS (một chỗ duy nhất).
+//   TB tháng TH = Σ SL các tháng có phát sinh / SỐ tháng có phát sinh.
+//   %SD (số nguyên) = Σ SL của mã bravo / Σ SL của cả sản phẩm — cùng cửa sổ TH.
+//   Mã chưa từng phát sinh -> 0 (không chia cho 0).
 async function usageMapFor(supa: SupabaseClient, mien: string) {
   const now = new Date();
   const Y = now.getFullYear(), M = now.getMonth() + 1;
   const data = await rpcAll(supa, "usage_agg",
     { p_mien: mien, p_y: Y, p_m: M }, ["item_code", "mien"]);
-  const ytdMonths = Math.max(0, M - 1);        // 2026-07 -> 6 (T01..T06)
 
   const buildOne = (rows: any[]) => {
-    const perProdYear: Record<string, number> = {};   // %SD: tổng dùng cả năm theo sản phẩm
+    const perProdTh: Record<string, number> = {};   // %SD: tổng SL cửa sổ TH theo sản phẩm
     for (const r of rows) {
       const sp = r.san_pham || ("__" + r.item_code);
-      perProdYear[sp] = (perProdYear[sp] || 0) + num(r.yr);
+      perProdTh[sp] = (perProdTh[sp] || 0) + num(r.th);
     }
     const map: Record<string, any> = {};
     for (const r of rows) {
       const sp = r.san_pham || ("__" + r.item_code);
-      const py = perProdYear[sp] || 0;
-      const year = num(r.yr);
+      const py = perProdTh[sp] || 0;
+      const th = num(r.th);
+      const thMonths = num(r.th_months);
       map[maKey(r.item_code)] = {
-        tb_ytd: ytdMonths > 0 ? Math.round(num(r.ytd) / ytdMonths) : 0,
-        tb_cknt: Math.round(num(r.cknt) / 3),
-        ty_le_sd_pct: py > 0 ? Math.round((year / py) * 100) : 0,
-        _iy: year, _py: py,
+        tb_th: thMonths > 0 ? Math.round(th / thMonths) : 0,
+        ty_le_sd_pct: py > 0 ? Math.round((th / py) * 100) : 0,
+        _iy: th, _py: py,
       };
     }
     return map;
@@ -572,12 +606,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async saveConfig(supa, u, [config]) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được sửa cấu hình");
     const c: any = {
-      k1: Number(config.k1), k2: Number(config.k2), k3: Number(config.k3),
+      k1: Number(config.k1), k2: Number(config.k2),   // k1 = TB tháng TH, k2 = TB KH
       so_thang_dat_default: Number(config.so_thang_dat_default || 3),
       groups: {},
     };
-    if ([c.k1, c.k2, c.k3].some((x) => isNaN(x))) throw new Error("k1/k2/k3 phải là số");
-    if ([c.k1, c.k2, c.k3].some((x) => x < 0)) throw new Error("Hệ số k phải >= 0");
+    if ([c.k1, c.k2].some((x) => isNaN(x))) throw new Error("k1/k2 phải là số");
+    if ([c.k1, c.k2].some((x) => x < 0)) throw new Error("Hệ số k phải >= 0");
     if (isNaN(c.so_thang_dat_default) || c.so_thang_dat_default < 1) throw new Error("Số tháng đặt mặc định phải >= 1");
     // Leadtime mặc định (số tháng để hàng về) — offset cửa sổ TB KH. Tuỳ chọn; nếu không nhập
     // sẽ fallback về số tháng đặt khi tính (xem normalizeCfg). Màn cấu hình theo nhóm bổ sung sau.
@@ -591,7 +625,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     for (const [g, raw] of Object.entries(gin) as [string, any][]) {
       if (!g || !raw || typeof raw !== "object") continue;
       const e: any = {};
-      for (const k of ["k1", "k2", "k3"]) {
+      for (const k of ["k1", "k2"]) {
         if (raw[k] === undefined || raw[k] === null || raw[k] === "") continue;
         const n = Number(raw[k]);
         if (isNaN(n) || n < 0) throw new Error(`Hệ số ${k} của nhóm "${g}" không hợp lệ`);
@@ -843,18 +877,17 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     // 5. build rows
 
-    // 5a. Gợi ý tính ở mức SẢN PHẨM (công thức hệ số k), sau đó phân bổ cho từng mã bravo theo %SD YTD.
-    //     Gom theo san_pham: Σ tb_cknt, Σ tb_ytd, Σ tong_ton; tb_kh là số của sản phẩm (chung).
-    const spGy: Record<string, { cknt: number; ytd: number; ton: number; kh: number; safety: number; sothang: number; grp: string }> = {};
+    // 5a. Gợi ý tính ở mức SẢN PHẨM (công thức hệ số k), sau đó phân bổ cho từng mã bravo theo %SD.
+    //     Gom theo san_pham: Σ tb_th, Σ tong_ton; tb_kh là số của sản phẩm (chung).
+    const spGy: Record<string, { th: number; ton: number; kh: number; safety: number; sothang: number; grp: string }> = {};
     for (const p of products) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
       const us = usageMap[maKey(p.ma_bravo)] || {};
       const s = stockMap[maKey(p.ma_bravo)] || {};
       const gcfg = cfgForGroup(cfg, p.nhom_san_pham);   // hệ số/số tháng đặt theo nhóm SP
-      const a = spGy[spk] || (spGy[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.cknt += num(us.tb_cknt);
-      a.ytd += num(us.tb_ytd);
+      const a = spGy[spk] || (spGy[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
+      a.th += num(us.tb_th);
       a.ton += num(s.tong_ton);
       a.safety += num(p.safety_stock);          // safety stock cộng dồn theo sản phẩm
       a.kh = tbKh3Thang(p, sumByBo, spBoMap, khC);  // mức sản phẩm, mọi mã bravo như nhau
@@ -864,21 +897,21 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     for (const spk of Object.keys(spGy)) {
       const a = spGy[spk];
       const gcfg = cfgForGroup(cfg, a.grp);
-      spGoiY[spk] = buildGoiY(gcfg, a.cknt, a.ytd, a.kh, a.safety, a.sothang, a.ton);
+      spGoiY[spk] = buildGoiY(gcfg, a.th, a.kh, a.safety, a.sothang, a.ton);
     }
 
     const rows = products.map((p) => {
       const s = stockMap[maKey(p.ma_bravo)] || {};
       const us = usageMap[maKey(p.ma_bravo)] || {};
       const i = itemMap[maKey(p.ma_bravo)] || {};
-      const tb_cknt = num(us.tb_cknt), tb_ytd = num(us.tb_ytd);
+      const tb_th = num(us.tb_th);
       const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC));
       const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
       const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
       const leadtime_thang = Number(gcfgRow.leadtime_thang_default);   // số tháng để hàng về (theo nhóm)
       const tong_ton = num(s.tong_ton);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
-      // Gợi ý mã bravo = Gợi ý sản phẩm × %SD YTD của mã bravo đó.
+      // Gợi ý mã bravo = Gợi ý sản phẩm × %SD của mã bravo đó (cùng cửa sổ TH).
       const goi_y_dat = Math.max(0, Math.round((spGoiY[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
       return {
         ma_bravo: p.ma_bravo, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
@@ -891,7 +924,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv),
         hang_vet_thau: num(s.hang_vet_thau), hang_di_duong: num(s.hang_di_duong),
         tong_ton,
-        tb_cknt, tb_ytd,
+        tb_th,
         ty_le_sd_pct,
         goi_y_dat,
         sl_dat: i.sl_dat == null ? null : num(i.sl_dat),
@@ -1090,9 +1123,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const us = usageMap[maKey(p.ma_bravo)] || {};
       const s = stockMap[maKey(p.ma_bravo)] || {};
       const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
-      const a = spGyE[spk] || (spGyE[spk] = { cknt: 0, ytd: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.cknt += num(us.tb_cknt);
-      a.ytd += num(us.tb_ytd);
+      const a = spGyE[spk] || (spGyE[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
+      a.th += num(us.tb_th);
       a.ton += num(s.tong_ton);
       a.safety += num(p.safety_stock);
       a.kh = tbKh3Thang(p, sumByBo, spBoMap, khC);
@@ -1101,7 +1133,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const spGoiYE: Record<string, number> = {};
     for (const spk of Object.keys(spGyE)) {
       const a = spGyE[spk];
-      spGoiYE[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.cknt, a.ytd, a.kh, a.safety, a.sothang, a.ton);
+      spGoiYE[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.th, a.kh, a.safety, a.sothang, a.ton);
     }
 
     const dmVal = session.de_nghi_mua_hang || "", poVal = session.po || "";
@@ -1121,7 +1153,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         don_vi: p.don_vi || "", gia,
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
         hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
-        ty_le_sd_pct, tb_cknt: num(us.tb_cknt), tb_ytd: num(us.tb_ytd),
+        ty_le_sd_pct, tb_th: num(us.tb_th),
         tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC)),
         safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay), leadtime_thang,
         goi_y_dat,

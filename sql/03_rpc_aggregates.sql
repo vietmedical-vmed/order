@@ -17,16 +17,20 @@ create index if not exists idx_sale_target_mien_thang  on public.sale_target (mi
 
 -- =====================================================================
 --  usage_agg — thay usageMapFor (đọc bảng sv)
---  Trả per (mien, item_code): ytd/cknt/yr THÔ (chưa chia, chưa làm tròn) +
---  san_pham (join dm_vat_tu) để JS tính %SD và làm tròn y hệt logic cũ.
---    ytd  = Σ quantity của năm p_y, tháng 1..p_m-1
---    cknt = Σ quantity trong cửa sổ 3 tháng CKNT: (p_y-1, p_m) .. +2 (vắt năm)
---    yr   = Σ quantity của năm p_y (dùng cho %SD)
+--  Trả per (mien, item_code): th / th_months THÔ (chưa chia, chưa làm tròn) +
+--  san_pham (join dm_vat_tu) để JS tính TB tháng TH, %SD và làm tròn ở một chỗ.
+--    th        = Σ quantity của các THÁNG CÓ PHÁT SINH trong cửa sổ
+--    th_months = SỐ tháng có phát sinh trong cửa sổ  ⇒ TB tháng TH = th / th_months
+--  %SD cũng lấy từ th (SL của mã bravo / SL của cả sản phẩm, cùng cửa sổ).
+--  Cửa sổ TH = T01 năm trước .. tháng LIỀN TRƯỚC tháng hiện tại. Bỏ tháng hiện
+--  tại vì chưa đủ tháng (nửa tháng sẽ kéo trung bình xuống). "Có phát sinh" =
+--  tổng quantity của tháng đó > 0 (gộp các dòng cùng tháng trước khi đếm).
 --  p_y / p_m = năm/tháng hiện tại theo giờ UTC (khớp `new Date()` trong Deno).
 -- =====================================================================
+drop function if exists public.usage_agg(text, int, int);   -- đổi kiểu trả về (ytd/cknt/yr -> th/th_months)
 create or replace function public.usage_agg(p_mien text, p_y int, p_m int)
 returns table (mien text, item_code text, san_pham text,
-               ytd numeric, cknt numeric, yr numeric)
+               th numeric, th_months int)
 language sql stable as $$
   with base as (
     select
@@ -43,21 +47,29 @@ language sql stable as $$
       and ( (p_mien = 'ALL' and s.area in ('MB','Miền Bắc','MN','Miền Nam'))
          or (p_mien = 'MB'  and s.area in ('MB','Miền Bắc'))
          or (p_mien = 'MN'  and s.area in ('MN','Miền Nam')) )
+  ),
+  per_month as (    -- gộp về 1 dòng / (mien, item_code, tháng) để đếm tháng cho đúng
+    select b.mien, b.item_code, b.y, b.mo, sum(b.q) as q
+    from base b
+    where b.mien is not null
+    group by b.mien, b.item_code, b.y, b.mo
+  ),
+  agg as (          -- tháng "có phát sinh" = tổng SL của tháng đó > 0, trong cửa sổ TH
+    select
+      m.mien,
+      m.item_code,
+      coalesce(sum(m.q) filter (where m.q > 0 and (m.y * 12 + m.mo) <= (p_y * 12 + p_m - 1)), 0) as th,
+      (count(*)     filter (where m.q > 0 and (m.y * 12 + m.mo) <= (p_y * 12 + p_m - 1)))::int   as th_months
+    from per_month m
+    group by m.mien, m.item_code
+  ),
+  vt as (           -- 1 dòng / ma_bravo (phòng danh mục có mã trùng -> nhân đôi tổng)
+    select d.ma_bravo, max(d.san_pham) as san_pham
+    from public.dm_vat_tu d group by d.ma_bravo
   )
-  select
-    b.mien,
-    b.item_code,
-    max(d.san_pham)                                                     as san_pham,
-    sum(b.q) filter (where b.y = p_y and b.mo <= p_m - 1)               as ytd,
-    sum(b.q) filter (
-      where (b.y * 12 + b.mo)
-            between ((p_y - 1) * 12 + p_m) and ((p_y - 1) * 12 + p_m + 2)
-    )                                                                   as cknt,
-    sum(b.q) filter (where b.y = p_y)                                   as yr
-  from base b
-  left join public.dm_vat_tu d on d.ma_bravo = b.item_code
-  where b.mien is not null
-  group by b.mien, b.item_code;
+  select a.mien, a.item_code, vt.san_pham, a.th, a.th_months
+  from agg a
+  left join vt on vt.ma_bravo = a.item_code;
 $$;
 
 -- =====================================================================

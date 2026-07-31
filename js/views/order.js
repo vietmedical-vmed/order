@@ -75,11 +75,11 @@ const BASE_COLUMNS = [
   numCol('tong_ton', 'Tổng tồn', 80, { cellCls: 'font-semibold text-slate-800', aggCls: 'text-slate-900' }),
   {
     key: 'ty_le_sd_pct', label: '% SD', cls: 'r', width: 80, sort: NUM,
-    cell: r => `<td class="r num text-slate-700">${r.ty_le_sd_pct ? `${r.ty_le_sd_pct.toFixed(1)}%<div class="mini-bar"><i style="width:${Math.min(100, r.ty_le_sd_pct * 5)}%"></i></div>` : '—'}</td>`,
+    cell: r => `<td class="r num text-slate-700">${r.ty_le_sd_pct ? `${Math.round(r.ty_le_sd_pct)}%<div class="mini-bar"><i style="width:${Math.min(100, r.ty_le_sd_pct * 5)}%"></i></div>` : '—'}</td>`,
     agg: () => `<td class="r num text-slate-400">—</td>`,
   },
-  numCol('tb_cknt', 'TB tháng CKNT', 90, { aggKey: 'xuat_2025' }),
-  numCol('tb_ytd', 'TB tháng YTD', 90, { aggKey: 'xuat_lk_2026' }),
+  // TB tháng TH = TB SL thực hiện, chỉ chia cho SỐ THÁNG CÓ PHÁT SINH (gộp CKNT + YTD cũ).
+  numCol('tb_th', 'TB tháng TH', 95),
   {
     // TB KH là số ở mức sản phẩm (phân loại) — dòng SKU không có giá trị riêng nên không sắp xếp được.
     key: 'tb_kh_3_thang', label: 'TB KH', cls: 'r', width: 90, sort: null,
@@ -687,8 +687,7 @@ function plBlockHtml(pl, items, grp) {
     a.hang_vet_thau += Number(r.hang_vet_thau || 0);
     a.hang_di_duong += Number(r.hang_di_duong || 0);
     a.tong_ton += Number(r.tong_ton || 0);
-    a.xuat_2025 += Number(r.tb_cknt || 0);
-    a.xuat_lk_2026 += Number(r.tb_ytd || 0);
+    a.tb_th += Number(r.tb_th || 0);
     // TB KH ở mức san_pham (mọi mã bravo cùng phân loại chia sẻ 1 giá trị) -> KHÔNG cộng dồn,
     // lấy đúng giá trị đó (max phòng dòng lệch/0) để tổng phân loại không bị nhân số SKU.
     a.tb_kh_3_thang = Math.max(a.tb_kh_3_thang, Number(r.tb_kh_3_thang || 0));
@@ -698,7 +697,7 @@ function plBlockHtml(pl, items, grp) {
     a.sl_duyet += qtyEffective(r, 'sl_duyet');
     a.sl_dat_hang += qtyEffective(r, 'sl_dat_hang');
     return a;
-  }, { ton_kho: 0, hang_ktv_bv: 0, hang_vet_thau: 0, hang_di_duong: 0, tong_ton: 0, xuat_2025: 0, xuat_lk_2026: 0, tb_kh_3_thang: 0, safety_stock: 0, goi_y_dat: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0 });
+  }, { ton_kho: 0, hang_ktv_bv: 0, hang_vet_thau: 0, hang_di_duong: 0, tong_ton: 0, tb_th: 0, tb_kh_3_thang: 0, safety_stock: 0, goi_y_dat: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0 });
 
   const parentRow = `<tr class="pl-parent" data-pl-toggle="${plId}">${cols.map(c => c.agg(agg, ctx)).join('')}</tr>`;
   const childRows = sortItems(items).map(r => productRowHtml(r, plId, cols, ctx)).join('');

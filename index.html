@@ -211,23 +211,20 @@
     <div class="bg-white rounded-lg border border-slate-200 p-4 sm:p-6">
       <h2 class="text-lg font-semibold text-slate-800 mb-1">Cấu hình công thức Gợi ý theo nhóm sản phẩm</h2>
       <p class="text-[13px] text-slate-500 mb-5">
-        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[12px]">Gợi ý = (k1·TB CKNT + k2·TB YTD + k3·TB KH 3 tháng) × Số tháng đặt + Safety stock − Tổng tồn</code>
+        <code class="bg-slate-100 px-1.5 py-0.5 rounded text-[12px]">Gợi ý = (k1·TB tháng TH + k2·TB KH 3 tháng) × Số tháng đặt + Safety stock − Tổng tồn</code>
+        <span class="block mt-1">TB tháng TH = SL thực hiện chia cho <strong>số tháng có phát sinh</strong> (từ T01 năm trước đến tháng liền trước).</span>
       </p>
 
       <div class="rounded-md bg-slate-50 border border-slate-200 p-4 mb-5">
         <div class="text-[12px] font-semibold text-slate-700 mb-3">Mặc định — áp dụng cho nhóm sản phẩm chưa cấu hình riêng</div>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <label class="block">
-            <span class="text-[12px] text-slate-600 font-medium">k1 — TB tháng CKNT</span>
+            <span class="text-[12px] text-slate-600 font-medium">k1 — TB tháng TH</span>
             <input type="number" id="cfgK1" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
           </label>
           <label class="block">
-            <span class="text-[12px] text-slate-600 font-medium">k2 — TB tháng YTD</span>
+            <span class="text-[12px] text-slate-600 font-medium">k2 — TB KH 3 tháng</span>
             <input type="number" id="cfgK2" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
-          </label>
-          <label class="block">
-            <span class="text-[12px] text-slate-600 font-medium">k3 — TB KH 3 tháng</span>
-            <input type="number" id="cfgK3" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
           </label>
           <label class="block">
             <span class="text-[12px] text-slate-600 font-medium">Leadtime (tháng)</span>
@@ -246,9 +243,8 @@
         <table class="dt">
           <thead><tr>
             <th style="min-width:200px">Nhóm sản phẩm</th>
-            <th class="c" style="width:120px">k1 (TB CKNT)</th>
-            <th class="c" style="width:120px">k2 (TB YTD)</th>
-            <th class="c" style="width:120px">k3 (TB KH)</th>
+            <th class="c" style="width:120px">k1 (TB TH)</th>
+            <th class="c" style="width:120px">k2 (TB KH)</th>
             <th class="c" style="width:120px">Leadtime (tháng)</th>
             <th class="c" style="width:120px">Số tháng đặt</th>
           </tr></thead>
@@ -259,14 +255,14 @@
 
       <div class="flex items-center gap-3 mt-5 flex-wrap">
         <button id="cfgSave" class="ctl-btn ctl-btn-primary">Lưu cấu hình</button>
-        <button id="cfgReset" class="ctl-btn">Đặt lại mặc định (0.4 / 0.4 / 0.2)</button>
+        <button id="cfgReset" class="ctl-btn">Đặt lại mặc định (0.8 / 0.2)</button>
         <span id="cfgMsg" role="status" class="text-[12px] text-primary-600"></span>
       </div>
     </div>
 
     <div class="bg-white rounded-lg border border-slate-200 p-4 sm:p-6 mt-5">
       <h3 class="text-[14px] font-semibold text-slate-800 mb-1">Lịch sử cấu hình công thức</h3>
-      <p class="text-[12px] text-slate-500 mb-3">Mỗi bản có hiệu lực từ thời điểm lưu đến khi có bản mới. Khi xem lại một đợt, Gợi ý dùng bản có hiệu lực tại thời điểm mở đợt.</p>
+      <p class="text-[12px] text-slate-500 mb-3">Mỗi bản có hiệu lực từ thời điểm lưu đến khi có bản mới. Khi xem lại một đợt, Gợi ý dùng bản có hiệu lực tại thời điểm mở đợt. Các bản lưu trước khi gộp CKNT + YTD được quy đổi về 2 hệ số (k1 = k1<sub>cũ</sub> + k2<sub>cũ</sub>, k2 = k3<sub>cũ</sub>).</p>
       <div id="cfgLogHost"></div>
     </div>
   </div>
