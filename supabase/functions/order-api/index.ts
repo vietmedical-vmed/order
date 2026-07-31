@@ -873,7 +873,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const i = itemMap[maKey(p.ma_bravo)] || {};
       const tb_cknt = num(us.tb_cknt), tb_ytd = num(us.tb_ytd);
       const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC));
-      const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
+      const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
+      const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
+      const leadtime_thang = Number(gcfgRow.leadtime_thang_default);   // số tháng để hàng về (theo nhóm)
       const tong_ton = num(s.tong_ton);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
       // Gợi ý mã bravo = Gợi ý sản phẩm × %SD YTD của mã bravo đó.
@@ -884,6 +886,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         muc_do_sd: p.muc_do_sd,
         safety_stock: num(p.safety_stock),
         don_vi: p.don_vi || "", gia: num(p.gia), leadtime_ngay: num(p.leadtime_ngay),
+        leadtime_thang,
         tb_kh_3_thang, so_thang_dat,
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv),
         hang_vet_thau: num(s.hang_vet_thau), hang_di_duong: num(s.hang_di_duong),
@@ -1108,7 +1111,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const us = usageMap[maKey(it.ma_bravo)] || {};
       const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
       const ty_le_sd_pct = num(us.ty_le_sd_pct);
-      const so_thang_dat = Number(p.so_thang_dat || cfgForGroup(cfg, p.nhom_san_pham).so_thang_dat_default);
+      const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
+      const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
+      const leadtime_thang = Number(gcfgRow.leadtime_thang_default);
       const goi_y_dat = Math.max(0, Math.round((spGoiYE[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
       return {
         ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
@@ -1118,7 +1123,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
         ty_le_sd_pct, tb_cknt: num(us.tb_cknt), tb_ytd: num(us.tb_ytd),
         tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC)),
-        safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay),
+        safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay), leadtime_thang,
         goi_y_dat,
         sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
         de_nghi_mua_hang: dmVal, po: poVal,

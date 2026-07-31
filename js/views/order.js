@@ -93,8 +93,8 @@ const BASE_COLUMNS = [
     agg: () => `<td class="c num text-slate-400">—</td>`,
   },
   {
-    key: 'leadtime_ngay', label: 'Leadtime', cls: 'c', width: 75, sort: NUM,
-    cell: r => `<td class="c num text-slate-600 text-[11px]">${r.leadtime_ngay ? `${r.leadtime_ngay} ngày` : '—'}</td>`,
+    key: 'leadtime_thang', label: 'Leadtime', cls: 'c', width: 75, sort: NUM,
+    cell: r => `<td class="c num text-slate-600 text-[11px]">${r.leadtime_thang != null && r.leadtime_thang !== '' ? `${r.leadtime_thang} tháng` : '—'}</td>`,
     agg: () => `<td class="c num text-slate-400">—</td>`,
   },
   {

@@ -34,7 +34,7 @@ export async function exportToExcel(session) {
     if (!rows.length) { toast('Đợt này chưa có SKU nào', 'error'); return; }
     const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
-      '% SD','TB tháng CKNT','TB tháng YTD','TB KH','Safety stock','Số tháng đặt','Leadtime (ngày)','Gợi ý',
+      '% SD','TB tháng CKNT','TB tháng YTD','TB KH','Safety stock','Số tháng đặt','Leadtime (tháng)','Gợi ý',
       'SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
     const pct1 = v => Math.round((Number(v) || 0) * 10) / 10;
     const aoa = [header];
@@ -43,7 +43,7 @@ export async function exportToExcel(session) {
         i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
         pct1(r.ty_le_sd_pct), num0(r.tb_cknt), num0(r.tb_ytd), num0(r.tb_kh_3_thang), num0(r.safety_stock),
-        num0(r.so_thang_dat), num0(r.leadtime_ngay), num0(r.goi_y_dat),
+        num0(r.so_thang_dat), num0(r.leadtime_thang), num0(r.goi_y_dat),
         num0(r.sl_yeu_cau), num0(r.sl_pm_duyet), num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
         num0(r.thanh_tien), r.ghi_chu_dat, r.ghi_chu_duyet,
       ]);
