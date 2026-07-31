@@ -14,6 +14,7 @@ export async function initConfigView() {
     $('#cfgK1').value = cfg.k1;
     $('#cfgK2').value = cfg.k2;
     $('#cfgK3').value = cfg.k3;
+    $('#cfgLeadtime').value = cfg.leadtime_thang_default;
     $('#cfgSoThangDat').value = cfg.so_thang_dat_default;
     renderCfgGroups(cfg.groups_list || [], cfg.groups || {});
     updateCfgSumNote();
@@ -27,7 +28,7 @@ export async function initConfigView() {
     $('#' + id).addEventListener('input', updateCfgSumNote);
   });
   // Placeholder các ô nhóm cập nhật theo giá trị mặc định
-  ['cfgK1', 'cfgK2', 'cfgK3', 'cfgSoThangDat'].forEach(id => {
+  ['cfgK1', 'cfgK2', 'cfgK3', 'cfgLeadtime', 'cfgSoThangDat'].forEach(id => {
     $('#' + id).addEventListener('input', updateCfgGroupPlaceholders);
   });
 
@@ -36,6 +37,7 @@ export async function initConfigView() {
       k1: parseFloat($('#cfgK1').value),
       k2: parseFloat($('#cfgK2').value),
       k3: parseFloat($('#cfgK3').value),
+      leadtime_thang_default: parseFloat($('#cfgLeadtime').value),
       so_thang_dat_default: parseFloat($('#cfgSoThangDat').value),
       groups: collectCfgGroups(),
     };
@@ -58,7 +60,7 @@ export async function initConfigView() {
 
   $('#cfgReset').addEventListener('click', () => {
     $('#cfgK1').value = 0.4; $('#cfgK2').value = 0.4; $('#cfgK3').value = 0.2;
-    $('#cfgSoThangDat').value = 3;
+    $('#cfgLeadtime').value = 3; $('#cfgSoThangDat').value = 3;
     updateCfgSumNote();
     updateCfgGroupPlaceholders();
   });
@@ -87,6 +89,7 @@ async function renderConfigLog() {
           <th class="c" style="width:70px">k1</th>
           <th class="c" style="width:70px">k2</th>
           <th class="c" style="width:70px">k3</th>
+          <th class="c" style="width:90px">Leadtime</th>
           <th class="c" style="width:90px">Số tháng đặt</th>
           <th>Nhóm riêng</th>
         </tr></thead>
@@ -99,6 +102,7 @@ async function renderConfigLog() {
             <td class="c num text-slate-700">${v.k1}</td>
             <td class="c num text-slate-700">${v.k2}</td>
             <td class="c num text-slate-700">${v.k3}</td>
+            <td class="c num text-slate-700">${v.leadtime_thang_default ?? '—'}</td>
             <td class="c num text-slate-700">${v.so_thang_dat_default}</td>
             <td class="text-slate-500 text-[12px]">${esc(grpSummary(v.groups))}</td>
           </tr>`;
@@ -120,7 +124,7 @@ function renderCfgGroups(list, groups) {
   const body = $('#cfgGroupBody');
   if (!body) return;
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="5" class="text-slate-500 text-center py-3 text-[12px]">Chưa có nhóm sản phẩm nào — tích chọn vật tư ở tab "Cấu hình danh mục" trước.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="text-slate-500 text-center py-3 text-[12px]">Chưa có nhóm sản phẩm nào — tích chọn vật tư ở tab "Cấu hình danh mục" trước.</td></tr>`;
     return;
   }
   const cell = (g, k, step, min, max, label) => {
@@ -134,13 +138,14 @@ function renderCfgGroups(list, groups) {
     ${cell(g, 'k1', '0.05', '0', '2', 'k1')}
     ${cell(g, 'k2', '0.05', '0', '2', 'k2')}
     ${cell(g, 'k3', '0.05', '0', '2', 'k3')}
+    ${cell(g, 'leadtime_thang', '1', '0', '12', 'Leadtime')}
     ${cell(g, 'so_thang_dat', '1', '1', '12', 'Số tháng đặt')}
   </tr>`).join('');
   updateCfgGroupPlaceholders();
 }
 
 function updateCfgGroupPlaceholders() {
-  const ph = { k1: $('#cfgK1').value, k2: $('#cfgK2').value, k3: $('#cfgK3').value, so_thang_dat: $('#cfgSoThangDat').value };
+  const ph = { k1: $('#cfgK1').value, k2: $('#cfgK2').value, k3: $('#cfgK3').value, leadtime_thang: $('#cfgLeadtime').value, so_thang_dat: $('#cfgSoThangDat').value };
   $$('#cfgGroupBody .cfg-grp-input').forEach(inp => {
     inp.placeholder = ph[inp.dataset.k] !== '' ? ph[inp.dataset.k] : '—';
   });

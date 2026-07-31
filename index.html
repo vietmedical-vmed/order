@@ -216,7 +216,7 @@
 
       <div class="rounded-md bg-slate-50 border border-slate-200 p-4 mb-5">
         <div class="text-[12px] font-semibold text-slate-700 mb-3">Mặc định — áp dụng cho nhóm sản phẩm chưa cấu hình riêng</div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <label class="block">
             <span class="text-[12px] text-slate-600 font-medium">k1 — TB tháng CKNT</span>
             <input type="number" id="cfgK1" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
@@ -228,6 +228,10 @@
           <label class="block">
             <span class="text-[12px] text-slate-600 font-medium">k3 — TB KH 3 tháng</span>
             <input type="number" id="cfgK3" step="0.05" min="0" max="2" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
+          </label>
+          <label class="block">
+            <span class="text-[12px] text-slate-600 font-medium">Leadtime (tháng)</span>
+            <input type="number" id="cfgLeadtime" step="1" min="0" max="12" class="mt-1 w-full px-3 py-2 border border-slate-200 rounded-md text-[13px] focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"/>
           </label>
           <label class="block">
             <span class="text-[12px] text-slate-600 font-medium">Số tháng đặt</span>
@@ -245,6 +249,7 @@
             <th class="c" style="width:120px">k1 (TB CKNT)</th>
             <th class="c" style="width:120px">k2 (TB YTD)</th>
             <th class="c" style="width:120px">k3 (TB KH)</th>
+            <th class="c" style="width:120px">Leadtime (tháng)</th>
             <th class="c" style="width:120px">Số tháng đặt</th>
           </tr></thead>
           <tbody id="cfgGroupBody"></tbody>
