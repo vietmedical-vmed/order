@@ -34,15 +34,21 @@ export async function exportToExcel(session) {
     if (!rows.length) { toast('Đợt này chưa có SKU nào', 'error'); return; }
     const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
-      '% SD','TB tháng TH','TB KH','Safety stock','Số tháng đặt','Leadtime (tháng)','Gợi ý',
+      '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý',
       'SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
     const pctInt = v => Math.round(Number(v) || 0);   // %SD: số nguyên
+    // MoI = Tồn kho (DA) / TB tháng TH, làm tròn xuống. Không có mức dùng -> để TRỐNG
+    // (số, không kèm chữ "tháng") để còn lọc/tính được trong Excel.
+    const moi = r => {
+      const th = Number(r.tb_th || 0);
+      return th > 0 ? Math.floor(Number(r.ton_kho || 0) / th) : '';
+    };
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
         i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
-        pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock),
+        pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
         num0(r.so_thang_dat), num0(r.leadtime_thang), num0(r.goi_y_dat),
         num0(r.sl_yeu_cau), num0(r.sl_pm_duyet), num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
         num0(r.thanh_tien), r.ghi_chu_dat, r.ghi_chu_duyet,
@@ -52,7 +58,7 @@ export async function exportToExcel(session) {
     ws['!cols'] = [
       { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 12 },
       { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
-      { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
+      { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
       { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
     ];
     const wb = XLSX.utils.book_new();

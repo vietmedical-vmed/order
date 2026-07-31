@@ -30,6 +30,23 @@ const qtyCell = (r, field, colorCls, ctx) => {
   return `<td class="c num font-medium ${currentValue != null ? colorCls : 'text-slate-300'}"${lockTitle}>${display}</td>`;
 };
 
+// MoI = Tồn kho (DA) / TB tháng TH, làm tròn XUỐNG. Không có mức dùng (TB tháng TH = 0)
+// thì không tính được -> null (hiển thị '—'), tránh chia cho 0.
+const moiOf = (x) => {
+  const th = Number(x.tb_th || 0);
+  if (th <= 0) return null;
+  return Math.floor(Number(x.ton_kho || 0) / th);
+};
+
+// Ô MoI: số nguyên + "tháng"; tô vàng khi tồn đủ dùng LÂU HƠN leadtime (lt = null -> không so).
+const moiCell = (moi, lt) => {
+  if (moi == null) return `<td class="c num text-slate-300">—</td>`;
+  const over = lt != null && lt !== '' && moi > Number(lt);
+  const cls = over ? 'bg-warning-100 text-warning-800 font-semibold' : 'text-slate-600';
+  const t = over ? ' title="Tồn kho đủ dùng lâu hơn Leadtime"' : '';
+  return `<td class="c num text-[11px] ${cls}"${t}>${moi} tháng</td>`;
+};
+
 const numCol = (key, label, width, opts = {}) => ({
   key, label, sort: NUM, cls: opts.cls || 'r', width,
   aggKey: opts.aggKey || key,
@@ -88,8 +105,16 @@ const BASE_COLUMNS = [
   },
   numCol('safety_stock', 'Safety stock', 90),
   {
-    key: 'so_thang_dat', label: 'Số tháng đặt', cls: 'c', width: 70, sort: NUM,
-    cell: r => `<td class="c num text-slate-600">${r.so_thang_dat || '—'}</td>`,
+    // MoI (Month of Inventory) = Tồn kho DA / TB tháng TH — tồn hiện có đủ dùng mấy tháng.
+    // Dài hơn leadtime = hàng nằm kho lâu hơn thời gian cần để hàng mới về -> tô vàng.
+    key: 'moi', label: 'MoI', cls: 'c', width: 80, sort: NUM,
+    title: 'Month of Inventory = Tồn kho (DA) ÷ TB tháng TH — tồn hiện có đủ dùng bao nhiêu tháng (làm tròn xuống). Tô vàng khi dài hơn Leadtime.',
+    cell: r => moiCell(moiOf(r), r.leadtime_thang),
+    agg: a => moiCell(moiOf(a), null),   // dòng tổng: không có leadtime chung -> chỉ hiện số
+  },
+  {
+    key: 'so_thang_dat', label: 'Số tháng đặt', cls: 'c', width: 78, sort: NUM,
+    cell: r => `<td class="c num text-slate-600 text-[11px]">${r.so_thang_dat ? `${Math.round(r.so_thang_dat)} tháng` : '—'}</td>`,
     agg: () => `<td class="c num text-slate-400">—</td>`,
   },
   {
@@ -494,6 +519,7 @@ function filteredOrderRows() {
 // ============ 3.7: SẮP XẾP CỘT ============
 function sortValue(r, key) {
   if (key === 'sl_dat' || key === 'sl_duyet' || key === 'sl_dat_hang') return qtyEffective(r, key);
+  if (key === 'moi') return moiOf(r) ?? -1;   // không tính được -> xuống cuối khi xếp giảm dần
   return r[key];
 }
 
@@ -535,7 +561,8 @@ function theadHtml(cols) {
     const active = state.sort.key === c.key;
     const arrow = active ? (state.sort.dir === 1 ? ' ▲' : ' ▼') : '';
     const ariaSort = active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : 'none';
-    return `<th class="${c.cls || ''} th-sort${active ? ' th-sort-active' : ''}" style="${w}"${title}
+    // (title đặt 1 lần ở cuối — kèm gợi ý bấm để sắp xếp; không lặp lại attribute)
+    return `<th class="${c.cls || ''} th-sort${active ? ' th-sort-active' : ''}" style="${w}"
       data-sort-key="${c.key}" data-sort-type="${c.sort}" aria-sort="${ariaSort}"
       title="${esc(c.title || c.label)} — bấm để sắp xếp">${esc(c.label)}${arrow}</th>`;
   }).join('');
