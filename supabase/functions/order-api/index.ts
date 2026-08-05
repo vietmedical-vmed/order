@@ -299,7 +299,7 @@ const normGroup = (s: string) => String(s || "").trim().toLowerCase();
 // Đọc bu/scope trực tiếp từ users để không phụ thuộc token cũ & cập nhật tức thì.
 async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; scope: string }> {
   if (u.role === "ADMIN" || u.role === "MANAGER" || u.role === "PURCHASING") return { bu: "", scope: "" };
-  const { data } = await supa.from("users").select("bu, scope").eq("username", u.username).maybeSingle();
+  const { data } = await supa.schema("shared").from("users").select("bu, scope").eq("username", u.username).maybeSingle();
   return { bu: (data && data.bu) || u.bu || "", scope: (data && data.scope) || u.scope || "" };
 }
 
@@ -1183,7 +1183,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async resolveAuditMeta(supa) {
-    const { data: users } = await supa.from("users").select("username, ho_va_ten");
+    const { data: users } = await supa.schema("shared").from("users").select("username, ho_va_ten");
     const { data: sessions } = await supa.schema("app_order").from("order_sessions").select("session_id, ten_dot, mien");
     const userMap: Record<string, string> = {}, sessMap: Record<string, any> = {};
     (users || []).forEach((u) => { userMap[String(u.username).toLowerCase()] = String(u.ho_va_ten || ""); });

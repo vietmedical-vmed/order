@@ -49,12 +49,12 @@ def main():
         salt = ""
         h = hash_no_salt(args.password)
 
-    existing = supa.table("users").select("username").eq("username", uname).execute().data
+    existing = supa.schema("shared").table("users").select("username").eq("username", uname).execute().data
     if existing:
-        supa.table("users").update({"password_hash": h, "salt": salt}).eq("username", uname).execute()
+        supa.schema("shared").table("users").update({"password_hash": h, "salt": salt}).eq("username", uname).execute()
         print(f"✓ Đã đổi mật khẩu cho {uname} (salt={'có' if salt else 'trống'})")
     elif args.create:
-        supa.table("users").insert({
+        supa.schema("shared").table("users").insert({
             "username": uname, "ho_va_ten": args.ho_va_ten or uname,
             "password_hash": h, "salt": salt,
             "role": args.role, "mien": args.mien, "scope": args.scope, "active": True,

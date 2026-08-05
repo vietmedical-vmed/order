@@ -144,7 +144,7 @@ async function handleChangePassword(supa: SupabaseClient, body: any, cors: Recor
   const uname = String(username).trim().toLowerCase();
 
   const { data: user } = await supa
-    .from("users").select("*").eq("username", uname).maybeSingle();
+    .schema("shared").from("users").select("*").eq("username", uname).maybeSingle();
   if (!user || !user.password_hash || user.active === false) {
     await new Promise((r) => setTimeout(r, 400)); // chống dò
     return json({ error: "Tài khoản hoặc mật khẩu hiện tại không đúng" }, 401, cors);
@@ -166,7 +166,7 @@ async function handleChangePassword(supa: SupabaseClient, body: any, cors: Recor
   // chờ thêm 1 vòng lazy-upgrade ở lần login kế tiếp.
   const newHashV2 = await hashPasswordV2(newPassword);
 
-  const { error } = await supa.from("users")
+  const { error } = await supa.schema("shared").from("users")
     .update({ password_hash: newHash, salt, password_hash_v2: newHashV2 }).eq("username", uname);
   if (error) return json({ error: error.message }, 500, cors);
 
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
 
     // users = bảng DÙNG CHUNG (identity + mật khẩu + role + mien)
     const { data: user } = await supa
-      .from("users").select("*").eq("username", uname).maybeSingle();
+      .schema("shared").from("users").select("*").eq("username", uname).maybeSingle();
 
     if (!user || !user.password_hash || user.active === false) {
       await recordFailedLogin(supa, uname, ip);
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
     // công; best-effort, không chặn đăng nhập nếu update lỗi. Không đổi password_hash/salt cũ.
     if (verify.viaLegacy) {
       const v2 = await hashPasswordV2(password);
-      await supa.from("users").update({ password_hash_v2: v2 }).eq("username", uname);
+      await supa.schema("shared").from("users").update({ password_hash_v2: v2 }).eq("username", uname);
     }
 
     // Map role của bảng chung -> role app đặt hàng
