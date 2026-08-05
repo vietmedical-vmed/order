@@ -11,7 +11,7 @@
 -- =====================================================================
 
 -- ---------- INDEX phục vụ RPC (production-only, trước đây note thủ công) ----------
-create index if not exists idx_sv_area_month           on public.sv (area, month);
+create index if not exists idx_sv_area_month           on app_order.sv (area, month);
 create index if not exists idx_sale_target_mien_thang  on public.sale_target (mien, thang_ke_hoach);
 -- stock đã có idx_stock_mien_cycle (mien, cycledate desc) ở 02_order_app.sql.
 
@@ -40,7 +40,7 @@ language sql stable as $$
       (split_part(s.month, '-', 1))::int                                as y,
       (split_part(s.month, '-', 2))::int                                as mo,
       coalesce(s.quantity, 0)                                           as q
-    from public.sv s
+    from app_order.sv s
     where s.item_code is not null
       and s.month ~ '^[0-9]{4}-[0-9]{1,2}'
       and s.month >= ((p_y - 1)::text || '-01')          -- chỉ từ T01 năm ngoái
@@ -90,17 +90,17 @@ returns table (mien text, ma_bravo text, ton_kho numeric,
                hang_vet_thau numeric, hang_ktv_bv numeric, hang_di_duong numeric)
 language plpgsql stable as $$
 declare
-  cd_mb stock.cycledate%type;
-  cd_mn stock.cycledate%type;
+  cd_mb app_order.stock.cycledate%type;
+  cd_mn app_order.stock.cycledate%type;
 begin
   if p_mien in ('ALL','MB') then
-    select st.cycledate into cd_mb from public.stock st
+    select st.cycledate into cd_mb from app_order.stock st
     where st.mien = any(array['MB','Miền Bắc'])
       and (p_ngaymo is null or st.cycledate::date <= p_ngaymo::date)
     order by st.cycledate desc nulls last limit 1;
   end if;
   if p_mien in ('ALL','MN') then
-    select st.cycledate into cd_mn from public.stock st
+    select st.cycledate into cd_mn from app_order.stock st
     where st.mien = any(array['MN','Miền Nam'])
       and (p_ngaymo is null or st.cycledate::date <= p_ngaymo::date)
     order by st.cycledate desc nulls last limit 1;
@@ -118,7 +118,7 @@ begin
       sum(coalesce(s.quantity, 0)) filter (
         where upper(trim(regexp_replace(coalesce(s.warehousetype, ''), '^.*\.', ''))) = 'GU'
       ) as hang_vet_thau
-    from public.stock s
+    from app_order.stock s
     where s.ma_bravo is not null
       and (
            (s.mien in ('MB','Miền Bắc') and p_mien in ('ALL','MB') and (cd_mb is null or s.cycledate = cd_mb))
@@ -133,7 +133,7 @@ begin
       l.ma_bravo,
       sum(coalesce(l.hang_di_duong, 0)) as hang_di_duong,
       sum(coalesce(l.hang_ktv_bv, 0))   as hang_ktv_bv
-    from public.logistics_input l
+    from app_order.logistics_input l
     where (l.mien in ('MB','Miền Bắc') and p_mien in ('ALL','MB'))
        or (l.mien in ('MN','Miền Nam') and p_mien in ('ALL','MN'))
     group by 1, l.ma_bravo
@@ -193,7 +193,7 @@ language sql stable as $$
     sum(coalesce(oi.sl_dat_hang, 0))  as sl_dat_hang,
     count(oi.sl_duyet)                as approved_sku,
     count(oi.sl_dat_hang)             as ordered_sku
-  from public.order_items oi
+  from app_order.order_items oi
   group by oi.session_id;
 $$;
 

@@ -11,7 +11,7 @@
 
 alter table public.users add column if not exists password_hash_v2 text;
 
-create table if not exists public.login_attempts (
+create table if not exists app_order.login_attempts (
   id          bigint generated always as identity primary key,
   username    text        not null,
   ip          text        not null default 'unknown',
@@ -20,9 +20,9 @@ create table if not exists public.login_attempts (
 );
 -- Tra cứu nhanh "N lần sai gần đây theo username+ip" (khoá 15 phút = 900s).
 create index if not exists idx_login_attempts_lookup
-  on public.login_attempts(username, ip, created_at desc);
+  on app_order.login_attempts(username, ip, created_at desc);
 -- Dọn bớt dòng cũ định kỳ (giữ ~1 ngày là đủ cho mục đích rate-limit 15 phút).
 create index if not exists idx_login_attempts_created
-  on public.login_attempts(created_at);
+  on app_order.login_attempts(created_at);
 
-alter table public.login_attempts enable row level security;
+alter table app_order.login_attempts enable row level security;
