@@ -66,7 +66,7 @@ def main():
     valid = set()
     off = 0
     while True:
-        page = supa.table("dm_vat_tu").select("ma_bravo").range(off, off+999).execute().data
+        page = supa.schema("shared").table("dm_vat_tu").select("ma_bravo").range(off, off+999).execute().data
         if not page:
             break
         valid.update(str(x["ma_bravo"]) for x in page)

@@ -125,12 +125,12 @@ def main():
     print("=" * 68)
 
     # --- Sản phẩm khớp tên ---
-    prods = supa.table("dm_vat_tu").select(
+    prods = supa.schema("shared").table("dm_vat_tu").select(
         "ma_bravo, ten_vat_tu, san_pham, nhom_san_pham"
     ).ilike("san_pham", f"%{args.ten}%").eq("dat_hang", True).execute().data or []
     if not prods:
         # thử không lọc dat_hang (phòng khi cột chưa set)
-        prods = supa.table("dm_vat_tu").select(
+        prods = supa.schema("shared").table("dm_vat_tu").select(
             "ma_bravo, ten_vat_tu, san_pham, nhom_san_pham"
         ).ilike("san_pham", f"%{args.ten}%").execute().data or []
     if not prods:
@@ -143,7 +143,7 @@ def main():
         print(f"  • {sp}  — mã bravo: {', '.join(map(str, mabs_))}")
 
     # --- Mapping san_pham -> bộ vật tư ---
-    mapping = fetch_all(supa.table("dm_bo_vat_tu_mapping").select("san_pham, bo_vat_tu"))
+    mapping = fetch_all(supa.schema("shared").table("dm_bo_vat_tu_mapping").select("san_pham, bo_vat_tu"))
     sp_bo = {}  # norm(san_pham) -> {"le": bool, "bos": set}
     for r in mapping:
         sp = norm_key(r.get("san_pham"))
@@ -157,7 +157,7 @@ def main():
 
     # --- sale_target trong cửa sổ, theo (san_pham, tháng) ---
     st = fetch_all(
-        supa.table("sale_target")
+        supa.schema("shared").table("sale_target")
         .select("mien, san_pham, thang_ke_hoach, sl_ke_hoach_dau_nam, sl_ke_hoach_update")
         .in_("thang_ke_hoach", months)
     )

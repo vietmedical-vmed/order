@@ -181,7 +181,7 @@ async function listOrderGroups(supa: SupabaseClient) {
   const set = new Set<string>();
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
-      .from("dm_vat_tu")
+      .schema("shared").from("dm_vat_tu")
       .select("nhom_san_pham")
       .eq("dat_hang", true)
       .order("ma_bravo", { ascending: true })
@@ -324,7 +324,7 @@ async function fetchProducts(supa: SupabaseClient) {
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
-      .from("dm_vat_tu")
+      .schema("shared").from("dm_vat_tu")
       // Chú ý: don_vi / leadtime_ngay / so_thang_dat KHÔNG tồn tại trong bảng dm_vat_tu hiện tại
       // (mapping bên dưới cố tình đọc undefined -> fallback 0/''/null, phòng khi cột được thêm
       // sau) — TUYỆT ĐỐI không thêm các tên này vào select() vì PostgREST sẽ lỗi "column does
@@ -504,7 +504,7 @@ async function loadSpBoMap(supa: SupabaseClient): Promise<Record<string, SpBo>> 
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
-      .from("dm_bo_vat_tu_mapping").select("san_pham, bo_vat_tu")
+      .schema("shared").from("dm_bo_vat_tu_mapping").select("san_pham, bo_vat_tu")
       .range(from, from + PAGE - 1);
     if (error) throw new Error("Đọc dm_bo_vat_tu_mapping: " + error.message);
     const batch = data || [];
@@ -569,7 +569,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Soi TB KH cho 1 vật tư: nhánh lẻ/bộ, danh sách bộ, Σ từng bộ, và TB cuối.
   async debugTbKh(supa, _u, [maBravo, mien]) {
     const mm = mien || "MB";
-    const { data: p } = await supa.from("dm_vat_tu")
+    const { data: p } = await supa.schema("shared").from("dm_vat_tu")
       .select("ma_bravo, san_pham").eq("ma_bravo", maBravo).maybeSingle();
     if (!p) return { error: "Không thấy ma_bravo=" + maBravo };
     const cfg = await getKConfig(supa);
@@ -680,7 +680,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const all: any[] = [];
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supa
-        .from("dm_vat_tu")
+        .schema("shared").from("dm_vat_tu")
         .select(cols)
         .order("nhom_san_pham", { ascending: true })
         .order("ma_bravo", { ascending: true })
@@ -725,7 +725,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const mas = list.map((c: any) => c && c.ma_bravo).filter(Boolean);
       const grpOf: Record<string, string> = {};
       for (let i = 0; i < mas.length; i += 200) {
-        const { data } = await supa.from("dm_vat_tu")
+        const { data } = await supa.schema("shared").from("dm_vat_tu")
           .select("ma_bravo, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 200));
         (data || []).forEach((v: any) => { grpOf[v.ma_bravo] = normGroup(v.nhom_san_pham); });
       }
@@ -759,7 +759,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     for (const { patch, mas } of groups.values()) {
       for (let i = 0; i < mas.length; i += CHUNK) {
         const slice = mas.slice(i, i + CHUNK);
-        const { error } = await supa.from("dm_vat_tu").update(patch).in("ma_bravo", slice);
+        const { error } = await supa.schema("shared").from("dm_vat_tu").update(patch).in("ma_bravo", slice);
         if (error) throw new Error("Lưu danh mục: " + error.message);
         updated += slice.length;
       }
@@ -999,7 +999,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       if (grants.scope) {
         const scopeSet = parseScope(grants.scope);
         const mas = (items || []).map((it: any) => it.ma_bravo);
-        const { data: vt } = await supa.from("dm_vat_tu").select("ma_bravo, nhom_san_pham").in("ma_bravo", mas);
+        const { data: vt } = await supa.schema("shared").from("dm_vat_tu").select("ma_bravo, nhom_san_pham").in("ma_bravo", mas);
         const grpOf: Record<string, string> = {};
         (vt || []).forEach((v) => { grpOf[v.ma_bravo] = normGroup(v.nhom_san_pham); });
         filtered = (items || []).filter((it: any) => scopeSet.has(grpOf[it.ma_bravo] || ""));
@@ -1258,7 +1258,7 @@ async function saveAndAdvance(
     const mas = [...new Set(workItems.map((it: any) => it.ma_bravo))];
     const info: Record<string, any> = {};
     for (let i = 0; i < mas.length; i += 500) {
-      const { data } = await supa.from("dm_vat_tu")
+      const { data } = await supa.schema("shared").from("dm_vat_tu")
         .select("ma_bravo, bu, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
       (data || []).forEach((r: any) => { info[r.ma_bravo] = r; });
     }

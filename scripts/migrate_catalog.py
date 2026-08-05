@@ -90,15 +90,15 @@ def push(supa, table, rows, on_conflict=None, chunk=500, replace=False):
         print(f"  {table}: 0 dòng"); return
     if replace:
         try:
-            supa.table(table).delete().neq(list(rows[0].keys())[0], "__x__zzz__").execute()
+            supa.schema("shared").table(table).delete().neq(list(rows[0].keys())[0], "__x__zzz__").execute()
         except Exception:
             pass
     for i in range(0, len(rows), chunk):
         part = rows[i:i+chunk]
         if on_conflict:
-            supa.table(table).upsert(part, on_conflict=on_conflict).execute()
+            supa.schema("shared").table(table).upsert(part, on_conflict=on_conflict).execute()
         else:
-            supa.table(table).insert(part).execute()
+            supa.schema("shared").table(table).insert(part).execute()
     print(f"  ✓ {table}: {len(rows)}")
 
 def dedup(rows, keys):
