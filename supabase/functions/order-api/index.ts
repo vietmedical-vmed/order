@@ -153,7 +153,7 @@ function normalizeCfg(raw: any) {
 }
 
 async function getKConfig(supa: SupabaseClient) {
-  const { data } = await supa.from("app_config").select("value").eq("key", "goi_y").maybeSingle();
+  const { data } = await supa.schema("app_order").from("app_config").select("value").eq("key", "goi_y").maybeSingle();
   return normalizeCfg(data?.value);
 }
 
@@ -163,7 +163,7 @@ async function getKConfig(supa: SupabaseClient) {
 async function getConfigAt(supa: SupabaseClient, atTime?: string | null) {
   if (atTime) {
     const { data, error } = await supa
-      .from("order_config_log")
+      .schema("app_order").from("order_config_log")
       .select("value")
       .eq("cfg_key", "goi_y")
       .lte("created_at", atTime)
@@ -196,7 +196,7 @@ async function listOrderGroups(supa: SupabaseClient) {
 
 async function audit(supa: SupabaseClient, username: string, action: string, sid = "", detail = "") {
   try {
-    await supa.from("audit_log").insert({ username, action, session_id: sid || "", detail: detail || "" });
+    await supa.schema("app_order").from("audit_log").insert({ username, action, session_id: sid || "", detail: detail || "" });
   } catch (_) { /* ignore */ }
 }
 
@@ -370,7 +370,7 @@ function mienVariants(mien: string): string[] {
 async function resolveStockCycledate(
   supa: SupabaseClient, mien: string, ngayMo?: string | null,
 ): Promise<string> {
-  let q = supa.from("stock").select("cycledate").in("mien", mienVariants(mien))
+  let q = supa.schema("app_order").from("stock").select("cycledate").in("mien", mienVariants(mien))
     .order("cycledate", { ascending: false }).limit(1);
   if (ngayMo) q = q.lt("cycledate", ngayMo);
   const { data } = await q.maybeSingle();
@@ -411,7 +411,7 @@ async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string |
 // Ngày cycledate mới nhất trong bảng stock (dùng cho chú thích "tồn kho cập nhật đến…").
 async function latestCycledate(supa: SupabaseClient): Promise<string> {
   const { data } = await supa
-    .from("stock").select("cycledate").order("cycledate", { ascending: false }).limit(1).maybeSingle();
+    .schema("app_order").from("stock").select("cycledate").order("cycledate", { ascending: false }).limit(1).maybeSingle();
   return data && data.cycledate ? String(data.cycledate).slice(0, 10) : "";
 }
 
@@ -643,12 +643,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       }
       if (Object.keys(e).length) c.groups[g] = e;
     }
-    await supa.from("app_config").upsert({ key: "goi_y", value: c });
+    await supa.schema("app_order").from("app_config").upsert({ key: "goi_y", value: c });
     // Ghi log phiên bản cấu hình — áp dụng từ thời điểm này đến khi có bản mới thay thế.
     // Nhờ vậy khi xem lại 1 đợt đặt hàng cũ, Gợi ý dùng đúng công thức tại thời điểm đợt đó.
     // Best-effort: nếu bảng log chưa được tạo (chưa chạy 05_config_log.sql) thì vẫn lưu được cấu hình.
     try {
-      await supa.from("order_config_log").insert({ cfg_key: "goi_y", value: c, created_by: u.username });
+      await supa.schema("app_order").from("order_config_log").insert({ cfg_key: "goi_y", value: c, created_by: u.username });
     } catch (_) { /* ignore — log là phụ, không chặn lưu cấu hình */ }
     await audit(supa, u.username, "SAVE_CONFIG", "", JSON.stringify(c));
     return c;
@@ -658,7 +658,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async listConfigLog(supa, u, [limit]) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem lịch sử cấu hình");
     const { data } = await supa
-      .from("order_config_log")
+      .schema("app_order").from("order_config_log")
       .select("id, value, created_at, created_by")
       .eq("cfg_key", "goi_y")
       .order("created_at", { ascending: false })
@@ -770,7 +770,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async listSessions(supa, u, [filter]) {
     filter = filter || {};
-    let q = supa.from("order_sessions").select("*");
+    let q = supa.schema("app_order").from("order_sessions").select("*");
     if (u.role === "AM") q = q.eq("mien", u.mien);
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED) hoặc đã chốt (CLOSED).
@@ -822,7 +822,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       // Khi không truyền sessionId -> KHÔNG auto-chọn đợt: hiển thị "bảng thông tin"
       // (màn chi tiết ở chế độ danh mục, không thuộc đợt nào).
       sessionId
-        ? supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
+        ? supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
         : Promise.resolve(null),
       fetchProducts(supa),
       getGrants(supa, u),
@@ -859,7 +859,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         usageMapFor(supa, effMien),
         saleTargetSumByBo(supa, effMien, khC, khO),
         resolveStockCycledate(supa, effMien, ngayMo),
-        session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
+        session ? supa.schema("app_order").from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
       stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
@@ -869,7 +869,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         usageMapFor(supa, "ALL"),
         saleTargetSumByBo(supa, "ALL", khC, khO),
         latestCycledate(supa),
-        session ? supa.from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
+        session ? supa.schema("app_order").from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
       stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
@@ -966,7 +966,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const { data, error } = await supa.from("order_sessions").insert({
+    const { data, error } = await supa.schema("app_order").from("order_sessions").insert({
       ten_dot: name, mien, ngay_dong: ngayDong || null, trang_thai: "DRAFT", tao_boi: u.username,
     }).select().single();
     if (error) throw new Error(error.message);
@@ -984,7 +984,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async amConfirm(supa, u, [sessionId, items]) {
     if (!canActAs(u, "AM")) throw new Error("Không có quyền xác nhận (AM)");
     if (u.role === "AM") {
-      const { data: s } = await supa.from("order_sessions").select("mien").eq("session_id", sessionId).maybeSingle();
+      const { data: s } = await supa.schema("app_order").from("order_sessions").select("mien").eq("session_id", sessionId).maybeSingle();
       if (!s) throw new Error("Không tìm thấy đợt");
       if (s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
     }
@@ -1017,9 +1017,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   //  SUBMITTED   (PM):      sl_duyet    ← sl_dat   → PM_APPROVED
   //  PM_APPROVED (MANAGER): sl_dat_hang ← sl_duyet → APPROVED
   async approveSession(supa, u, [sessionId]) {
-    const { data: s } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
-    const { data: rows } = await supa.from("order_items").select("*").eq("session_id", sessionId);
+    const { data: rows } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
     const its = rows || [];
     if (s.trang_thai === "SUBMITTED") {
       if (!canActAs(u, "PM")) throw new Error("Không có quyền phê duyệt (PM)");
@@ -1037,7 +1037,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Từ chối: trả đợt về DRAFT cho AM sửa lại; bắt buộc có lý do.
   // Chỉ Manager (bước PM_APPROVED) được từ chối. Đã bỏ luồng PM từ chối AM (SUBMITTED).
   async rejectSession(supa, u, [sessionId, reason]) {
-    const { data: s } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
     let buoc = "";
     if (s.trang_thai === "PM_APPROVED") { if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền từ chối (Manager)"); buoc = "Manager"; }
@@ -1045,7 +1045,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     else throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — không thể từ chối");
     const lyDo = String(reason || "").trim();
     if (!lyDo) throw new Error("Vui lòng nhập lý do từ chối");
-    await supa.from("order_sessions").update({
+    await supa.schema("app_order").from("order_sessions").update({
       trang_thai: "DRAFT", ly_do_tu_choi: lyDo, nguoi_tu_choi: u.username,
       tu_choi_o_buoc: buoc, tu_choi_luc: new Date().toISOString(),
       ngay_pm_duyet: null, ngay_manager_duyet: null,
@@ -1057,14 +1057,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Mua hàng "Đặt hàng": lưu thông tin tracking (Đề nghị mua hàng + PO) cho đợt đã duyệt.
   async recordPurchase(supa, u, [sessionId, dm, po]) {
     if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được đặt hàng");
-    const { data: s } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
     if (s.trang_thai !== "APPROVED" && s.trang_thai !== "CLOSED")
       throw new Error("Chỉ đặt hàng khi đợt đã được duyệt (APPROVED)");
     const deNghi = String(dm || "").trim();
     const poStr = String(po || "").trim();
     if (!deNghi && !poStr) throw new Error("Nhập ít nhất Đề nghị mua hàng hoặc số PO");
-    await supa.from("order_sessions").update({
+    await supa.schema("app_order").from("order_sessions").update({
       de_nghi_mua_hang: deNghi, po: poStr,
       nguoi_mua_hang: u.username, ngay_mua_hang: new Date().toISOString(),
     }).eq("session_id", sessionId);
@@ -1079,7 +1079,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       if (a.sl_duyet != null) patch.sl_duyet = Number(a.sl_duyet);
       if (a.sl_dat_hang != null) patch.sl_dat_hang = Number(a.sl_dat_hang);
       if (a.ghi_chu_duyet != null) patch.ghi_chu_duyet = a.ghi_chu_duyet;
-      await supa.from("order_items").update(patch).eq("item_id", a.item_id);
+      await supa.schema("app_order").from("order_items").update(patch).eq("item_id", a.item_id);
     }
     await audit(supa, u.username, "APPROVE", sessionId, approvals.length + " SKU");
     return { ok: true, count: approvals.length };
@@ -1087,13 +1087,13 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async closeSession(supa, u, [sessionId]) {
     if (!canApprove(u)) throw new Error("Không có quyền chốt đợt");
-    await supa.from("order_sessions").update({ trang_thai: "CLOSED" }).eq("session_id", sessionId);
+    await supa.schema("app_order").from("order_sessions").update({ trang_thai: "CLOSED" }).eq("session_id", sessionId);
     await audit(supa, u.username, "CLOSE_SESSION", sessionId, "");
     return { ok: true };
   },
 
   async exportOrderData(supa, u, [sessionId]) {
-    const { data: session } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!session) throw new Error("Không tìm thấy đợt");
     if (u.role !== "MANAGER" && u.role !== "ADMIN" && u.role !== "PURCHASING")
       throw new Error("Chỉ Manager/Admin/Mua hàng được xuất file Excel");
@@ -1106,7 +1106,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const cfg = await getConfigAt(supa, ngayMoExp);   // dùng đúng công thức có hiệu lực khi mở đợt
     const khC = khCount(cfg), khO = khOffset(cfg);     // cửa sổ TB KH (tháng hàng về & được dùng)
     const [items, prods, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
-      supa.from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
+      supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
       fetchProducts(supa),
       loadSpBoMap(supa),
       stockMapFor(supa, mienExp, ngayMoExp),
@@ -1168,7 +1168,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async loadAuditLog(supa, u, [filter]) {
     filter = filter || {};
-    let q = supa.from("audit_log").select("*").order("timestamp", { ascending: false })
+    let q = supa.schema("app_order").from("audit_log").select("*").order("timestamp", { ascending: false })
       .limit(Math.min(Number(filter.limit) || 200, 200));
     if (u.role === "AM") q = q.eq("username", u.username);
     if (filter.action && filter.action !== "ALL") q = q.eq("action", filter.action);
@@ -1184,7 +1184,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async resolveAuditMeta(supa) {
     const { data: users } = await supa.from("users").select("username, ho_va_ten");
-    const { data: sessions } = await supa.from("order_sessions").select("session_id, ten_dot, mien");
+    const { data: sessions } = await supa.schema("app_order").from("order_sessions").select("session_id, ten_dot, mien");
     const userMap: Record<string, string> = {}, sessMap: Record<string, any> = {};
     (users || []).forEach((u) => { userMap[String(u.username).toLowerCase()] = String(u.ho_va_ten || ""); });
     (sessions || []).forEach((s) => { sessMap[String(s.session_id)] = { ten_dot: s.ten_dot, mien: s.mien }; });
@@ -1213,7 +1213,7 @@ function actionForSession(u: any, session: any) {
 }
 
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
-  let q = supa.from("order_sessions").select("*");
+  let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
   else if (mienHint && mienHint !== "ALL") q = q.eq("mien", mienHint);
   const { data } = await q;
@@ -1239,12 +1239,12 @@ async function saveAndAdvance(
   supa: SupabaseClient, u: any, sessionId: string, items: any[],
   fields: string[], fromStatus: string, toStatus: string, actionName: string,
 ) {
-  const { data: session } = await supa.from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+  const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
   if (!session) throw new Error("Không tìm thấy đợt");
   if (session.trang_thai !== fromStatus)
     throw new Error("Đợt đang ở trạng thái " + session.trang_thai + ", không thể thực hiện " + actionName);
 
-  const { data: existingRows } = await supa.from("order_items").select("*").eq("session_id", sessionId);
+  const { data: existingRows } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
   const byMa: Record<string, any> = {}; (existingRows || []).forEach((r) => byMa[r.ma_bravo] = r);
 
   let created = 0, updated = 0, deleted = 0;
@@ -1271,14 +1271,14 @@ async function saveAndAdvance(
     const note = it[noteField] || "";
     if (cur) {
       if (fromStatus === "DRAFT" && sl === 0 && !note) {
-        await supa.from("order_items").delete().eq("item_id", cur.item_id); deleted++;
+        await supa.schema("app_order").from("order_items").delete().eq("item_id", cur.item_id); deleted++;
       } else {
         const patch: any = { updated_by: u.username };
         fields.forEach((f) => { if (it[f] !== undefined) patch[f] = it[f]; });
-        await supa.from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
+        await supa.schema("app_order").from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
       }
     } else if (fromStatus === "DRAFT" && sl > 0) {
-      await supa.from("order_items").insert({
+      await supa.schema("app_order").from("order_items").insert({
         session_id: sessionId, ma_bravo: it.ma_bravo, sl_dat: sl, ghi_chu_dat: note, updated_by: u.username,
       }); created++;
     }
@@ -1295,7 +1295,7 @@ async function saveAndAdvance(
     sessPatch.ly_do_tu_choi = null; sessPatch.nguoi_tu_choi = null;
     sessPatch.tu_choi_o_buoc = null; sessPatch.tu_choi_luc = null;
   }
-  await supa.from("order_sessions").update(sessPatch).eq("session_id", sessionId);
+  await supa.schema("app_order").from("order_sessions").update(sessPatch).eq("session_id", sessionId);
   await audit(supa, u.username, actionName, sessionId, `+${created} ~${updated} -${deleted} → ${toStatus}`);
   return { ok: true, created, updated, deleted, newStatus: toStatus };
 }

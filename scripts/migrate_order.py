@@ -98,7 +98,7 @@ def main():
             "active": to_bool(get(r, "active")),
         })
     for i in range(0, len(cat), 500):
-        supa.table("order_catalog").upsert(cat[i:i+500], on_conflict="ma_bravo").execute()
+        supa.schema("app_order").table("order_catalog").upsert(cat[i:i+500], on_conflict="ma_bravo").execute()
     print(f"  ✓ order_catalog: {len(cat)}  (bỏ {skipped} mã không có trong dm_vat_tu)")
 
     # ---- order_sessions ----
@@ -116,7 +116,7 @@ def main():
             row[f] = pd.to_datetime(val).isoformat() if val is not None else None
         sess.append(row)
     if sess:
-        supa.table("order_sessions").upsert(sess, on_conflict="session_id").execute()
+        supa.schema("app_order").table("order_sessions").upsert(sess, on_conflict="session_id").execute()
     print(f"  ✓ {len(sess)}")
 
     # ---- order_items ----
@@ -138,7 +138,7 @@ def main():
             "updated_by": get(r, "updated_by"),
         })
     for i in range(0, len(items), 500):
-        supa.table("order_items").upsert(items[i:i+500], on_conflict="item_id").execute()
+        supa.schema("app_order").table("order_items").upsert(items[i:i+500], on_conflict="item_id").execute()
     print(f"  ✓ {len(items)}")
 
     # ---- audit_log ----
@@ -155,7 +155,7 @@ def main():
                      "username": get(r, "username"), "action": get(r, "action"),
                      "session_id": get(r, "session_id") or "", "detail": get(r, "detail") or ""})
     for i in range(0, len(logs), 500):
-        supa.table("audit_log").upsert(logs[i:i+500], on_conflict="log_id").execute()
+        supa.schema("app_order").table("audit_log").upsert(logs[i:i+500], on_conflict="log_id").execute()
     print(f"  ✓ {len(logs)}")
 
     print("\n✓ HOÀN TẤT. Tiếp theo: refresh_stock.py cho tồn kho/usage.")

@@ -95,7 +95,7 @@ def main():
     # --- Cấu hình (leadtime / số tháng đặt) ---
     cfg = {}
     try:
-        r = supa.table("app_config").select("value").eq("key", "goi_y").maybe_single().execute()
+        r = supa.schema("app_order").table("app_config").select("value").eq("key", "goi_y").maybe_single().execute()
         cfg = (r.data or {}).get("value", {}) if r and r.data else {}
     except Exception:
         cfg = {}

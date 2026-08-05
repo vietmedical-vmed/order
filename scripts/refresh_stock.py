@@ -161,14 +161,15 @@ def aggregate_usage(path, tab="SDVT"):
     return rows
 
 def _insert_batches(supa, table, rows):
+    # stock / usage_stat đều là bảng riêng của app → schema app_order.
     for i in range(0, len(rows), 500):
-        supa.table(table).insert(rows[i:i+500]).execute()
+        supa.schema("app_order").table(table).insert(rows[i:i+500]).execute()
         print(f"  {table}: +{min(i+500, len(rows))}/{len(rows)}")
     print(f"  ✓ {table}: {len(rows)} dòng")
 
 def replace_table(supa, table, rows):
     # xoá sạch rồi nạp lại (dữ liệu tổng hợp — an toàn khi refresh)
-    supa.table(table).delete().neq("mien", "__none__").execute()
+    supa.schema("app_order").table(table).delete().neq("mien", "__none__").execute()
     _insert_batches(supa, table, rows)
 
 def refresh_stock_table(supa, rows):
@@ -176,7 +177,7 @@ def refresh_stock_table(supa, rows):
     # cũ để RPC stock_agg còn chốt được tồn cho các đợt mở trước đó.
     cds = sorted({r["cycledate"] for r in rows if r.get("cycledate")})
     for cd in cds:
-        supa.table("stock").delete().eq("cycledate", cd).execute()
+        supa.schema("app_order").table("stock").delete().eq("cycledate", cd).execute()
         print(f"  stock: xoá cycledate={cd}")
     _insert_batches(supa, "stock", rows)
 

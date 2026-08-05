@@ -110,15 +110,15 @@ function getClientIp(req: Request): string {
 }
 async function isRateLimited(supa: SupabaseClient, username: string, ip: string): Promise<boolean> {
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
-  const { count } = await supa.from("login_attempts")
+  const { count } = await supa.schema("app_order").from("login_attempts")
     .select("id", { count: "exact", head: true })
     .eq("username", username).eq("ip", ip).eq("success", false)
     .gte("created_at", since);
   return (count || 0) >= RATE_LIMIT_MAX_FAILS;
 }
 async function recordFailedLogin(supa: SupabaseClient, username: string, ip: string): Promise<void> {
-  await supa.from("login_attempts").insert({ username, ip, success: false });
-  await supa.from("audit_log").insert({ username, action: "LOGIN_FAILED", session_id: "", detail: "ip=" + ip });
+  await supa.schema("app_order").from("login_attempts").insert({ username, ip, success: false });
+  await supa.schema("app_order").from("audit_log").insert({ username, action: "LOGIN_FAILED", session_id: "", detail: "ip=" + ip });
 }
 
 async function hmacSign(payloadB64: string, secret: string): Promise<string> {
@@ -170,7 +170,7 @@ async function handleChangePassword(supa: SupabaseClient, body: any, cors: Recor
     .update({ password_hash: newHash, salt, password_hash_v2: newHashV2 }).eq("username", uname);
   if (error) return json({ error: error.message }, 500, cors);
 
-  await supa.from("audit_log").insert({
+  await supa.schema("app_order").from("audit_log").insert({
     username: user.username, action: "CHANGE_PASSWORD", session_id: "", detail: "",
   });
   return json({ ok: true }, 200, cors);
@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
     const token = payloadB64 + "." + sig;
 
     // audit LOGIN
-    await supa.from("audit_log").insert({
+    await supa.schema("app_order").from("audit_log").insert({
       username: user.username, action: "LOGIN", session_id: "", detail: "",
     });
 
