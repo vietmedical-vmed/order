@@ -13,20 +13,27 @@ import { setupOrderTable, lockColumnWidths, applyStickyCols, syncScrollWidths, i
 // Gộp 1 chỗ để header, ô dữ liệu và khoá sắp xếp (3.7) không bao giờ lệch nhau.
 const NUM = 'num', TXT = 'text';
 
+const QTY_LABELS = { sl_dat: 'SL yêu cầu', sl_duyet: 'SL PM duyệt', sl_dat_hang: 'SL đặt hàng' };
+
 const qtyCell = (r, field, colorCls, ctx) => {
   const currentValue = r[field];
   const display = currentValue == null ? '—' : fmt(currentValue);
-  if (field === ctx.editField && r.editable !== false) {
-    const def = qtyDefault(r, field);
+  const canEdit = ctx.editFields && ctx.editFields.has(field);
+  if (canEdit && r.editable !== false) {
+    // Điền sẵn gợi ý CHỈ cho cột chính của bước có bật prefill (AM xác nhận / PM / Manager).
+    // Chế độ sửa-ô-đã-chỉnh (admin, AM cập nhật khi SUBMITTED): giữ nguyên giá trị đã lưu.
+    const prefill = field === ctx.primaryField && ctx.prefill;
+    const def = prefill ? qtyDefault(r, field) : 0;
+    const saved = currentValue != null ? Number(currentValue) : null;
     const change = state.changes.get(r.ma_bravo);
-    // Điền sẵn: đang sửa > đã lưu > gợi ý mặc định. Ô lệch gợi ý -> highlight (dirty).
     const shown = (change && change[field] !== undefined) ? Number(change[field] || 0)
-                : (currentValue != null ? Number(currentValue) : def);
-    const adjusted = Number(shown || 0) !== def;
-    return `<td class="c"><input type="number" class="qty-input ${adjusted ? 'dirty' : ''}" min="0" value="${shown || ''}"
-      data-field="${field}" data-id="${esc(r.ma_bravo)}" data-default="${def}" aria-label="${esc(ctx.editLabel || 'Số lượng')} — ${esc(r.ma_bravo)}"/></td>`;
+                : (saved != null ? saved : (prefill ? def : ''));
+    const baseline = prefill ? def : (saved != null ? saved : 0);
+    const adjusted = shown !== '' && Number(shown || 0) !== baseline;
+    return `<td class="c"><input type="number" class="qty-input ${adjusted ? 'dirty' : ''}" min="0" value="${shown === '' ? '' : (shown || '')}"
+      data-field="${field}" data-id="${esc(r.ma_bravo)}" data-default="${def}" data-prefill="${prefill ? 1 : 0}" aria-label="${esc(QTY_LABELS[field] || 'Số lượng')} — ${esc(r.ma_bravo)}"/></td>`;
   }
-  const lockTitle = (field === ctx.editField && r.editable === false) ? ' title="Ngoài scope của bạn"' : '';
+  const lockTitle = (canEdit && r.editable === false) ? ' title="Ngoài scope của bạn"' : '';
   return `<td class="c num font-medium ${currentValue != null ? colorCls : 'text-slate-300'}"${lockTitle}>${display}</td>`;
 };
 
@@ -234,6 +241,13 @@ export async function loadOrderData(pinSessionId) {
     // Giữ đúng đợt đang xem cho các lần tải lại sau (đến khi đổi miền).
     state.pinnedSessionId = data.session ? data.session.session_id : null;
     state.currentAction = data.action || null;
+    // Các cột số lượng được sửa trực tiếp (admin: cả 3; AM/PM/Manager: 1 cột của bước).
+    // Fallback về cột của action cho tương thích payload cũ chưa có editFields.
+    state.editFields = Array.isArray(data.editFields) && data.editFields.length
+      ? data.editFields
+      : (state.currentAction && state.currentAction.editField
+          ? [{ field: state.currentAction.editField, noteField: state.currentAction.editNoteField }]
+          : []);
     state.stockAsof = data.stock_asof || '';
     await tryRestoreDraft();
     populateGrpAndPLOptions();
@@ -248,6 +262,7 @@ export async function loadOrderData(pinSessionId) {
     if (retry) retry.onclick = () => loadOrderData(pinSessionId);
     state.currentSession = null;
     state.currentAction = null;
+    state.editFields = [];
     renderSessionBanner();
   }
 }
@@ -642,7 +657,8 @@ function qtyEffective(r, field) {
   if (ch && ch[field] !== undefined) return Number(ch[field] || 0);
   if (r[field] != null) return Number(r[field]);
   const action = state.currentAction;
-  if (action && action.editField === field && r.editable !== false) return qtyDefault(r, field);
+  // Điền sẵn gợi ý chỉ khi bước có bật prefill (không áp dụng cho admin / AM cập nhật SUBMITTED).
+  if (action && action.editField === field && action.prefill !== false && r.editable !== false) return qtyDefault(r, field);
   return 0;
 }
 
@@ -655,9 +671,12 @@ function noteEffective(r, field) {
 
 function rowContext() {
   const action = state.currentAction;
+  const fields = state.editFields || [];
   return {
-    editField: action ? action.editField : null,
-    editNoteField: action ? action.editNoteField : null,
+    editFields: new Set(fields.map(f => f.field)),          // cột số lượng sửa được
+    primaryField: action ? action.editField : null,         // cột chính (điền sẵn gợi ý)
+    prefill: action ? action.prefill !== false : false,     // bước có điền sẵn gợi ý không
+    editNoteField: action ? action.editNoteField : null,    // 1 cột ghi chú theo bước hiện tại
     editLabel: action ? action.label : null,
   };
 }
@@ -752,23 +771,20 @@ function bindOrderInputs() {
     if (!row) return;
     const existing = state.changes.get(id) || {};
     existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
-    // Baseline giờ là gợi ý mặc định (đã điền sẵn), không phải giá trị đã lưu:
-    // lệch gợi ý (hoặc đổi ghi chú) = có chỉnh -> ghi vào changes để highlight & đếm.
-    const action = state.currentAction;
-    const defQty = qtyDefault(row, action.editField);
-    const origNote = row[action.editNoteField] || '';
-    const newQty = existing[action.editField] !== undefined ? Number(existing[action.editField] || 0) : defQty;
-    const newNote = existing[action.editNoteField] !== undefined ? existing[action.editNoteField] : origNote;
-    if (newQty === defQty && newNote === origNote) state.changes.delete(id);
+    // Còn "chỉnh" hay không: xét MỌI field đã đụng vào so với baseline của nó (cột chính so
+    // với gợi ý, cột khác/ghi chú so với giá trị đã lưu) — hỗ trợ admin sửa nhiều cột cùng lúc.
+    if (isRowUnchanged(row, existing)) state.changes.delete(id);
     else state.changes.set(id, existing);
 
     const tr = inp.closest('tr');
     tr.classList.toggle('dirty', state.changes.has(id));
-    if (field === action.editField) {
-      const def = Number(inp.dataset.default || 0);
-      inp.classList.toggle('dirty', Number(inp.value || 0) !== def);
+    if (inp.type === 'number') {
+      // Baseline highlight: cột có điền sẵn so với gợi ý (data-default); còn lại so giá trị đã lưu.
+      const usePrefill = inp.dataset.prefill === '1';
+      const base = usePrefill ? Number(inp.dataset.default || 0) : (row[field] != null ? Number(row[field]) : 0);
+      inp.classList.toggle('dirty', Number(inp.value || 0) !== base);
       const plId = tr.dataset.pl;
-      if (plId) updatePLSum(plId);
+      if (plId) updatePLSum(plId, field);
     }
     updateOrderStats();
     updateDraftIndicator();
@@ -803,13 +819,32 @@ function focusAdjacentQtyInput(current, dir) {
   if (next) { next.focus(); next.select(); }
 }
 
-// Cập nhật ô tổng của phân loại — đúng cột đang nhập của bước hiện tại.
-function updatePLSum(plId) {
+// Dòng có còn chỉnh so với baseline không? So từng field trong `existing`:
+//  - ghi chú: so với giá trị đã lưu (row[field]).
+//  - cột chính (điền sẵn gợi ý): so với gợi ý mặc định.
+//  - cột khác (admin): so với giá trị đã lưu (row[field]).
+function isRowUnchanged(row, existing) {
   const action = state.currentAction;
-  if (!action) return;
+  const primary = action ? action.editField : null;
+  const prefill = action ? action.prefill !== false : false;
+  for (const key of Object.keys(existing)) {
+    if (key.startsWith('ghi_chu')) {
+      if ((existing[key] || '') !== (row[key] || '')) return false;
+    } else {
+      const base = (key === primary && prefill) ? qtyDefault(row, key) : (row[key] != null ? Number(row[key]) : 0);
+      if (Number(existing[key] || 0) !== base) return false;
+    }
+  }
+  return true;
+}
+
+// Cập nhật ô tổng của phân loại cho MỘT cột (mặc định: cột chính của bước hiện tại).
+function updatePLSum(plId, field) {
+  field = field || (state.currentAction && state.currentAction.editField);
+  if (!field) return;
   let sum = 0;
-  $$(`.pl-child-${plId} input[data-field="${action.editField}"]`).forEach(inp => { sum += Number(inp.value || 0); });
-  const cell = $(`[data-pl-sum="${action.editField}:${plId}"]`);
+  $$(`.pl-child-${plId} input[data-field="${field}"]`).forEach(inp => { sum += Number(inp.value || 0); });
+  const cell = $(`[data-pl-sum="${field}:${plId}"]`);
   if (cell) cell.textContent = fmt(sum);
 }
 
@@ -954,6 +989,23 @@ export function updateDraftIndicator() {
     return;
   }
 
+  // Chế độ sửa-ô-đã-chỉnh (admin, AM cập nhật khi SUBMITTED): nút bật khi có ô đã sửa;
+  // không điền sẵn hàng loạt, chỉ gửi những gì thay đổi.
+  if (action.changesOnly) {
+    if (n > 0) {
+      draftActions.classList.remove('hidden');
+      draftActions.classList.add('flex');
+      $('#btnPlaceLabel').textContent = `${action.label} (${n} chỉnh)`;
+      status.textContent = '';
+      $('#btnPlace').disabled = false;
+    } else {
+      draftActions.classList.add('hidden');
+      draftActions.classList.remove('flex');
+      status.textContent = action.hint || 'Sửa ô cần thay đổi rồi bấm lưu';
+    }
+    return;
+  }
+
   // Số dòng sẽ gửi = số ô số lượng (bước hiện tại) có giá trị > 0 (đã gồm điền sẵn theo gợi ý).
   const fillN = state.rows.reduce((a, r) => a + (qtyEffective(r, action.editField) > 0 ? 1 : 0), 0);
 
@@ -979,19 +1031,38 @@ export function updateDraftIndicator() {
 async function placeOrder() {
   const action = state.currentAction;
   if (!action) return;
-  // Gom từ state (không phải DOM): mọi dòng có SL hiệu lực > 0 (đã gồm giá trị điền sẵn
-  // theo gợi ý, không chỉ các dòng chỉnh tay) — không phụ thuộc dòng có đang render hay
-  // không (bộ lọc ẩn dòng, nhóm đang đóng…), tránh sót thay đổi khi dòng không có trong DOM.
   const items = [];
-  state.rows.forEach(r => {
-    if (r.editable === false) return; // ngoài scope -> không render input, không gửi
-    const qty = qtyEffective(r, action.editField);
-    if (qty <= 0) return;
-    const item = { ma_bravo: r.ma_bravo };
-    item[action.editField] = qty;
-    item[action.editNoteField] = noteEffective(r, action.editNoteField);
-    items.push(item);
-  });
+  if (action.changesOnly) {
+    // Chỉ gửi các dòng CÓ chỉnh (trong state.changes), mỗi dòng gồm đúng các field vừa sửa
+    // — không đụng dòng/cột khác, không điền sẵn hàng loạt (admin & AM cập nhật SUBMITTED).
+    const noteOf = {};
+    (state.editFields || []).forEach(f => { if (f.noteField) noteOf[f.field] = f.noteField; });
+    for (const [id, ch] of state.changes) {
+      const r = state.rowIndex.get(id);
+      if (!r || r.editable === false) continue;
+      const item = { ma_bravo: id };
+      let has = false;
+      (state.editFields || []).forEach(f => {
+        if (ch[f.field] !== undefined) { item[f.field] = Number(ch[f.field] || 0); has = true; }
+        const nf = noteOf[f.field];
+        if (nf && ch[nf] !== undefined) { item[nf] = ch[nf]; has = true; }
+      });
+      if (has) items.push(item);
+    }
+  } else {
+    // Gom từ state (không phải DOM): mọi dòng có SL hiệu lực > 0 (đã gồm giá trị điền sẵn
+    // theo gợi ý, không chỉ các dòng chỉnh tay) — không phụ thuộc dòng có đang render hay
+    // không (bộ lọc ẩn dòng, nhóm đang đóng…), tránh sót thay đổi khi dòng không có trong DOM.
+    state.rows.forEach(r => {
+      if (r.editable === false) return; // ngoài scope -> không render input, không gửi
+      const qty = qtyEffective(r, action.editField);
+      if (qty <= 0) return;
+      const item = { ma_bravo: r.ma_bravo };
+      item[action.editField] = qty;
+      item[action.editNoteField] = noteEffective(r, action.editNoteField);
+      items.push(item);
+    });
+  }
   if (!items.length) return;
   const keepId = state.currentSession && state.currentSession.session_id;
   $('#btnPlace').disabled = true;

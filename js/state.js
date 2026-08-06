@@ -8,6 +8,8 @@ export const state = {
   currentSession: null,
   rows: [],
   readOnly: true,
+  currentAction: null,
+  editFields: [],   // [{field, noteField}] các cột số lượng được sửa trực tiếp trên bảng
   changes: new Map(),
   filters: { grp: '', pl: [], mucDo: [], search: '', lowStock: false },
   sort: { key: null, dir: 1 },   // 3.7: sắp xếp cột trong từng phân loại (dir 1 tăng, -1 giảm)

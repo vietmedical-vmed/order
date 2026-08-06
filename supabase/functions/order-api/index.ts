@@ -949,14 +949,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         po: session.po || "",
       };
     }
-    const action = session ? actionForSession(u, session) : null;
+    const ec = session ? editContextForSession(u, session) : { action: null, editFields: [] };
 
     // Rows đã được lọc theo quyền (AM: BU, PM: nhóm SP) nên đều thuộc phạm vi user.
     rows.forEach((r: any) => { r.editable = true; });
 
     return {
       user: { username: u.username, ho_ten: u.ho_ten, role: u.role, mien: u.mien, scope: u.scope || "" },
-      session: sessionOut, rows, action: action || null, readOnly: !action,
+      session: sessionOut, rows, action: ec.action || null, editFields: ec.editFields || [], readOnly: !ec.action,
       isCatalogOnly: !session, isAllView: mien === "ALL" && !session,
       stock_asof: (stockAsof || await latestCycledate(supa)).slice(0, 10),
     };
@@ -983,12 +983,16 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async amConfirm(supa, u, [sessionId, items]) {
     if (!canActAs(u, "AM")) throw new Error("Không có quyền xác nhận (AM)");
-    if (u.role === "AM") {
-      const { data: s } = await supa.schema("app_order").from("order_sessions").select("mien").eq("session_id", sessionId).maybeSingle();
-      if (!s) throw new Error("Không tìm thấy đợt");
-      if (s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
-    }
-    return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat", "ghi_chu_dat"], "DRAFT", "SUBMITTED", "AM_CONFIRM");
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("mien, trang_thai").eq("session_id", sessionId).maybeSingle();
+    if (!s) throw new Error("Không tìm thấy đợt");
+    if (u.role === "AM" && s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
+    // AM được sửa SL yêu cầu tới KHI PM DUYỆT: DRAFT -> xác nhận (đẩy lên SUBMITTED);
+    // SUBMITTED (PM chưa duyệt) -> chỉ cập nhật SL yêu cầu, GIỮ NGUYÊN trạng thái.
+    if (s.trang_thai === "DRAFT")
+      return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat", "ghi_chu_dat"], ["DRAFT"], "SUBMITTED", "AM_CONFIRM");
+    if (s.trang_thai === "SUBMITTED")
+      return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat", "ghi_chu_dat"], ["SUBMITTED"], null, "AM_UPDATE");
+    throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — AM không sửa được nữa (PM đã duyệt)");
   },
   async pmConfirm(supa, u, [sessionId, items]) {
     if (!canActAs(u, "PM")) throw new Error("Không có quyền xác nhận (PM)");
@@ -1011,6 +1015,35 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async managerApprove(supa, u, [sessionId, items]) {
     if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền phê duyệt (Manager)");
     return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat_hang", "ghi_chu_dat_hang"], "PM_APPROVED", "APPROVED", "MANAGER_APPROVE");
+  },
+
+  // Admin ghi đè: sửa BẤT KỲ cột số lượng nào (sl_dat / sl_duyet / sl_dat_hang) + ghi chú,
+  // ở BẤT KỲ trạng thái nào (kể cả APPROVED/CLOSED), KHÔNG ràng buộc scope, KHÔNG đổi trạng thái.
+  // Chỉ ghi các dòng client gửi lên (đã lọc "có chỉnh" phía client) để không đụng dòng khác.
+  async adminSaveItems(supa, u, [sessionId, items]) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin dùng được lưu ghi đè");
+    const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    if (!session) throw new Error("Không tìm thấy đợt");
+    const { data: existingRows } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
+    const byMa: Record<string, any> = {}; (existingRows || []).forEach((r) => byMa[r.ma_bravo] = r);
+    const QTY = ["sl_dat", "sl_duyet", "sl_dat_hang"];
+    const NOTES = ["ghi_chu_dat", "ghi_chu_duyet", "ghi_chu_dat_hang"];
+    let created = 0, updated = 0;
+    for (const it of (items || [])) {
+      if (!it || !it.ma_bravo) continue;
+      const patch: any = { updated_by: u.username };
+      for (const f of QTY) if (it[f] !== undefined) patch[f] = num(it[f]);
+      for (const f of NOTES) if (it[f] !== undefined) patch[f] = it[f] || "";
+      if (Object.keys(patch).length <= 1) continue;   // chỉ có updated_by -> không có gì để ghi
+      const cur = byMa[it.ma_bravo];
+      if (cur) {
+        await supa.schema("app_order").from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
+      } else {
+        await supa.schema("app_order").from("order_items").insert({ session_id: sessionId, ma_bravo: it.ma_bravo, ...patch }); created++;
+      }
+    }
+    await audit(supa, u.username, "ADMIN_SAVE", sessionId, `+${created} ~${updated} (status ${session.trang_thai})`);
+    return { ok: true, created, updated, deleted: 0, newStatus: session.trang_thai };
   },
 
   // Phê duyệt NHANH từ màn Quản lý (không sửa số lượng): tự sao chép cột bước trước rồi đẩy trạng thái.
@@ -1212,6 +1245,53 @@ function actionForSession(u: any, session: any) {
   return null;
 }
 
+// Ngữ cảnh SỬA của 1 đợt cho 1 user: action (nút xác nhận/lưu) + editFields (các cột số
+// lượng được sửa trực tiếp trên bảng). Tách khỏi actionForSession vì admin/AM có luật riêng.
+function editContextForSession(u: any, session: any) {
+  const st = session.trang_thai;
+
+  // ADMIN: sửa MỌI cột (SL yêu cầu / PM duyệt / đặt hàng) ở MỌI trạng thái, không ràng buộc
+  // scope/thời gian. Lưu bằng adminSaveItems — ghi đè trực tiếp, KHÔNG đẩy trạng thái.
+  if (u.role === "ADMIN") {
+    const noteByStatus: Record<string, string> = {
+      DRAFT: "ghi_chu_dat", SUBMITTED: "ghi_chu_duyet",
+      PM_APPROVED: "ghi_chu_dat_hang", APPROVED: "ghi_chu_dat_hang", CLOSED: "ghi_chu_dat_hang",
+    };
+    return {
+      // changesOnly: chỉ ghi ô đã sửa (không điền sẵn hàng loạt); prefill off (không có cột "chính").
+      action: {
+        code: "ADMIN_SAVE", label: "Lưu (Admin)", changesOnly: true, prefill: false,
+        hint: "Admin · sửa bất kỳ ô số lượng nào rồi bấm Lưu",
+        editField: null, editNoteField: noteByStatus[st] || "ghi_chu_dat_hang", endpoint: "adminSaveItems",
+      },
+      editFields: [
+        { field: "sl_dat", noteField: "ghi_chu_dat" },
+        { field: "sl_duyet", noteField: "ghi_chu_duyet" },
+        { field: "sl_dat_hang", noteField: "ghi_chu_dat_hang" },
+      ],
+    };
+  }
+
+  // AM: sửa SL yêu cầu tới KHI PM DUYỆT — tức khi đợt còn DRAFT hoặc SUBMITTED.
+  if (u.role === "AM" && (st === "DRAFT" || st === "SUBMITTED")) {
+    if (u.mien !== session.mien) return { action: null, editFields: [] };
+    const advancing = st === "DRAFT";
+    // DRAFT: điền sẵn gợi ý + xác nhận cả đợt (đẩy SUBMITTED). SUBMITTED: chỉ sửa ô đã chỉnh
+    // (không điền sẵn để không vô tình thêm hàng loạt dòng gợi ý), giữ nguyên trạng thái.
+    const action = advancing
+      ? { code: "AM_CONFIRM", label: "Xác nhận",
+          editField: "sl_dat", editNoteField: "ghi_chu_dat", endpoint: "amConfirm" }
+      : { code: "AM_CONFIRM", label: "Cập nhật SL yêu cầu", changesOnly: true, prefill: false,
+          hint: "Sửa SL yêu cầu rồi bấm Cập nhật (đợt vẫn chờ PM duyệt)",
+          editField: "sl_dat", editNoteField: "ghi_chu_dat", endpoint: "amConfirm" };
+    return { action, editFields: [{ field: "sl_dat", noteField: "ghi_chu_dat" }] };
+  }
+
+  // Các vai trò/luồng còn lại: giữ mô hình 1 cột theo bước hiện tại.
+  const a = actionForSession(u, session);
+  return { action: a, editFields: a ? [{ field: a.editField, noteField: a.editNoteField }] : [] };
+}
+
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
@@ -1237,18 +1317,21 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
 
 async function saveAndAdvance(
   supa: SupabaseClient, u: any, sessionId: string, items: any[],
-  fields: string[], fromStatus: string, toStatus: string, actionName: string,
+  fields: string[], fromStatus: string | string[], toStatus: string | null, actionName: string,
 ) {
   const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
   if (!session) throw new Error("Không tìm thấy đợt");
-  if (session.trang_thai !== fromStatus)
-    throw new Error("Đợt đang ở trạng thái " + session.trang_thai + ", không thể thực hiện " + actionName);
+  const from = session.trang_thai;
+  const allowed = Array.isArray(fromStatus) ? fromStatus : [fromStatus];
+  if (!allowed.includes(from))
+    throw new Error("Đợt đang ở trạng thái " + from + ", không thể thực hiện " + actionName);
 
   const { data: existingRows } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
   const byMa: Record<string, any> = {}; (existingRows || []).forEach((r) => byMa[r.ma_bravo] = r);
 
   let created = 0, updated = 0, deleted = 0;
   const slField = fields[0], noteField = fields[1];
+  const isBaseEdit = slField === "sl_dat";   // chỉ cột gốc (SL yêu cầu) mới thêm/xoá dòng order_items
 
   // Chặn phía ghi: chỉ ghi những SKU thuộc phạm vi của user (AM: BU, PM: nhóm SP).
   let workItems = items || [];
@@ -1262,7 +1345,12 @@ async function saveAndAdvance(
         .select("ma_bravo, bu, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
       (data || []).forEach((r: any) => { info[r.ma_bravo] = r; });
     }
-    workItems = workItems.filter((it: any) => info[it.ma_bravo] && visFilter(info[it.ma_bravo]));
+    const filtered = workItems.filter((it: any) => info[it.ma_bravo] && visFilter(info[it.ma_bravo]));
+    // ĐỒNG BỘ với read-path: khi BU của AM không khớp SKU nào, loadOrderScreen hiển thị TOÀN
+    // danh mục (fallback) và cho nhập. Nếu ở đây vẫn lọc rỗng thì SL yêu cầu AM vừa nhập bị
+    // xoá trắng khi submit (bug cũ). Chỉ giữ nguyên khi filter rỗng — còn khi BU khớp một phần
+    // thì vẫn siết đúng phạm vi (nhất quán với danh sách AM nhìn thấy).
+    workItems = (u.role === "AM" && filtered.length === 0 && workItems.length > 0) ? workItems : filtered;
   }
 
   for (const it of workItems) {
@@ -1270,34 +1358,42 @@ async function saveAndAdvance(
     const sl = num(it[slField]);
     const note = it[noteField] || "";
     if (cur) {
-      if (fromStatus === "DRAFT" && sl === 0 && !note) {
+      // Xoá dòng khi AM để trống hẳn (SL=0, không ghi chú) — chỉ khi đợt còn DRAFT.
+      if (isBaseEdit && from === "DRAFT" && sl === 0 && !note) {
         await supa.schema("app_order").from("order_items").delete().eq("item_id", cur.item_id); deleted++;
       } else {
         const patch: any = { updated_by: u.username };
         fields.forEach((f) => { if (it[f] !== undefined) patch[f] = it[f]; });
         await supa.schema("app_order").from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
       }
-    } else if (fromStatus === "DRAFT" && sl > 0) {
+    } else if (isBaseEdit && sl > 0) {
+      // Dòng mới chỉ tạo được khi ghi cột gốc SL yêu cầu (DRAFT, hoặc AM bổ sung khi SUBMITTED).
       await supa.schema("app_order").from("order_items").insert({
         session_id: sessionId, ma_bravo: it.ma_bravo, sl_dat: sl, ghi_chu_dat: note, updated_by: u.username,
       }); created++;
     }
   }
 
-  const sessPatch: any = { trang_thai: toStatus };
-  // Ghi mốc thời gian cho từng bước duyệt (để hiển thị ở màn Quản lý).
-  const nowIso = new Date().toISOString();
-  if (toStatus === "SUBMITTED") sessPatch.ngay_yeu_cau = nowIso;        // AM xác nhận
-  else if (toStatus === "PM_APPROVED") sessPatch.ngay_pm_duyet = nowIso; // PM duyệt
-  else if (toStatus === "APPROVED") sessPatch.ngay_manager_duyet = nowIso; // Manager duyệt
-  // Rời DRAFT (AM xác nhận / xác nhận lại sau khi bị từ chối) -> xoá lý do từ chối cũ.
-  if (fromStatus === "DRAFT") {
-    sessPatch.ly_do_tu_choi = null; sessPatch.nguoi_tu_choi = null;
-    sessPatch.tu_choi_o_buoc = null; sessPatch.tu_choi_luc = null;
+  const sessPatch: any = {};
+  // toStatus null (hoặc trùng from) -> chỉ lưu số liệu, GIỮ NGUYÊN trạng thái (vd AM cập nhật khi SUBMITTED).
+  if (toStatus && toStatus !== from) {
+    sessPatch.trang_thai = toStatus;
+    // Ghi mốc thời gian cho từng bước duyệt (để hiển thị ở màn Quản lý).
+    const nowIso = new Date().toISOString();
+    if (toStatus === "SUBMITTED") sessPatch.ngay_yeu_cau = nowIso;        // AM xác nhận
+    else if (toStatus === "PM_APPROVED") sessPatch.ngay_pm_duyet = nowIso; // PM duyệt
+    else if (toStatus === "APPROVED") sessPatch.ngay_manager_duyet = nowIso; // Manager duyệt
+    // Rời DRAFT (AM xác nhận / xác nhận lại sau khi bị từ chối) -> xoá lý do từ chối cũ.
+    if (from === "DRAFT") {
+      sessPatch.ly_do_tu_choi = null; sessPatch.nguoi_tu_choi = null;
+      sessPatch.tu_choi_o_buoc = null; sessPatch.tu_choi_luc = null;
+    }
   }
-  await supa.schema("app_order").from("order_sessions").update(sessPatch).eq("session_id", sessionId);
-  await audit(supa, u.username, actionName, sessionId, `+${created} ~${updated} -${deleted} → ${toStatus}`);
-  return { ok: true, created, updated, deleted, newStatus: toStatus };
+  if (Object.keys(sessPatch).length)
+    await supa.schema("app_order").from("order_sessions").update(sessPatch).eq("session_id", sessionId);
+  const finalStatus = toStatus || from;
+  await audit(supa, u.username, actionName, sessionId, `+${created} ~${updated} -${deleted} → ${finalStatus}`);
+  return { ok: true, created, updated, deleted, newStatus: finalStatus };
 }
 
 // ============================ ENTRY ============================
