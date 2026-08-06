@@ -14,6 +14,9 @@ export const fmtDate = d => {
 
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Tách chuỗi nhóm sản phẩm của đợt ("A;B" hoặc "A,B") -> ['A','B'] (bỏ khoảng trắng/rỗng).
+export const splitGroups = s => String(s || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+
 export function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };

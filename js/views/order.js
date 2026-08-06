@@ -1,5 +1,5 @@
 // ============ MÀN ĐẶT HÀNG (Chi tiết) ============
-import { $, $$, esc, fmt, dash0, fmtVND, debounce, viCmp } from '../utils.js';
+import { $, $$, esc, fmt, dash0, fmtVND, debounce, viCmp, splitGroups } from '../utils.js';
 import { DRAFT_KEY } from '../config.js';
 import { rpc } from '../api.js';
 import { state, canCreateSession } from '../state.js';
@@ -383,7 +383,7 @@ function renderSessionBanner() {
             <span class="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Đang xem</span>
             <h2 class="font-semibold text-[14px] text-slate-900 truncate">${esc(sess.ten_dot)}</h2>
             <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
-            ${sess.nhom_san_pham ? `<span class="pill pill-info" title="Đợt chỉ gồm danh mục nhóm sản phẩm này">${esc(sess.nhom_san_pham)}</span>` : ''}
+            ${splitGroups(sess.nhom_san_pham).map(g => `<span class="pill pill-info" title="Đợt chỉ gồm danh mục các nhóm sản phẩm này">${esc(g)}</span>`).join('')}
           </div>
           <div class="text-[11px] text-slate-500 mt-0.5">Tạo bởi <span class="font-medium">${esc(sess.tao_boi || '—')}</span> · ${created}</div>
         </div>
@@ -1145,23 +1145,25 @@ export function bindGlobalDraftActions() {
 }
 
 // ============ MODAL TẠO ĐỢT ============
-// Nạp danh sách nhóm sản phẩm vào combobox (giữ lựa chọn hiện tại nếu có). Lỗi -> chỉ còn
-// "Tất cả nhóm" để vẫn tạo được đợt bình thường.
+// Nạp danh sách nhóm sản phẩm thành checkbox (chọn nhiều). Lỗi -> báo nhẹ, vẫn tạo được đợt
+// "tất cả nhóm" (không tick gì).
 async function populateSessionGroupOptions() {
-  const sel = $('#modalSessNhom');
-  if (!sel) return;
-  const keep = sel.value || '';
-  sel.innerHTML = '<option value="">Tất cả nhóm sản phẩm</option>';
+  const box = $('#modalSessNhomList');
+  if (!box) return;
+  box.innerHTML = '<div class="px-2 py-1.5 text-slate-400">Đang tải…</div>';
   try {
     const groups = await rpc('listProductGroups');
-    (Array.isArray(groups) ? groups : []).forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g; opt.textContent = g;
-      sel.appendChild(opt);
-    });
-    sel.value = keep;
+    const list = Array.isArray(groups) ? groups : [];
+    box.innerHTML = list.length
+      ? list.map(g => `
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+          <input type="checkbox" class="rounded msn-opt shrink-0" value="${esc(g)}"/>
+          <span class="truncate">${esc(g)}</span>
+        </label>`).join('')
+      : '<div class="px-2 py-1.5 text-slate-400">Không có nhóm sản phẩm</div>';
   } catch (e) {
     console.warn('[populateSessionGroupOptions]', e);
+    box.innerHTML = '<div class="px-2 py-1.5 text-danger-600">Không tải được danh sách nhóm — có thể tạo đợt cho tất cả nhóm</div>';
   }
 }
 
@@ -1196,8 +1198,8 @@ function openCreateSessionModal() {
     btn.disabled = true; btn.textContent = 'Đang tạo…';
     try {
       let toastMsg;
-      const nhom = $('#modalSessNhom') ? $('#modalSessNhom').value : '';
-      const nhomLabel = nhom ? ` · nhóm ${nhom}` : '';
+      const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value);
+      const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
       if (role === 'AM') {
         const s = await rpc('createSession', name, state.user.mien, ngayDong || '', nhom);
         // Mở thẳng đợt vừa tạo (không còn auto-pick ở backend).

@@ -292,6 +292,22 @@ function parseScope(scope: string): Set<string> {
 }
 const normGroup = (s: string) => String(s || "").trim().toLowerCase();
 
+// Chuẩn hoá lựa chọn nhóm sản phẩm (mảng hoặc chuỗi "A;B") -> "A;B;C" (bỏ trùng/rỗng, giữ tên gốc).
+function normalizeGroups(v: any): string {
+  const arr = Array.isArray(v) ? v : String(v || "").split(/[,;]/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of arr) {
+    const t = String(s || "").trim();
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out.join(";");
+}
+
 // Quyền xem/đặt/duyệt hàng theo vai trò:
 //  - AM : theo BU  (users.bu  ⋈ dm_vat_tu.bu)            -> toàn bộ nhóm SP của BU đó
 //  - PM : theo nhóm SP (users.scope ⋈ dm_vat_tu.nhom_san_pham) -> cả 2 miền
@@ -851,10 +867,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "AM" && visFilter && products.length === 0 && products0.length > 0) {
       products = products0;
     }
-    // Đợt gắn 1 nhóm sản phẩm -> chỉ hiển thị danh mục thuộc nhóm đó (áp sau lọc theo vai trò).
+    // Đợt gắn 1 hoặc NHIỀU nhóm sản phẩm -> chỉ hiển thị danh mục thuộc các nhóm đó
+    // (áp sau lọc theo vai trò). parseScope tách "A;B" và chuẩn hoá chữ thường.
     if (session && session.nhom_san_pham) {
-      const g = normGroup(session.nhom_san_pham);
-      products = products.filter((p: any) => normGroup(p.nhom_san_pham) === g);
+      const set = parseScope(session.nhom_san_pham);
+      if (set.size) products = products.filter((p: any) => set.has(normGroup(p.nhom_san_pham)));
     }
 
     const effMien: string = session ? session.mien : (mien || "");
@@ -979,8 +996,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
     const row: any = { ten_dot: name, mien, ngay_dong: ngayDong || null, trang_thai: "DRAFT", tao_boi: u.username };
-    // Chỉ set khi có chọn nhóm -> đợt "tất cả nhóm" vẫn tạo được kể cả khi cột chưa migrate.
-    const grp = String(nhomSanPham || "").trim();
+    // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
+    // vẫn tạo được kể cả khi cột chưa migrate.
+    const grp = normalizeGroups(nhomSanPham);
     if (grp) row.nhom_san_pham = grp;
     const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
     if (error) throw new Error(error.message);
