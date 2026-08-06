@@ -383,6 +383,7 @@ function renderSessionBanner() {
             <span class="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Đang xem</span>
             <h2 class="font-semibold text-[14px] text-slate-900 truncate">${esc(sess.ten_dot)}</h2>
             <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
+            ${sess.nhom_san_pham ? `<span class="pill pill-info" title="Đợt chỉ gồm danh mục nhóm sản phẩm này">${esc(sess.nhom_san_pham)}</span>` : ''}
           </div>
           <div class="text-[11px] text-slate-500 mt-0.5">Tạo bởi <span class="font-medium">${esc(sess.tao_boi || '—')}</span> · ${created}</div>
         </div>
@@ -1144,12 +1145,33 @@ export function bindGlobalDraftActions() {
 }
 
 // ============ MODAL TẠO ĐỢT ============
+// Nạp danh sách nhóm sản phẩm vào combobox (giữ lựa chọn hiện tại nếu có). Lỗi -> chỉ còn
+// "Tất cả nhóm" để vẫn tạo được đợt bình thường.
+async function populateSessionGroupOptions() {
+  const sel = $('#modalSessNhom');
+  if (!sel) return;
+  const keep = sel.value || '';
+  sel.innerHTML = '<option value="">Tất cả nhóm sản phẩm</option>';
+  try {
+    const groups = await rpc('listProductGroups');
+    (Array.isArray(groups) ? groups : []).forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g; opt.textContent = g;
+      sel.appendChild(opt);
+    });
+    sel.value = keep;
+  } catch (e) {
+    console.warn('[populateSessionGroupOptions]', e);
+  }
+}
+
 function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
   $('#modalSessClose').value = '';
   $('#modalErr').textContent = '';
+  populateSessionGroupOptions();
 
   // Hiển thị thông báo phù hợp role
   const role = state.user.role;
@@ -1174,14 +1196,16 @@ function openCreateSessionModal() {
     btn.disabled = true; btn.textContent = 'Đang tạo…';
     try {
       let toastMsg;
+      const nhom = $('#modalSessNhom') ? $('#modalSessNhom').value : '';
+      const nhomLabel = nhom ? ` · nhóm ${nhom}` : '';
       if (role === 'AM') {
-        const s = await rpc('createSession', name, state.user.mien, ngayDong || '');
+        const s = await rpc('createSession', name, state.user.mien, ngayDong || '', nhom);
         // Mở thẳng đợt vừa tạo (không còn auto-pick ở backend).
         state.pinnedSessionId = (s && s.session_id) || null;
-        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}`;
+        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}${nhomLabel}`;
       } else {
-        const r = await rpc('createSessionBoth', name, ngayDong || '');
-        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền`;
+        const r = await rpc('createSessionBoth', name, ngayDong || '', nhom);
+        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${nhomLabel}`;
         // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
         const targetMien = state.mien === 'MN' ? 'MN' : 'MB';
         const created = targetMien === 'MN' ? (r && r.mn) : (r && r.mb);

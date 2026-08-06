@@ -566,6 +566,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return [{ test: "ok", timestamp: new Date().toISOString(), msg: "Deploy hoạt động" }];
   },
 
+  // Danh sách nhóm sản phẩm (nhom_san_pham) trong danh mục đặt hàng — cho combobox tạo đợt.
+  async listProductGroups(supa) {
+    return await listOrderGroups(supa);
+  },
+
   // Soi TB KH cho 1 vật tư: nhánh lẻ/bộ, danh sách bộ, Σ từng bộ, và TB cuối.
   async debugTbKh(supa, _u, [maBravo, mien]) {
     const mm = mien || "MB";
@@ -800,6 +805,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ngay_dong: s.ngay_dong ? new Date(s.ngay_dong).toISOString() : "",
       trang_thai: String(s.trang_thai || ""),
       tao_boi: String(s.tao_boi || ""),
+      nhom_san_pham: s.nhom_san_pham || "",
       ly_do_tu_choi: s.ly_do_tu_choi || "",
       nguoi_tu_choi: s.nguoi_tu_choi || "",
       tu_choi_o_buoc: s.tu_choi_o_buoc || "",
@@ -844,6 +850,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // qua tồn kho & phạm vi đợt đặt hàng.
     if (u.role === "AM" && visFilter && products.length === 0 && products0.length > 0) {
       products = products0;
+    }
+    // Đợt gắn 1 nhóm sản phẩm -> chỉ hiển thị danh mục thuộc nhóm đó (áp sau lọc theo vai trò).
+    if (session && session.nhom_san_pham) {
+      const g = normGroup(session.nhom_san_pham);
+      products = products.filter((p: any) => normGroup(p.nhom_san_pham) === g);
     }
 
     const effMien: string = session ? session.mien : (mien || "");
@@ -942,6 +953,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ngay_mo: session.ngay_mo ? new Date(session.ngay_mo).toISOString() : "",
         ngay_dong: session.ngay_dong ? new Date(session.ngay_dong).toISOString() : "",
         trang_thai: session.trang_thai, tao_boi: session.tao_boi,
+        nhom_san_pham: session.nhom_san_pham || "",
         ly_do_tu_choi: session.ly_do_tu_choi || "",
         nguoi_tu_choi: session.nguoi_tu_choi || "",
         tu_choi_o_buoc: session.tu_choi_o_buoc || "",
@@ -962,22 +974,24 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async createSession(supa, u, [name, mien, ngayDong]) {
+  async createSession(supa, u, [name, mien, ngayDong, nhomSanPham]) {
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const { data, error } = await supa.schema("app_order").from("order_sessions").insert({
-      ten_dot: name, mien, ngay_dong: ngayDong || null, trang_thai: "DRAFT", tao_boi: u.username,
-    }).select().single();
+    const row: any = { ten_dot: name, mien, ngay_dong: ngayDong || null, trang_thai: "DRAFT", tao_boi: u.username };
+    // Chỉ set khi có chọn nhóm -> đợt "tất cả nhóm" vẫn tạo được kể cả khi cột chưa migrate.
+    const grp = String(nhomSanPham || "").trim();
+    if (grp) row.nhom_san_pham = grp;
+    const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
     if (error) throw new Error(error.message);
-    await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien);
+    await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien + (grp ? " · " + grp : ""));
     return data;
   },
 
-  async createSessionBoth(supa, u, [name, ngayDong]) {
+  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham]) {
     if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được tạo đợt cho cả 2 miền");
-    const mb = await H.createSession(supa, u, [name, "MB", ngayDong]);
-    const mn = await H.createSession(supa, u, [name, "MN", ngayDong]);
+    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham]);
+    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham]);
     return { mb, mn };
   },
 

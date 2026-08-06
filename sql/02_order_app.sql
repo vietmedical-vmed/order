@@ -39,8 +39,9 @@ create table if not exists app_order.order_sessions (
   mien        text not null,              -- MB | MN
   ngay_mo     timestamptz not null default now(),
   ngay_dong   timestamptz,
-  trang_thai  text not null default 'DRAFT',  -- DRAFT|SUBMITTED|PM_APPROVED|APPROVED|CLOSED
-  tao_boi     text
+  trang_thai  text not null default 'DRAFT',  -- DRAFT|SUBMITTED|PM_APPROVED|APPROVED|CLOSED|CANCELED
+  tao_boi     text,
+  nhom_san_pham text                          -- lọc danh mục theo nhóm SP; NULL = tất cả nhóm
 );
 
 -- ---------- DÒNG ĐẶT HÀNG ----------
