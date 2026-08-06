@@ -38,8 +38,8 @@ export async function initApprovalView() {
   await renderManageList();
 }
 
-const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CLOSED: 'Đã chốt' };
-const ST_CLS = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CLOSED: 'st-close' };
+const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CLOSED: 'Đã chốt', CANCELED: 'Đã hủy' };
+const ST_CLS = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CLOSED: 'st-close', CANCELED: 'pill-hot' };
 
 async function renderManageList() {
   const host = $('#manageHost');
@@ -59,6 +59,7 @@ async function renderManageList() {
     const canMgr = (role === 'MANAGER' || role === 'ADMIN');     // duyệt/từ chối đợt PM_APPROVED
     const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // đặt hàng (ghi DM/PO) đợt APPROVED
     const canExport = (role === 'MANAGER' || role === 'ADMIN' || role === 'PURCHASING');
+    const canCancel = (role === 'AM' || role === 'ADMIN');            // AM hủy đợt khi PM chưa duyệt
 
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
       <table class="dt">
@@ -86,6 +87,8 @@ async function renderManageList() {
           let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">${reviewable ? 'Xem / Sửa' : 'Xem'}</button>`;
           if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
           if (canReject) action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
+          // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
+          if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
           if (role === 'ADMIN' && st === 'APPROVED') action += ` <button class="ctl-btn" data-act="close" data-id="${s.session_id}">Chốt đợt</button>`;
           if (canPurchase && (st === 'APPROVED' || st === 'CLOSED')) action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
           if (canExport && (st === 'APPROVED' || st === 'CLOSED')) action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
@@ -160,6 +163,18 @@ function bindManageActions() {
       try {
         await rpc('rejectSession', id, reason);
         toast('Đã từ chối · trả đợt về AM');
+        await loadSessions();
+        renderManageList();
+      } catch (e) { toast('Lỗi: ' + e.message, 'error'); b.disabled = false; }
+    } else if (act === 'cancel') {
+      if (!(await askConfirm({
+        title: 'Hủy đợt đặt hàng', message: 'Hủy đợt này? Đợt sẽ chuyển sang trạng thái "Đã hủy" và không dùng lại được.',
+        danger: true, okLabel: 'Hủy đợt',
+      }))) return;
+      b.disabled = true;
+      try {
+        await rpc('cancelSession', id);
+        toast('Đã hủy đợt · trạng thái → Đã hủy');
         await loadSessions();
         renderManageList();
       } catch (e) { toast('Lỗi: ' + e.message, 'error'); b.disabled = false; }

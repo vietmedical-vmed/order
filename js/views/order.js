@@ -321,6 +321,15 @@ function renderSessionBanner() {
     return;
   }
 
+  // Đợt đã hủy: không hiển thị stepper (đã kết thúc) — chỉ báo trạng thái Đã hủy.
+  if (sess.trang_thai === 'CANCELED') {
+    host.innerHTML = `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-[13px] text-danger-800">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>Đợt <strong>${esc(sess.ten_dot)}</strong> đã bị <strong>hủy</strong> — chỉ xem, không thao tác được.</span>
+      </div>` + stockNote;
+    return;
+  }
+
   const statusOrder = ['DRAFT', 'SUBMITTED', 'PM_APPROVED', 'APPROVED'];
   const stepLabels = { DRAFT: 'AM xác nhận', SUBMITTED: 'PM xác nhận', PM_APPROVED: 'Manager phê duyệt', APPROVED: 'Hoàn thành' };
   const stepHints = {

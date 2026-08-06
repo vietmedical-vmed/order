@@ -1087,6 +1087,21 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return { ok: true, newStatus: "DRAFT" };
   },
 
+  // AM hủy đợt khi CHƯA được PM duyệt (còn DRAFT hoặc SUBMITTED) -> trạng thái CANCELED (kết thúc).
+  async cancelSession(supa, u, [sessionId]) {
+    if (!canActAs(u, "AM")) throw new Error("Không có quyền hủy đợt (AM)");
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    if (!s) throw new Error("Không tìm thấy đợt");
+    if (u.role === "AM" && s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
+    if (s.trang_thai !== "DRAFT" && s.trang_thai !== "SUBMITTED")
+      throw new Error("Chỉ hủy được khi đợt chưa được PM duyệt");
+    await supa.schema("app_order").from("order_sessions").update({
+      trang_thai: "CANCELED", ngay_dong: new Date().toISOString(),
+    }).eq("session_id", sessionId);
+    await audit(supa, u.username, "CANCEL_SESSION", sessionId, "Hủy khi đang " + s.trang_thai);
+    return { ok: true, newStatus: "CANCELED" };
+  },
+
   // Mua hàng "Đặt hàng": lưu thông tin tracking (Đề nghị mua hàng + PO) cho đợt đã duyệt.
   async recordPurchase(supa, u, [sessionId, dm, po]) {
     if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được đặt hàng");
