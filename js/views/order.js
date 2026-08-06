@@ -186,6 +186,12 @@ export async function initOrderView() {
   initPLFilter();
   initMucDoFilter();
   $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
+  $('#fOnlyQty').addEventListener('click', () => {
+    state.filters.onlyWithQty = !state.filters.onlyWithQty;
+    syncOnlyQtyButton();
+    renderOrderBody();
+    updateOrderStats();
+  });
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
   bindOrderInputs();
   bindPLToggles();
@@ -249,6 +255,9 @@ export async function loadOrderData(pinSessionId) {
           ? [{ field: state.currentAction.editField, noteField: state.currentAction.editNoteField }]
           : []);
     state.stockAsof = data.stock_asof || '';
+    // Mặc định thu gọn "chỉ mã có số lượng" theo bước (trừ lúc AM nhập ở DRAFT thì hiện đủ).
+    state.filters.onlyWithQty = defaultOnlyWithQty();
+    syncOnlyQtyButton();
     await tryRestoreDraft();
     populateGrpAndPLOptions();
     renderSessionBanner();
@@ -263,6 +272,8 @@ export async function loadOrderData(pinSessionId) {
     state.currentSession = null;
     state.currentAction = null;
     state.editFields = [];
+    state.filters.onlyWithQty = false;
+    syncOnlyQtyButton();
     renderSessionBanner();
   }
 }
@@ -515,6 +526,31 @@ function initPLFilter() {
   document.addEventListener('click', window.__plOutside);
 }
 
+// Mã đã thực sự có trong đợt: ít nhất 1 cột SL đã lưu > 0 (bỏ null/0/điền sẵn gợi ý).
+function hasSavedQty(r) {
+  return Number(r.sl_dat || 0) > 0 || Number(r.sl_duyet || 0) > 0 || Number(r.sl_dat_hang || 0) > 0;
+}
+
+// Bước AM đang NHẬP ở DRAFT: cần thấy toàn danh mục để nhập/thêm mã -> mặc định KHÔNG thu gọn.
+// Các bước còn lại (PM/Manager duyệt, admin, xem lại đợt đã duyệt): mặc định chỉ hiện mã có SL.
+function defaultOnlyWithQty() {
+  if (!state.currentSession) return false;
+  const a = state.currentAction;
+  const amEntry = a && a.editField === 'sl_dat' && state.currentSession.trang_thai === 'DRAFT';
+  return !amEntry;
+}
+
+// Đồng bộ nút toggle: chỉ hiện khi đang xem 1 đợt; nhãn/aria đổi theo trạng thái lọc.
+function syncOnlyQtyButton() {
+  const btn = $('#fOnlyQty');
+  if (!btn) return;
+  const active = !!(state.currentSession && state.filters.onlyWithQty);
+  btn.classList.toggle('hidden', !state.currentSession);
+  btn.classList.toggle('ctl-active', active);
+  btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  btn.textContent = active ? 'Chỉ mã có số lượng' : 'Đang xem toàn bộ';
+}
+
 function filteredOrderRows() {
   const f = state.filters;
   return state.rows.filter(r => {
@@ -522,6 +558,9 @@ function filteredOrderRows() {
     if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
     if (f.mucDo && f.mucDo.length && !f.mucDo.includes(r.muc_do_sd)) return false;
     if (f.lowStock && r.tong_ton > r.goi_y_dat) return false;
+    // "Chỉ mã có số lượng": chỉ khi đang xem 1 đợt, lọc theo giá trị ĐÃ LƯU (không tính điền
+    // sẵn gợi ý) — mã có ít nhất 1 trong SL yêu cầu / PM duyệt / đặt hàng > 0.
+    if (f.onlyWithQty && state.currentSession && !hasSavedQty(r)) return false;
     if (f.search) {
       const hay = ((r.ma_bravo || '') + ' ' + (r.code_ncc || '') + ' ' + (r.ten_hang || '')
         + ' ' + (r.phan_loai || '') + ' ' + (r.nhom_hang || '')).toLowerCase();
@@ -906,7 +945,8 @@ function statCard({ label, value, sub, accent }) {
 }
 
 function updateOrderStats() {
-  const rows = state.rows;
+  // Thống kê theo phần đang HIỂN THỊ (đã áp bộ lọc, gồm "chỉ mã có số lượng").
+  const rows = filteredOrderRows();
   const eff = (r, field) => qtyEffective(r, field);
   // Tồn của 1 dòng theo công thức: DA + KG + Đi đường − GU
   const stockOf = r => Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0)
