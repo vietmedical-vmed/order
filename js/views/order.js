@@ -196,6 +196,13 @@ export async function initOrderView() {
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
   const btnExport = $('#btnExport');
   if (btnExport) btnExport.onclick = () => exportToExcel();
+  const btnExit = $('#btnExitSession');
+  if (btnExit) btnExit.onclick = async () => {
+    if (state.changes.size > 0 && !(await askConfirm({ title: 'Thoát đợt', message: 'Có thay đổi chưa lưu. Thoát đợt sẽ mất. Tiếp tục?', danger: true }))) return;
+    state.pinnedSessionId = null;
+    state.changes.clear();
+    await loadOrderData();
+  };
   bindOrderInputs();
   bindPLToggles();
   bindSortHeaders();
@@ -261,6 +268,7 @@ export async function loadOrderData(pinSessionId) {
     // Mặc định thu gọn "chỉ mã có số lượng" theo bước (trừ lúc AM nhập ở DRAFT thì hiện đủ).
     state.filters.onlyWithQty = defaultOnlyWithQty();
     syncOnlyQtyButton();
+    syncExitSessionButton();
     await tryRestoreDraft();
     populateGrpAndPLOptions();
     renderSessionBanner();
@@ -277,6 +285,7 @@ export async function loadOrderData(pinSessionId) {
     state.editFields = [];
     state.filters.onlyWithQty = false;
     syncOnlyQtyButton();
+    syncExitSessionButton();
     renderSessionBanner();
   }
 }
@@ -562,6 +571,11 @@ function syncOnlyQtyButton() {
   btn.classList.toggle('ctl-active', active);
   btn.setAttribute('aria-pressed', active ? 'true' : 'false');
   btn.textContent = active ? 'Chỉ mã có số lượng' : 'Đang xem toàn bộ';
+}
+
+function syncExitSessionButton() {
+  const btn = $('#btnExitSession');
+  if (btn) btn.classList.toggle('hidden', !state.currentSession);
 }
 
 function filteredOrderRows() {
