@@ -11,8 +11,6 @@ import { scheduleTokenExpiryWarning, clearTokenExpiryWarning } from './auth.js';
 import { loadSessions } from './session.js';
 import { renderView } from './router.js';
 import { bindGlobalDraftActions } from './views/order.js';
-import { exportToExcel } from './export-excel.js';
-
 setAuthLostHandler(() => showLogin());
 
 // 3.1: chặn mất dữ liệu khi đóng tab/refresh lúc đang có thay đổi chưa lưu.
@@ -165,7 +163,6 @@ async function showApp() {
   try { bindNav(); } catch (e) { console.error('bindNav:', e); }
   try { bindLogout(); } catch (e) { console.error('bindLogout:', e); }
   try { bindGlobalDraftActions(); } catch (e) { console.error('bindGlobalDraftActions:', e); }
-  try { bindExportButton(); } catch (e) { console.error('bindExportButton:', e); }
   try { scheduleTokenExpiryWarning(); } catch (e) { console.error('scheduleTokenExpiryWarning:', e); }
   try {
     // Highlight đúng tab mặc định theo state.view
@@ -177,12 +174,6 @@ async function showApp() {
     const main = $('#main');
     if (main) main.innerHTML = `<div class="empty-state text-danger-600">Lỗi: ${esc(e.message)}</div>`;
   }
-}
-
-function bindExportButton() {
-  const btn = $('#btnExport');
-  if (!btn) return;
-  btn.onclick = () => exportToExcel();
 }
 
 function setupUserUI() {

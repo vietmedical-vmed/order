@@ -8,6 +8,7 @@ import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
 import { renderView } from '../router.js';
 import { setupOrderTable, lockColumnWidths, applyStickyCols, syncScrollWidths, invalidateTableMetrics, didDrag } from '../table-sticky.js';
+import { exportToExcel } from '../export-excel.js';
 
 // ============ ĐỊNH NGHĨA CỘT (nguồn duy nhất cho thead + dòng con + dòng tổng phân loại) ============
 // Gộp 1 chỗ để header, ô dữ liệu và khoá sắp xếp (3.7) không bao giờ lệch nhau.
@@ -193,6 +194,8 @@ export async function initOrderView() {
     updateOrderStats();
   });
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
+  const btnExport = $('#btnExport');
+  if (btnExport) btnExport.onclick = () => exportToExcel();
   bindOrderInputs();
   bindPLToggles();
   bindSortHeaders();

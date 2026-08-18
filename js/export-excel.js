@@ -18,11 +18,55 @@ function loadSheetJS() {
   return _xlsxLoading;
 }
 
-// session tuỳ chọn — nếu không truyền thì dùng đợt đang xem. Backend chỉ cho Manager/Admin
+const pctInt = v => Math.round(Number(v) || 0);
+const moi = r => {
+  const th = Number(r.tb_th || 0);
+  return th > 0 ? Math.floor(Number(r.ton_kho || 0) / th) : '';
+};
+
+// Xuất bảng thông tin (danh mục, không có đợt) từ state.rows đang hiển thị.
+async function exportCatalogToExcel() {
+  const btn = $('#btnExport');
+  if (btn) btn.disabled = true;
+  try {
+    const rows = state.rows;
+    if (!rows || !rows.length) { toast('Chưa có dữ liệu để xuất', 'error'); return; }
+    const XLSX = await loadSheetJS();
+    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
+      'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
+      '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý'];
+    const aoa = [header];
+    rows.forEach((r, i) => {
+      aoa.push([
+        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
+        num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
+        pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
+        num0(r.so_thang_dat), num0(r.leadtime_thang), num0(r.goi_y_dat),
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 12 },
+      { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+      { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Bảng thông tin');
+    const mien = state.mien || 'ALL';
+    const fname = `bang-thong-tin_${mien}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast(`Đã xuất ${rows.length} dòng ra Excel (.xlsx)`);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Xuất đợt đặt hàng (có session). Backend chỉ cho Manager/Admin
 // xuất khi đợt đã APPROVED/CLOSED, nên đây chỉ là lớp UX phía trước.
-export async function exportToExcel(session) {
-  const sess = session || state.currentSession;
-  if (!sess || !sess.session_id) { toast('Chưa chọn đợt để xuất', 'error'); return; }
+async function exportSessionToExcel(session) {
+  const sess = session;
   const btn = $('#btnExport');
   if (btn) btn.disabled = true;
   try {
@@ -36,13 +80,6 @@ export async function exportToExcel(session) {
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
       '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý',
       'SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
-    const pctInt = v => Math.round(Number(v) || 0);   // %SD: số nguyên
-    // MoI = Tồn kho (DA) / TB tháng TH, làm tròn xuống. Không có mức dùng -> để TRỐNG
-    // (số, không kèm chữ "tháng") để còn lọc/tính được trong Excel.
-    const moi = r => {
-      const th = Number(r.tb_th || 0);
-      return th > 0 ? Math.floor(Number(r.ton_kho || 0) / th) : '';
-    };
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
@@ -64,12 +101,22 @@ export async function exportToExcel(session) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Đặt hàng');
     const se = data.session || sess;
-    const fname = `dat-hang_${String(se.ten_dot || 'dot').replace(/\s+/g,'-')}_${se.mien || ''}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const fname = `dat-hang_${String(se.ten_dot || 'dot').replace(/\s+/g, '-')}_${se.mien || ''}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     XLSX.writeFile(wb, fname);
     toast(`Đã xuất ${rows.length} dòng ra Excel (.xlsx)`);
   } catch (e) {
     toast(e.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+// Entry point: có đợt → xuất đợt, không có → xuất bảng thông tin.
+export async function exportToExcel(session) {
+  const sess = session || state.currentSession;
+  if (sess && sess.session_id) {
+    await exportSessionToExcel(sess);
+  } else {
+    await exportCatalogToExcel();
   }
 }
