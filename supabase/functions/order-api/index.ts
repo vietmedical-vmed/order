@@ -249,6 +249,19 @@ function mergeUsage(a: any, b: any) {
   }
   return out;
 }
+function mergeFyUsage(a: any, b: any) {
+  const out: Record<string, any> = {};
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    const x = a[k] || {}, y = b[k] || {};
+    out[k] = {
+      sl_th_fy24: num(x.sl_th_fy24) + num(y.sl_th_fy24),
+      sl_th_fy25: num(x.sl_th_fy25) + num(y.sl_th_fy25),
+      sl_th_fy26_ytd: num(x.sl_th_fy26_ytd) + num(y.sl_th_fy26_ytd),
+    };
+  }
+  return out;
+}
 const num = (v: any) => Number(v || 0);
 
 // Chuẩn hoá KHOÁ ma_bravo dùng để ghép map giữa các nguồn (dm_vat_tu / sv / stock).
@@ -476,6 +489,87 @@ async function usageMapFor(supa: SupabaseClient, mien: string) {
   return buildOne(data || []);
 }
 
+// ---------- SL TH theo Fiscal Year (FY = T04..T03) ----------
+async function usageFyMapFor(supa: SupabaseClient, mien: string) {
+  const now = new Date();
+  const Y = now.getFullYear(), M = now.getMonth() + 1;
+  const data = await rpcAll(supa, "usage_fy_agg",
+    { p_mien: mien, p_y: Y, p_m: M }, ["item_code", "mien"]);
+
+  const buildOne = (rows: any[]) => {
+    const map: Record<string, any> = {};
+    for (const r of rows) {
+      map[maKey(r.item_code)] = {
+        sl_th_fy24: num(r.sl_fy24),
+        sl_th_fy25: num(r.sl_fy25),
+        sl_th_fy26_ytd: num(r.sl_fy26_ytd),
+      };
+    }
+    return map;
+  };
+
+  if (mien === "ALL") {
+    const mb: any[] = [], mn: any[] = [];
+    for (const r of (data || [])) (r.mien === "MN" ? mn : mb).push(r);
+    return mergeFyUsage(buildOne(mb), buildOne(mn));
+  }
+  return buildOne(data || []);
+}
+
+// ---------- cache: đọc bảng usage_indicators (pre-computed) ----------
+async function loadCachedIndicators(supa: SupabaseClient, mien: string) {
+  const PAGE = 1000;
+  const all: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q: any = supa.schema("app_order").from("usage_indicators").select("*");
+    if (mien !== "ALL") q = q.eq("mien", mien);
+    q = q.order("ma_bravo", { ascending: true }).order("mien", { ascending: true });
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) throw new Error("Đọc cache: " + error.message);
+    const batch = data || [];
+    all.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+
+  const buildOne = (rows: any[]) => {
+    const map: Record<string, any> = {};
+    for (const r of rows) {
+      map[maKey(r.ma_bravo)] = {
+        tb_th: num(r.tb_th), ty_le_sd_pct: num(r.ty_le_sd_pct),
+        th_raw: num(r.th_raw), th_product_raw: num(r.th_product_raw),
+        sl_th_fy24: num(r.sl_th_fy24), sl_th_fy25: num(r.sl_th_fy25),
+        sl_th_fy26_ytd: num(r.sl_th_fy26_ytd),
+        tb_kh_3_thang: num(r.tb_kh_3_thang),
+      };
+    }
+    return map;
+  };
+
+  if (mien === "ALL") {
+    const mb: any[] = [], mn: any[] = [];
+    for (const r of all) (r.mien === "MN" ? mn : mb).push(r);
+    const mbMap = buildOne(mb), mnMap = buildOne(mn);
+    const out: Record<string, any> = {};
+    const keys = new Set([...Object.keys(mbMap), ...Object.keys(mnMap)]);
+    for (const k of keys) {
+      const x = mbMap[k] || {}, y = mnMap[k] || {};
+      const th_raw = num(x.th_raw) + num(y.th_raw);
+      const th_product_raw = num(x.th_product_raw) + num(y.th_product_raw);
+      out[k] = {
+        tb_th: num(x.tb_th) + num(y.tb_th),
+        ty_le_sd_pct: th_product_raw > 0 ? Math.round((th_raw / th_product_raw) * 100) : 0,
+        th_raw, th_product_raw,
+        sl_th_fy24: num(x.sl_th_fy24) + num(y.sl_th_fy24),
+        sl_th_fy25: num(x.sl_th_fy25) + num(y.sl_th_fy25),
+        sl_th_fy26_ytd: num(x.sl_th_fy26_ytd) + num(y.sl_th_fy26_ytd),
+        tb_kh_3_thang: num(x.tb_kh_3_thang) + num(y.tb_kh_3_thang),
+      };
+    }
+    return out;
+  }
+  return buildOne(all);
+}
+
 // ---------- TB KH 3 tháng tiếp theo (từ sale_target + mapping) ----------
 // dm_vat_tu KHÔNG có bo_vat_tu; quan hệ vật tư↔bộ nằm ở dm_bo_vat_tu_mapping (khoá = san_pham),
 // 1 san_pham có thể thuộc NHIỀU bộ.
@@ -618,6 +712,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
+  async refreshIndicators(supa, u) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin được refresh cache chỉ số");
+    await supa.rpc("refresh_usage_indicators");
+    return { ok: true };
+  },
+
   async getConfig(supa) {
     const cfg = await getKConfig(supa);
     const groups_list = await listOrderGroups(supa);
@@ -672,6 +772,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       await supa.schema("app_order").from("order_config_log").insert({ cfg_key: "goi_y", value: c, created_by: u.username });
     } catch (_) { /* ignore — log là phụ, không chặn lưu cấu hình */ }
     await audit(supa, u.username, "SAVE_CONFIG", "", JSON.stringify(c));
+    try { await supa.rpc("refresh_usage_indicators"); } catch (_) { /* cache refresh là phụ */ }
     return c;
   },
 
@@ -839,16 +940,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async loadOrderScreen(supa, u, [sessionId, mien]) {
     // Phase 1: fetch session-independent data in parallel
     // (san_pham cho %SD nay lay trong usage_agg -> khong con loadSanPhamMap)
-    const [sessionRaw, products0, grants, spBoMap] = await Promise.all([
-      // Chỉ mở đúng đợt được chỉ định (từ "Quản lý đặt hàng" hoặc sau khi tạo đợt).
-      // Khi không truyền sessionId -> KHÔNG auto-chọn đợt: hiển thị "bảng thông tin"
-      // (màn chi tiết ở chế độ danh mục, không thuộc đợt nào).
+    const [sessionRaw, products0, grants] = await Promise.all([
       sessionId
         ? supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle().then(r => r.data || null)
         : Promise.resolve(null),
       fetchProducts(supa),
       getGrants(supa, u),
-      loadSpBoMap(supa),
     ]);
 
     let session: any = sessionRaw;
@@ -857,7 +954,6 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Cấu hình công thức: nếu đang xem 1 đợt -> dùng cấu hình CÓ HIỆU LỰC tại thời điểm mở đợt
     // (theo log), để xem lại đợt cũ đúng công thức. Bảng thông tin (không đợt) -> cấu hình hiện hành.
     const cfg = session ? await getConfigAt(supa, session.ngay_mo) : await getKConfig(supa);
-    const khC = khCount(cfg), khO = khOffset(cfg);   // độ rộng = số tháng đặt, offset = leadtime
 
     const visFilter = makeVisibleFilter(u.role, grants);
     let products = visFilter ? products0.filter(visFilter) : products0;
@@ -877,29 +973,27 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const effMien: string = session ? session.mien : (mien || "");
     const ngayMo: string | null = session ? session.ngay_mo : null;
 
-    // Phase 2: stock/usage/items — parallel (depend on effMien known after Phase 1)
+    // Phase 2: stock + cached indicators + items — parallel
     const itemMap: Record<string, any> = {};
-    let stockMap: any = {}, usageMap: any = {}, sumByBo: Record<string, number> = {}, stockAsof = "";
+    let stockMap: any = {}, indicatorMap: any = {}, stockAsof = "";
 
     if (effMien === "MB" || effMien === "MN") {
-      const [sm, um, sb, sa, its] = await Promise.all([
+      const [sm, ind, sa, its] = await Promise.all([
         stockMapFor(supa, effMien, ngayMo),
-        usageMapFor(supa, effMien),
-        saleTargetSumByBo(supa, effMien, khC, khO),
+        loadCachedIndicators(supa, effMien),
         resolveStockCycledate(supa, effMien, ngayMo),
         session ? supa.schema("app_order").from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
-      stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
+      stockMap = sm; indicatorMap = ind; stockAsof = sa;
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     } else if (effMien === "ALL") {
-      const [sm, um, sb, sa, its] = await Promise.all([
+      const [sm, ind, sa, its] = await Promise.all([
         stockMapFor(supa, "ALL"),
-        usageMapFor(supa, "ALL"),
-        saleTargetSumByBo(supa, "ALL", khC, khO),
+        loadCachedIndicators(supa, "ALL"),
         latestCycledate(supa),
         session ? supa.schema("app_order").from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
       ]);
-      stockMap = sm; usageMap = um; sumByBo = sb; stockAsof = sa;
+      stockMap = sm; indicatorMap = ind; stockAsof = sa;
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     }
 
@@ -911,14 +1005,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     for (const p of products) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
-      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const ind = indicatorMap[maKey(p.ma_bravo)] || {};
       const s = stockMap[maKey(p.ma_bravo)] || {};
-      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);   // hệ số/số tháng đặt theo nhóm SP
+      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
       const a = spGy[spk] || (spGy[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.th += num(us.tb_th);
+      a.th += num(ind.tb_th);
       a.ton += num(s.tong_ton);
-      a.safety += num(p.safety_stock);          // safety stock cộng dồn theo sản phẩm
-      a.kh = tbKh3Thang(p, sumByBo, spBoMap, khC);  // mức sản phẩm, mọi mã bravo như nhau
+      a.safety += num(p.safety_stock);
+      a.kh = num(ind.tb_kh_3_thang);
       a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
     }
     const spGoiY: Record<string, number> = {};
@@ -930,16 +1024,15 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     const rows = products.map((p) => {
       const s = stockMap[maKey(p.ma_bravo)] || {};
-      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const ind = indicatorMap[maKey(p.ma_bravo)] || {};
       const i = itemMap[maKey(p.ma_bravo)] || {};
-      const tb_th = num(us.tb_th);
-      const tb_kh_3_thang = Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC));
+      const tb_th = num(ind.tb_th);
+      const tb_kh_3_thang = Math.round(num(ind.tb_kh_3_thang));
       const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
       const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
-      const leadtime_thang = Number(gcfgRow.leadtime_thang_default);   // số tháng để hàng về (theo nhóm)
+      const leadtime_thang = Number(gcfgRow.leadtime_thang_default);
       const tong_ton = num(s.tong_ton);
-      const ty_le_sd_pct = num(us.ty_le_sd_pct);
-      // Gợi ý mã bravo = Gợi ý sản phẩm × %SD của mã bravo đó (cùng cửa sổ TH).
+      const ty_le_sd_pct = num(ind.ty_le_sd_pct);
       const goi_y_dat = Math.max(0, Math.round((spGoiY[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
       return {
         ma_bravo: p.ma_bravo, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
@@ -952,6 +1045,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv),
         hang_vet_thau: num(s.hang_vet_thau), hang_di_duong: num(s.hang_di_duong),
         tong_ton,
+        sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
         tb_th,
         ty_le_sd_pct,
         goi_y_dat,
@@ -1180,34 +1274,29 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (session.trang_thai !== "APPROVED" && session.trang_thai !== "CLOSED")
       throw new Error("Chỉ xuất được khi đợt đã được Manager phê duyệt (APPROVED)");
 
-    // Xuất đủ cột như màn Chi tiết → cần tính lại stock/usage/Gợi ý theo đúng logic loadOrderScreen.
     const mienExp = session.mien;
     const ngayMoExp = session.ngay_mo || null;
-    const cfg = await getConfigAt(supa, ngayMoExp);   // dùng đúng công thức có hiệu lực khi mở đợt
-    const khC = khCount(cfg), khO = khOffset(cfg);     // cửa sổ TB KH (tháng hàng về & được dùng)
-    const [items, prods, spBoMap, stockMap, usageMap, sumByBo] = await Promise.all([
+    const cfg = await getConfigAt(supa, ngayMoExp);
+    const [items, prods, stockMap, indicatorMap] = await Promise.all([
       supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
       fetchProducts(supa),
-      loadSpBoMap(supa),
       stockMapFor(supa, mienExp, ngayMoExp),
-      usageMapFor(supa, mienExp),
-      saleTargetSumByBo(supa, mienExp, khC, khO),
+      loadCachedIndicators(supa, mienExp),
     ]);
     const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
 
-    // Gợi ý tính ở mức sản phẩm rồi phân bổ theo %SD (giống loadOrderScreen).
     const spGyE: Record<string, any> = {};
     for (const p of prods) {
       const spk = normKey(p.san_pham);
       if (!spk) continue;
-      const us = usageMap[maKey(p.ma_bravo)] || {};
+      const ind = indicatorMap[maKey(p.ma_bravo)] || {};
       const s = stockMap[maKey(p.ma_bravo)] || {};
       const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
       const a = spGyE[spk] || (spGyE[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.th += num(us.tb_th);
+      a.th += num(ind.tb_th);
       a.ton += num(s.tong_ton);
       a.safety += num(p.safety_stock);
-      a.kh = tbKh3Thang(p, sumByBo, spBoMap, khC);
+      a.kh = num(ind.tb_kh_3_thang);
       a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
     }
     const spGoiYE: Record<string, number> = {};
@@ -1220,9 +1309,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const rows = (items || []).map((it) => {
       const p = pMap[maKey(it.ma_bravo)] || {};
       const s = stockMap[maKey(it.ma_bravo)] || {};
-      const us = usageMap[maKey(it.ma_bravo)] || {};
+      const ind = indicatorMap[maKey(it.ma_bravo)] || {};
       const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
-      const ty_le_sd_pct = num(us.ty_le_sd_pct);
+      const ty_le_sd_pct = num(ind.ty_le_sd_pct);
       const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
       const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
       const leadtime_thang = Number(gcfgRow.leadtime_thang_default);
@@ -1233,8 +1322,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         don_vi: p.don_vi || "", gia,
         ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
         hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
-        ty_le_sd_pct, tb_th: num(us.tb_th),
-        tb_kh_3_thang: Math.round(tbKh3Thang(p, sumByBo, spBoMap, khC)),
+        sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
+        ty_le_sd_pct, tb_th: num(ind.tb_th),
+        tb_kh_3_thang: Math.round(num(ind.tb_kh_3_thang)),
         safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay), leadtime_thang,
         goi_y_dat,
         sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,

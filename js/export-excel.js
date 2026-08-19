@@ -34,12 +34,14 @@ async function exportCatalogToExcel() {
     const XLSX = await loadSheetJS();
     const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
+      'SL TH FY24','SL TH FY25','SL TH FY26 YTD',
       '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý'];
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
         i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
+        num0(r.sl_th_fy24), num0(r.sl_th_fy25), num0(r.sl_th_fy26_ytd),
         pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
         num0(r.so_thang_dat), num0(r.leadtime_thang), num0(r.goi_y_dat),
       ]);
@@ -48,6 +50,7 @@ async function exportCatalogToExcel() {
     ws['!cols'] = [
       { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 12 },
       { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 },
       { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
     ];
     const wb = XLSX.utils.book_new();
@@ -78,6 +81,7 @@ async function exportSessionToExcel(session) {
     if (!rows.length) { toast('Đợt này chưa có SKU nào', 'error'); return; }
     const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD','Đơn vị','Đơn giá',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
+      'SL TH FY24','SL TH FY25','SL TH FY26 YTD',
       '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý',
       'SL yêu cầu','SL PM duyệt','SL đặt hàng','DM','PO','Thành tiền','Ghi chú đặt','Ghi chú duyệt'];
     const aoa = [header];
@@ -85,6 +89,7 @@ async function exportSessionToExcel(session) {
       aoa.push([
         i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '', r.don_vi, num0(r.gia),
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
+        num0(r.sl_th_fy24), num0(r.sl_th_fy25), num0(r.sl_th_fy26_ytd),
         pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
         num0(r.so_thang_dat), num0(r.leadtime_thang), num0(r.goi_y_dat),
         num0(r.sl_yeu_cau), num0(r.sl_pm_duyet), num0(r.sl_dat_hang), r.de_nghi_mua_hang || '', r.po || '',
@@ -95,6 +100,7 @@ async function exportSessionToExcel(session) {
     ws['!cols'] = [
       { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 12 },
       { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 },
       { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
       { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 24 },
     ];

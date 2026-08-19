@@ -103,6 +103,9 @@ const BASE_COLUMNS = [
     cell: r => `<td class="r num text-slate-700">${r.ty_le_sd_pct ? `${Math.round(r.ty_le_sd_pct)}%<div class="mini-bar"><i style="width:${Math.min(100, r.ty_le_sd_pct * 5)}%"></i></div>` : '—'}</td>`,
     agg: () => `<td class="r num text-slate-400">—</td>`,
   },
+  numCol('sl_th_fy24', 'SL TH FY24', 90, { override: { title: 'SL thực hiện FY24 (T04/2024 – T03/2025)' } }),
+  numCol('sl_th_fy25', 'SL TH FY25', 90, { override: { title: 'SL thực hiện FY25 (T04/2025 – T03/2026)' } }),
+  numCol('sl_th_fy26_ytd', 'SL TH FY26', 95, { override: { title: 'SL thực hiện FY26 YTD (từ T04/2026)' } }),
   // TB tháng TH = TB SL thực hiện, chỉ chia cho SỐ THÁNG CÓ PHÁT SINH (gộp CKNT + YTD cũ).
   numCol('tb_th', 'TB tháng TH', 95),
   {
@@ -799,6 +802,9 @@ function plBlockHtml(pl, items, grp) {
     a.hang_vet_thau += Number(r.hang_vet_thau || 0);
     a.hang_di_duong += Number(r.hang_di_duong || 0);
     a.tong_ton += Number(r.tong_ton || 0);
+    a.sl_th_fy24 += Number(r.sl_th_fy24 || 0);
+    a.sl_th_fy25 += Number(r.sl_th_fy25 || 0);
+    a.sl_th_fy26_ytd += Number(r.sl_th_fy26_ytd || 0);
     a.tb_th += Number(r.tb_th || 0);
     // TB KH ở mức san_pham (mọi mã bravo cùng phân loại chia sẻ 1 giá trị) -> KHÔNG cộng dồn,
     // lấy đúng giá trị đó (max phòng dòng lệch/0) để tổng phân loại không bị nhân số SKU.
@@ -809,7 +815,7 @@ function plBlockHtml(pl, items, grp) {
     a.sl_duyet += qtyEffective(r, 'sl_duyet');
     a.sl_dat_hang += qtyEffective(r, 'sl_dat_hang');
     return a;
-  }, { ton_kho: 0, hang_ktv_bv: 0, hang_vet_thau: 0, hang_di_duong: 0, tong_ton: 0, tb_th: 0, tb_kh_3_thang: 0, safety_stock: 0, goi_y_dat: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0 });
+  }, { ton_kho: 0, hang_ktv_bv: 0, hang_vet_thau: 0, hang_di_duong: 0, tong_ton: 0, sl_th_fy24: 0, sl_th_fy25: 0, sl_th_fy26_ytd: 0, tb_th: 0, tb_kh_3_thang: 0, safety_stock: 0, goi_y_dat: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0 });
 
   const parentRow = `<tr class="pl-parent" data-pl-toggle="${plId}">${cols.map(c => c.agg(agg, ctx)).join('')}</tr>`;
   const childRows = sortItems(items).map(r => productRowHtml(r, plId, cols, ctx)).join('');
