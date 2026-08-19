@@ -199,13 +199,6 @@ export async function initOrderView() {
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
   const btnExport = $('#btnExport');
   if (btnExport) btnExport.onclick = () => exportToExcel();
-  const btnExit = $('#btnExitSession');
-  if (btnExit) btnExit.onclick = async () => {
-    if (state.changes.size > 0 && !(await askConfirm({ title: 'Thoát đợt', message: 'Có thay đổi chưa lưu. Thoát đợt sẽ mất. Tiếp tục?', danger: true }))) return;
-    state.pinnedSessionId = null;
-    state.changes.clear();
-    await loadOrderData();
-  };
   bindOrderInputs();
   bindPLToggles();
   bindSortHeaders();
@@ -271,7 +264,6 @@ export async function loadOrderData(pinSessionId) {
     // Mặc định thu gọn "chỉ mã có số lượng" theo bước (trừ lúc AM nhập ở DRAFT thì hiện đủ).
     state.filters.onlyWithQty = defaultOnlyWithQty();
     syncOnlyQtyButton();
-    syncExitSessionButton();
     await tryRestoreDraft();
     populateGrpAndPLOptions();
     renderSessionBanner();
@@ -288,7 +280,6 @@ export async function loadOrderData(pinSessionId) {
     state.editFields = [];
     state.filters.onlyWithQty = false;
     syncOnlyQtyButton();
-    syncExitSessionButton();
     renderSessionBanner();
   }
 }
@@ -405,8 +396,20 @@ function renderSessionBanner() {
       </div>
       <div class="flex-1"></div>
       <div class="flex items-center gap-1.5 flex-wrap">${stepsHtml}</div>
+      <button id="btnExitSession" class="ctl-btn flex-shrink-0" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Thoát đợt
+      </button>
     </div>
   ` + stockNote;
+
+  const btnExit = $('#btnExitSession');
+  if (btnExit) btnExit.onclick = async () => {
+    if (state.changes.size > 0 && !(await askConfirm({ title: 'Thoát đợt', message: 'Có thay đổi chưa lưu. Thoát đợt sẽ mất. Tiếp tục?', danger: true }))) return;
+    state.pinnedSessionId = null;
+    state.changes.clear();
+    await loadOrderData();
+  };
 }
 
 // ============ BỘ LỌC ============
@@ -574,11 +577,6 @@ function syncOnlyQtyButton() {
   btn.classList.toggle('ctl-active', active);
   btn.setAttribute('aria-pressed', active ? 'true' : 'false');
   btn.textContent = active ? 'Chỉ mã có số lượng' : 'Đang xem toàn bộ';
-}
-
-function syncExitSessionButton() {
-  const btn = $('#btnExitSession');
-  if (btn) btn.classList.toggle('hidden', !state.currentSession);
 }
 
 function filteredOrderRows() {
