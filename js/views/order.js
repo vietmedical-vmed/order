@@ -39,7 +39,7 @@ const qtyCell = (r, field, colorCls, ctx) => {
 };
 
 const noteCell = (r, field, ctx) => {
-  const isEdit = ctx.editNoteField === field && r.editable !== false;
+  const isEdit = ctx.editNoteFields && ctx.editNoteFields.has(field) && r.editable !== false;
   if (isEdit) {
     const ch = state.changes.get(r.ma_bravo);
     const val = (ch && ch[field] !== undefined) ? ch[field] : (r[field] || '');
@@ -755,11 +755,14 @@ function noteEffective(r, field) {
 function rowContext() {
   const action = state.currentAction;
   const fields = state.editFields || [];
+  const noteFields = new Set(fields.map(f => f.noteField).filter(Boolean));
+  if (action && action.editNoteField) noteFields.add(action.editNoteField);
   return {
     editFields: new Set(fields.map(f => f.field)),          // cột số lượng sửa được
     primaryField: action ? action.editField : null,         // cột chính (điền sẵn gợi ý)
     prefill: action ? action.prefill !== false : false,     // bước có điền sẵn gợi ý không
-    editNoteField: action ? action.editNoteField : null,    // 1 cột ghi chú theo bước hiện tại
+    editNoteFields: noteFields,                             // các cột ghi chú sửa được
+    editNoteField: action ? action.editNoteField : null,    // cột ghi chú chính (cho submit non-changesOnly)
     editLabel: action ? action.label : null,
   };
 }
