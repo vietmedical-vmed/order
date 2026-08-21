@@ -895,6 +895,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     let q = supa.schema("app_order").from("order_sessions").select("*");
     if (u.role === "AM") q = q.eq("mien", u.mien);
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
+    // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
+    if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED", "CLOSED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED) hoặc đã chốt (CLOSED).
     if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED", "CLOSED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
@@ -1450,15 +1452,17 @@ function editContextForSession(u: any, session: any) {
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
-  else if (mienHint && mienHint !== "ALL") q = q.eq("mien", mienHint);
+  else if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED", "CLOSED"]);
+  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED", "CLOSED"]);
+  if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
   const { data } = await q;
   const cands = data || [];
   if (!cands.length) return null;
   const priority: Record<string, string[]> = {
     AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
     PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED"],
-    MANAGER: ["PM_APPROVED", "APPROVED", "SUBMITTED", "DRAFT"],
-    PURCHASING: ["APPROVED", "CLOSED", "PM_APPROVED", "SUBMITTED", "DRAFT"],
+    MANAGER: ["PM_APPROVED", "APPROVED", "CLOSED"],
+    PURCHASING: ["APPROVED", "CLOSED"],
     ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
   };
   const order = priority[u.role] || priority.ADMIN;
