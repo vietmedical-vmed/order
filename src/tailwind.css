@@ -73,7 +73,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
   position: sticky;
   top: 0;
   z-index: 10;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   vertical-align: middle;
   cursor: grab;
   user-select: none;
@@ -132,7 +133,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .floating-thead-container thead th {
   background: #e4e6eb; font-weight: 600; color: #3a3b3c; text-align: center;
   padding: 10px 8px; font-size: 10.5px; text-transform: uppercase;
-  letter-spacing: 0.03em; white-space: nowrap; vertical-align: middle;
+  letter-spacing: 0.03em; white-space: normal; word-break: break-word; vertical-align: middle;
 }
 .dt tbody tr.dirty { background: #fffbeb; }
 .dt tbody tr.dirty:hover { background: #fef3c7; }
