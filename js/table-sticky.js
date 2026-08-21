@@ -40,12 +40,12 @@ export function lockColumnWidths(root) {
     const cg = document.createElement('colgroup');
     widths.forEach(w => {
       const col = document.createElement('col');
-      col.style.width = w + 'px';
+      col.style.minWidth = w + 'px';
       cg.appendChild(col);
     });
     tbl.insertBefore(cg, tbl.firstChild);
-    tbl.style.tableLayout = 'fixed';
-    tbl.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
+    tbl.style.tableLayout = 'auto';
+    tbl.style.width = '';
     tbl.__colWidths = widths; // clone nổi dùng lại
   });
   metricsDirty = true;
@@ -158,9 +158,14 @@ function applyColWidth(tbl, idx, w) {
   const cg = tbl.querySelector('colgroup');
   if (!cg) return;
   const col = cg.children[idx];
-  if (col) col.style.width = w + 'px';
-  if (tbl.__colWidths) tbl.__colWidths[idx] = w;
-  tbl.style.width = tbl.__colWidths.reduce((a, b) => a + b, 0) + 'px';
+  if (!col) return;
+  col.style.minWidth = w + 'px';
+  col.style.width = w + 'px';
+  if (tbl.__colWidths) {
+    tbl.__colWidths[idx] = w;
+    if (tbl.style.tableLayout === 'fixed')
+      tbl.style.width = tbl.__colWidths.reduce((a, b) => a + b, 0) + 'px';
+  }
 }
 
 function bindColResizeGlobal() {
@@ -243,15 +248,17 @@ function buildFloatingHeaders() {
       const val = table.style.getPropertyValue(v);
       if (val) cloneTable.style.setProperty(v, val);
     });
-    const colW = table.__colWidths;
-    if (colW && colW.length) {
+    // Clone header phải khớp chính xác bề rộng cột thực tế của bảng gốc (auto layout).
+    const hr = thead.rows[0];
+    if (hr && hr.cells.length) {
       const cg = document.createElement('colgroup');
-      colW.forEach(w => { const col = document.createElement('col'); col.style.width = w + 'px'; cg.appendChild(col); });
+      const actualW = [];
+      for (const c of hr.cells) actualW.push(Math.round(c.getBoundingClientRect().width));
+      actualW.forEach(w => { const col = document.createElement('col'); col.style.width = w + 'px'; cg.appendChild(col); });
       cloneTable.appendChild(cg);
       cloneTable.style.tableLayout = 'fixed';
-      cloneTable.style.width = colW.reduce((a, b) => a + b, 0) + 'px';
-    } else {
-      cloneTable.style.tableLayout = getComputedStyle(table).tableLayout || 'auto';
+      cloneTable.style.width = actualW.reduce((a, b) => a + b, 0) + 'px';
+      cloneTable.__colWidths = actualW;
     }
     cloneTable.appendChild(thead.cloneNode(true));
     container.appendChild(cloneTable);
