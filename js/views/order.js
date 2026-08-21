@@ -179,17 +179,17 @@ const SESSION_COLUMNS = [
     agg: () => `<td class="c text-slate-300">—</td>`,
   },
   {
-    key: 'ghi_chu_dat', label: 'GC yêu cầu', minWidth: 120, sort: null, title: 'Ghi chú yêu cầu (AM)',
+    key: 'ghi_chu_dat', label: 'Ghi chú yêu cầu', minWidth: 120, sort: null,
     cell: (r, ctx) => noteCell(r, 'ghi_chu_dat', ctx),
     agg: () => `<td></td>`,
   },
   {
-    key: 'ghi_chu_duyet', label: 'GC PM duyệt', minWidth: 120, sort: null, title: 'Ghi chú PM duyệt',
+    key: 'ghi_chu_duyet', label: 'Ghi chú PM duyệt', minWidth: 120, sort: null,
     cell: (r, ctx) => noteCell(r, 'ghi_chu_duyet', ctx),
     agg: () => `<td></td>`,
   },
   {
-    key: 'ghi_chu_dat_hang', label: 'GC đặt hàng', minWidth: 120, sort: null, title: 'Ghi chú đặt hàng (Manager)',
+    key: 'ghi_chu_dat_hang', label: 'Ghi chú đặt hàng', minWidth: 120, sort: null,
     cell: (r, ctx) => noteCell(r, 'ghi_chu_dat_hang', ctx),
     agg: () => `<td></td>`,
   },
@@ -656,13 +656,7 @@ function theadHtml(cols) {
     const w = c.width ? `width:${c.width}px` : (c.minWidth ? `min-width:${c.minWidth}px` : '');
     const title = c.title ? ` title="${esc(c.title)}"` : '';
     const handle = `<span class="col-resize-handle" data-col-idx="${i}"></span>`;
-    if (!c.sort) return `<th class="${c.cls || ''}" style="${w}"${title}>${esc(c.label)}${handle}</th>`;
-    const active = state.sort.key === c.key;
-    const arrow = active ? (state.sort.dir === 1 ? ' ▲' : ' ▼') : '';
-    const ariaSort = active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : 'none';
-    return `<th class="${c.cls || ''} th-sort${active ? ' th-sort-active' : ''}" style="${w}"
-      data-sort-key="${c.key}" data-sort-type="${c.sort}" aria-sort="${ariaSort}"
-      title="${esc(c.title || c.label)} — bấm để sắp xếp">${esc(c.label)}${arrow}${handle}</th>`;
+    return `<th class="${c.cls || ''}" style="${w}"${title}>${esc(c.label)}${handle}</th>`;
   }).join('');
   return `<thead><tr>${cells}</tr></thead>`;
 }
