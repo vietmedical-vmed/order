@@ -38,6 +38,17 @@ const qtyCell = (r, field, colorCls, ctx) => {
   return `<td class="c num font-medium ${currentValue != null ? colorCls : 'text-slate-300'}"${lockTitle}>${display}</td>`;
 };
 
+const noteCell = (r, field, ctx) => {
+  const isEdit = ctx.editNoteField === field && r.editable !== false;
+  if (isEdit) {
+    const ch = state.changes.get(r.ma_bravo);
+    const val = (ch && ch[field] !== undefined) ? ch[field] : (r[field] || '');
+    return `<td><input type="text" class="note-input" value="${esc(val)}" placeholder="—" data-field="${field}" data-id="${esc(r.ma_bravo)}" aria-label="Ghi chú — ${esc(r.ma_bravo)}"/></td>`;
+  }
+  const val = r[field] || '';
+  return `<td class="note-cell text-[11.5px] text-slate-500 italic">${esc(val || '—')}</td>`;
+};
+
 // MoI = Tồn kho (DA) / TB tháng TH, làm tròn XUỐNG. Không có mức dùng (TB tháng TH = 0)
 // thì không tính được -> null (hiển thị '—'), tránh chia cho 0.
 const moiOf = (x) => {
@@ -168,13 +179,18 @@ const SESSION_COLUMNS = [
     agg: () => `<td class="c text-slate-300">—</td>`,
   },
   {
-    key: 'ghi_chu', label: 'Ghi chú', minWidth: 160, sort: null,
-    cell: (r, ctx) => {
-      const noteValue = noteEffective(r, ctx.editNoteField);
-      return (ctx.editNoteField && r.editable !== false)
-        ? `<td><input type="text" class="note-input" value="${esc(noteValue)}" placeholder="—" data-field="${ctx.editNoteField}" data-id="${esc(r.ma_bravo)}" aria-label="Ghi chú — ${esc(r.ma_bravo)}"/></td>`
-        : `<td class="text-[11.5px] text-slate-500 italic">${esc(noteValue || '—')}</td>`;
-    },
+    key: 'ghi_chu_dat', label: 'GC yêu cầu', minWidth: 120, sort: null, title: 'Ghi chú yêu cầu (AM)',
+    cell: (r, ctx) => noteCell(r, 'ghi_chu_dat', ctx),
+    agg: () => `<td></td>`,
+  },
+  {
+    key: 'ghi_chu_duyet', label: 'GC PM duyệt', minWidth: 120, sort: null, title: 'Ghi chú PM duyệt',
+    cell: (r, ctx) => noteCell(r, 'ghi_chu_duyet', ctx),
+    agg: () => `<td></td>`,
+  },
+  {
+    key: 'ghi_chu_dat_hang', label: 'GC đặt hàng', minWidth: 120, sort: null, title: 'Ghi chú đặt hàng (Manager)',
+    cell: (r, ctx) => noteCell(r, 'ghi_chu_dat_hang', ctx),
     agg: () => `<td></td>`,
   },
 ];
@@ -636,17 +652,17 @@ function bindSortHeaders() {
 }
 
 function theadHtml(cols) {
-  const cells = cols.map(c => {
+  const cells = cols.map((c, i) => {
     const w = c.width ? `width:${c.width}px` : (c.minWidth ? `min-width:${c.minWidth}px` : '');
     const title = c.title ? ` title="${esc(c.title)}"` : '';
-    if (!c.sort) return `<th class="${c.cls || ''}" style="${w}"${title}>${esc(c.label)}</th>`;
+    const handle = `<span class="col-resize-handle" data-col-idx="${i}"></span>`;
+    if (!c.sort) return `<th class="${c.cls || ''}" style="${w}"${title}>${esc(c.label)}${handle}</th>`;
     const active = state.sort.key === c.key;
     const arrow = active ? (state.sort.dir === 1 ? ' ▲' : ' ▼') : '';
     const ariaSort = active ? (state.sort.dir === 1 ? 'ascending' : 'descending') : 'none';
-    // (title đặt 1 lần ở cuối — kèm gợi ý bấm để sắp xếp; không lặp lại attribute)
     return `<th class="${c.cls || ''} th-sort${active ? ' th-sort-active' : ''}" style="${w}"
       data-sort-key="${c.key}" data-sort-type="${c.sort}" aria-sort="${ariaSort}"
-      title="${esc(c.title || c.label)} — bấm để sắp xếp">${esc(c.label)}${arrow}</th>`;
+      title="${esc(c.title || c.label)} — bấm để sắp xếp">${esc(c.label)}${arrow}${handle}</th>`;
   }).join('');
   return `<thead><tr>${cells}</tr></thead>`;
 }

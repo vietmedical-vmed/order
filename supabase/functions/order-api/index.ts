@@ -1136,7 +1136,13 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         if (filtered.length === 0) throw new Error("Không có SKU nào thuộc nhóm sản phẩm của bạn để duyệt");
       }
     }
-    return await saveAndAdvance(supa, u, sessionId, filtered, ["sl_duyet", "ghi_chu_duyet"], "SUBMITTED", "PM_APPROVED", "PM_CONFIRM");
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("trang_thai").eq("session_id", sessionId).maybeSingle();
+    if (!s) throw new Error("Không tìm thấy đợt");
+    if (s.trang_thai === "SUBMITTED")
+      return await saveAndAdvance(supa, u, sessionId, filtered, ["sl_duyet", "ghi_chu_duyet"], ["SUBMITTED"], "PM_APPROVED", "PM_CONFIRM");
+    if (s.trang_thai === "PM_APPROVED")
+      return await saveAndAdvance(supa, u, sessionId, filtered, ["sl_duyet", "ghi_chu_duyet"], ["PM_APPROVED"], null, "PM_UPDATE");
+    throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — PM không sửa được nữa (Manager đã duyệt)");
   },
   async managerApprove(supa, u, [sessionId, items]) {
     if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền phê duyệt (Manager)");
@@ -1422,6 +1428,18 @@ function editContextForSession(u: any, session: any) {
           hint: "Sửa SL yêu cầu rồi bấm Cập nhật (đợt vẫn chờ PM duyệt)",
           editField: "sl_dat", editNoteField: "ghi_chu_dat", endpoint: "amConfirm" };
     return { action, editFields: [{ field: "sl_dat", noteField: "ghi_chu_dat" }] };
+  }
+
+  // PM: sửa SL PM duyệt tới KHI MANAGER DUYỆT/TỪ CHỐI — tức khi đợt còn SUBMITTED hoặc PM_APPROVED.
+  if (u.role === "PM" && (st === "SUBMITTED" || st === "PM_APPROVED")) {
+    const advancing = st === "SUBMITTED";
+    const action = advancing
+      ? { code: "PM_CONFIRM", label: "Xác nhận",
+          editField: "sl_duyet", editNoteField: "ghi_chu_duyet", endpoint: "pmConfirm" }
+      : { code: "PM_CONFIRM", label: "Cập nhật SL PM duyệt", changesOnly: true, prefill: false,
+          hint: "Sửa SL PM duyệt rồi bấm Cập nhật (đợt vẫn chờ Manager duyệt)",
+          editField: "sl_duyet", editNoteField: "ghi_chu_duyet", endpoint: "pmConfirm" };
+    return { action, editFields: [{ field: "sl_duyet", noteField: "ghi_chu_duyet" }] };
   }
 
   // Các vai trò/luồng còn lại: giữ mô hình 1 cột theo bước hiện tại.

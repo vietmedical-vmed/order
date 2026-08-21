@@ -151,6 +151,67 @@ export function destroyOrderTable() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
 }
 
+// ============ KÉO CHỈNH ĐỘ RỘNG CỘT ============
+let colResizeTarget = null; // { table, colIdx, startX, startWidth, col, cloneCol, entry }
+
+function applyColWidth(tbl, idx, w) {
+  const cg = tbl.querySelector('colgroup');
+  if (!cg) return;
+  const col = cg.children[idx];
+  if (col) col.style.width = w + 'px';
+  if (tbl.__colWidths) tbl.__colWidths[idx] = w;
+  tbl.style.width = tbl.__colWidths.reduce((a, b) => a + b, 0) + 'px';
+}
+
+function bindColResizeGlobal() {
+  document.addEventListener('mousemove', e => {
+    if (!colResizeTarget) return;
+    e.preventDefault();
+    const dx = e.pageX - colResizeTarget.startX;
+    const newW = Math.max(40, colResizeTarget.startWidth + dx);
+    applyColWidth(colResizeTarget.table, colResizeTarget.colIdx, newW);
+    if (colResizeTarget.cloneTable) applyColWidth(colResizeTarget.cloneTable, colResizeTarget.colIdx, newW);
+  });
+  document.addEventListener('mouseup', () => {
+    if (!colResizeTarget) return;
+    const handle = colResizeTarget.handle;
+    if (handle) handle.classList.remove('active');
+    document.body.style.cursor = '';
+    colResizeTarget = null;
+    applyStickyCols();
+    syncScrollWidths();
+    syncFloatingScrollWidths();
+    invalidateTableMetrics();
+  });
+}
+bindColResizeGlobal();
+
+function bindColResize(card) {
+  const body = card.querySelector('[data-scroll-body]');
+  if (!body) return;
+  const thead = body.querySelector('thead');
+  if (!thead) return;
+  thead.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.col-resize-handle');
+    if (!handle) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const colIdx = parseInt(handle.dataset.colIdx, 10);
+    const table = body.querySelector('table');
+    if (!table || !table.__colWidths) return;
+    const entry = registry.find(x => x.body === body);
+    handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    colResizeTarget = {
+      table, colIdx,
+      startX: e.pageX,
+      startWidth: table.__colWidths[colIdx],
+      cloneTable: entry ? entry.cloneTable : null,
+      handle,
+    };
+  });
+}
+
 function buildFloatingHeaders() {
   const pageHeader = document.querySelector('header.sticky') || document.querySelector('header');
   headerOffset = pageHeader ? pageHeader.offsetHeight : 96;
@@ -173,17 +234,15 @@ function buildFloatingHeaders() {
     const container = document.createElement('div');
     container.className = 'floating-thead-container';
     container.style.cssText = `position: fixed; top: ${headerOffset}px; overflow: hidden; z-index: 15; display: none; pointer-events: none;`;
-    container.setAttribute('aria-hidden', 'true');   // 4.3: bản sao trang trí, screen reader đọc thead thật
+    container.setAttribute('aria-hidden', 'true');
 
     const cloneTable = document.createElement('table');
     cloneTable.className = 'dt';
-    cloneTable.__srcCard = card; // để applyStickyCols đồng bộ var offset
-    // Copy CSS var offset của cột đông cứng từ bảng gốc sang clone
+    cloneTable.__srcCard = card;
     ['--l1', '--l2', '--l3', '--l4'].forEach(v => {
       const val = table.style.getPropertyValue(v);
       if (val) cloneTable.style.setProperty(v, val);
     });
-    // Khoá bề rộng cột giống bảng gốc (đã đo & lock) → header clone khớp thân bảng
     const colW = table.__colWidths;
     if (colW && colW.length) {
       const cg = document.createElement('colgroup');
@@ -196,9 +255,29 @@ function buildFloatingHeaders() {
     }
     cloneTable.appendChild(thead.cloneNode(true));
     container.appendChild(cloneTable);
+
+    // Floating scrollbar dính dưới header nổi
+    const fScroll = document.createElement('div');
+    fScroll.className = 'floating-scrollbar';
+    const fInner = document.createElement('div');
+    fInner.className = 'floating-scrollbar-inner';
+    fInner.style.width = (table.scrollWidth || 0) + 'px';
+    fScroll.appendChild(fInner);
+    container.appendChild(fScroll);
+
     document.body.appendChild(container);
 
-    const entry = { card, body, table, container, cloneTable, visible: true, shown: false, sx: 0, top: 0, bottom: 0, left: 0, width: 0 };
+    // Sync floating scrollbar ↔ body scroll
+    let fSyncing = false;
+    fScroll.addEventListener('scroll', () => {
+      if (fSyncing) return; fSyncing = true;
+      body.scrollLeft = fScroll.scrollLeft;
+      const topBar = card.querySelector('[data-scroll-top]');
+      if (topBar) topBar.scrollLeft = fScroll.scrollLeft;
+      requestAnimationFrame(() => { fSyncing = false; });
+    });
+
+    const entry = { card, body, table, container, cloneTable, fScroll, fInner, visible: true, shown: false, sx: 0, top: 0, bottom: 0, left: 0, width: 0 };
     registry.push(entry);
     observer.observe(body);
     applyCloneX(entry, body.scrollLeft);
@@ -257,14 +336,17 @@ function bindCardScroll(card) {
       requestAnimationFrame(() => { syncing = false; });
     }
     const e = registry.find(x => x.body === body);
-    if (e) applyCloneX(e, body.scrollLeft);
+    if (e) {
+      applyCloneX(e, body.scrollLeft);
+      if (e.fScroll) e.fScroll.scrollLeft = body.scrollLeft;
+    }
   });
 
   // Kéo ngang trên thead để cuộn bảng
   const thead = body.querySelector('thead');
   if (!thead) return;
   thead.addEventListener('mousedown', e => {
-    if (e.target.closest('input, button, a, select')) return;
+    if (e.target.closest('input, button, a, select, .col-resize-handle')) return;
     dragMoved = false;
     dragTarget = { body, thead, startX: e.pageX, startScrollLeft: body.scrollLeft };
     thead.classList.add('grabbing');
@@ -272,10 +354,19 @@ function bindCardScroll(card) {
   });
 }
 
+function syncFloatingScrollWidths() {
+  registry.forEach(e => {
+    if (e.fInner && e.table) e.fInner.style.width = e.table.scrollWidth + 'px';
+  });
+}
+
 // Gọi sau mỗi lần render lại thân bảng đặt hàng.
 export function setupOrderTable() {
   destroyOrderTable();
-  $$('.group-card').forEach(bindCardScroll);
+  $$('.group-card').forEach(card => {
+    bindCardScroll(card);
+    bindColResize(card);
+  });
   lockColumnWidths();
   syncScrollWidths();
   applyStickyCols();
