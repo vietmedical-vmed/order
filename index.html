@@ -77,8 +77,11 @@
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
     <div class="px-3 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-11 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold text-[12px] tracking-wide shrink-0">CH&CS</div>
-        <h1 class="text-[15px] font-semibold leading-tight truncate">Đặt hàng CH&CS</h1>
+        <div class="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-[13px] tracking-wide shrink-0">KNK</div>
+        <div class="min-w-0">
+          <h1 class="text-[15px] font-bold leading-tight truncate uppercase">Đặt hàng CH&CS</h1>
+          <span id="userMeta" class="text-[12px] text-slate-500"></span>
+        </div>
       </div>
 
       <div class="flex items-center gap-2 flex-wrap justify-end">
@@ -92,15 +95,12 @@
 
         <span id="saveStatus" class="hidden sm:inline text-[12px] px-2.5 py-1 text-slate-500">—</span>
 
-        <div class="w-px h-6 bg-slate-200 mx-1 hidden sm:block"></div>
+        <span class="hidden sm:inline text-[12px] text-slate-400 italic">Designed and developed by <span class="font-medium text-slate-600">Do Hoang Giang</span></span>
 
-        <div class="flex flex-col items-end leading-tight text-slate-600 min-w-0">
-          <span id="userName" class="font-medium text-[12px] truncate max-w-[9rem]"></span>
-          <span id="userMeta" class="text-[11px] text-slate-500"></span>
-        </div>
-        <button id="btnLogout" aria-label="Đăng xuất" class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] text-slate-500 hover:text-danger-600 hover:bg-danger-50 rounded-md">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
-          <span class="hidden md:inline">Đăng xuất</span>
+        <button id="btnReload" class="px-3 py-1.5 text-[13px] font-medium text-danger-600 border border-danger-400 hover:bg-danger-50 rounded-md" onclick="location.reload()">Reload</button>
+        <button id="btnLogout" aria-label="Đăng xuất" class="px-3 py-1.5 text-[13px] font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md">
+          <span id="userName" class="hidden"></span>
+          Đăng xuất
         </button>
       </div>
     </div>
