@@ -43,7 +43,7 @@ const noteCell = (r, field, ctx) => {
   if (isEdit) {
     const ch = state.changes.get(r.ma_bravo);
     const val = (ch && ch[field] !== undefined) ? ch[field] : (r[field] || '');
-    return `<td><input type="text" class="note-input" value="${esc(val)}" placeholder="—" data-field="${field}" data-id="${esc(r.ma_bravo)}" aria-label="Ghi chú — ${esc(r.ma_bravo)}"/></td>`;
+    return `<td class="note-cell"><textarea class="note-input note-textarea" rows="1" placeholder="—" data-field="${field}" data-id="${esc(r.ma_bravo)}" aria-label="Ghi chú — ${esc(r.ma_bravo)}">${esc(val)}</textarea></td>`;
   }
   const val = r[field] || '';
   return `<td class="note-cell text-[11.5px] text-slate-500 italic">${esc(val || '—')}</td>`;
@@ -698,6 +698,7 @@ export function renderOrderBody() {
   host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
   bindGroupToggles();
   setupOrderTable();
+  host.querySelectorAll('textarea.note-textarea').forEach(ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; });
 }
 
 // 4.4: empty state có hình minh hoạ nhẹ thay vì chỉ chữ.
@@ -846,12 +847,14 @@ function productRowHtml(r, plId, cols, ctx) {
 function bindOrderInputs() {
   const host = $('#orderTableHost');
   host.addEventListener('input', e => {
-    const inp = e.target.closest('input[data-id]');
+    const inp = e.target.closest('input[data-id], textarea[data-id]');
     if (!inp) return;
     const id = inp.dataset.id;
     const field = inp.dataset.field;
     const row = state.rowIndex.get(id);
     if (!row) return;
+    // Auto-resize textarea khi nội dung thay đổi
+    if (inp.tagName === 'TEXTAREA') { inp.style.height = 'auto'; inp.style.height = inp.scrollHeight + 'px'; }
     const existing = state.changes.get(id) || {};
     existing[field] = inp.type === 'number' ? Number(inp.value || 0) : inp.value;
     // Còn "chỉnh" hay không: xét MỌI field đã đụng vào so với baseline của nó (cột chính so

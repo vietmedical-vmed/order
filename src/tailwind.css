@@ -223,9 +223,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .qty-input:disabled { background: #f0f2f5; color: #8a8d91; cursor: not-allowed; }
 
 .note-cell { white-space: normal; word-break: break-word; min-width: 100px; }
-.note-input { width: 100%; height: 28px; border: 1px solid #dadde1; border-radius: 6px; padding: 0 8px; font-size: 12px; background: #fff; outline: none; }
+.note-input { width: 100%; border: 1px solid #dadde1; border-radius: 6px; padding: 4px 8px; font-size: 12px; background: #fff; outline: none; }
 .note-input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #cfe4ff; }
 .note-input:disabled { background: #f0f2f5; color: #8a8d91; }
+.note-textarea { resize: none; overflow: hidden; min-height: 28px; line-height: 1.4; font-family: inherit; }
 
 /* Pills */
 .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 500; }

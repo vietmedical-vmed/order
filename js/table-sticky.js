@@ -154,17 +154,33 @@ export function destroyOrderTable() {
 // ============ KÉO CHỈNH ĐỘ RỘNG CỘT ============
 let colResizeTarget = null; // { table, colIdx, startX, startWidth, col, cloneCol, entry }
 
+// Chuyển bảng auto → fixed khi user bắt đầu resize (đo bề rộng thực tại thời điểm đó).
+function switchToFixed(tbl) {
+  if (tbl.style.tableLayout === 'fixed') return;
+  const hr = tbl.tHead && tbl.tHead.rows[0];
+  if (!hr) return;
+  const cg = tbl.querySelector('colgroup');
+  if (!cg) return;
+  const widths = [];
+  for (const c of hr.cells) widths.push(Math.round(c.getBoundingClientRect().width));
+  for (let i = 0; i < cg.children.length && i < widths.length; i++) {
+    cg.children[i].style.width = widths[i] + 'px';
+    cg.children[i].style.minWidth = '';
+  }
+  tbl.__colWidths = widths;
+  tbl.style.tableLayout = 'fixed';
+  tbl.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
+}
+
 function applyColWidth(tbl, idx, w) {
   const cg = tbl.querySelector('colgroup');
   if (!cg) return;
   const col = cg.children[idx];
   if (!col) return;
-  col.style.minWidth = w + 'px';
   col.style.width = w + 'px';
   if (tbl.__colWidths) {
     tbl.__colWidths[idx] = w;
-    if (tbl.style.tableLayout === 'fixed')
-      tbl.style.width = tbl.__colWidths.reduce((a, b) => a + b, 0) + 'px';
+    tbl.style.width = tbl.__colWidths.reduce((a, b) => a + b, 0) + 'px';
   }
 }
 
@@ -203,7 +219,9 @@ function bindColResize(card) {
     e.stopPropagation();
     const colIdx = parseInt(handle.dataset.colIdx, 10);
     const table = body.querySelector('table');
-    if (!table || !table.__colWidths) return;
+    if (!table) return;
+    switchToFixed(table);
+    if (!table.__colWidths) return;
     const entry = registry.find(x => x.body === body);
     handle.classList.add('active');
     document.body.style.cursor = 'col-resize';
