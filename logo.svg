@@ -16,8 +16,5 @@
     <!-- Stylized V -->
     <path d="M30 18 C31.5 18, 33 19.5, 34 22 L40 38 C40.2 38.8, 40.6 38.8, 40.8 38 L47.5 21 C48.2 19, 49.2 18, 50.5 18 C51.3 18, 51.6 18.8, 51.2 19.8 L42.5 44 C41.8 46, 41 46.8, 40.2 46.8 C39.4 46.8, 38.6 46, 37.8 44 L29.2 19.8 C28.8 18.8, 29.2 18, 30 18Z" fill="white" opacity="0.9"/>
   </g>
-  <!-- VIET text (bold) -->
-  <text x="110" y="72" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="52" font-weight="700" fill="#4D4F53" letter-spacing="1">VIET</text>
-  <!-- MEDICAL text (light) -->
-  <text x="270" y="72" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="52" font-weight="300" fill="#6D6E71" letter-spacing="1">MEDICAL</text>
+  <text x="110" y="72" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="52" letter-spacing="1"><tspan font-weight="700" fill="#4D4F53">VIET</tspan><tspan font-weight="300" fill="#6D6E71">MEDICAL</tspan></text>
 </svg>
