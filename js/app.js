@@ -178,8 +178,18 @@ async function showApp() {
 
 function setupUserUI() {
   const u = state.user;
-  $('#userMeta').textContent = roleLabel(u.role);
+  $('#userMeta').textContent = u.ho_ten || u.username || '—';
   $('#userName').textContent = u.ho_ten;
+
+  const src = (u.ho_ten || u.username || '').trim();
+  const parts = src.split(/\s+/);
+  const ini = parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : src.slice(0, 2).toUpperCase();
+  $('#userAvatar').textContent = ini || 'DH';
+
+  const BADGES = { ADMIN: ['Admin','#fffbeb','#b45309','#fde68a'], MANAGER: ['Manager','#eff6ff','#1d4ed8','#bfdbfe'], PM: ['PM','#f5f3ff','#6d28d9','#ddd6fe'], AM: ['AM','#f0fdfa','#0f766e','#99f6e4'] };
+  const b = BADGES[(u.role || '').toUpperCase()];
+  const badge = $('#userBadge');
+  if (b && badge) { badge.textContent = b[0]; badge.style.display = ''; badge.style.background = b[1]; badge.style.color = b[2]; badge.style.borderColor = b[3]; }
   document.body.classList.toggle('is-approver', canApprove());
   document.body.classList.toggle('is-creator', canCreateSession());
   document.body.classList.toggle('is-admin', u.role === 'ADMIN');
