@@ -23,48 +23,46 @@
 </div>
 
 <!-- ============ LOGIN ============ -->
-<div id="loginScreen" class="hidden min-h-screen flex flex-col items-center justify-center p-4" style="background:#f0f2f5">
-  <form id="loginForm" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 w-full max-w-sm">
-    <img src="logo.png" alt="VietMedical" class="h-12 mx-auto mb-6">
-    <h2 class="text-[18px] font-bold m-0 mb-5 text-center uppercase">ĐẶT HÀNG CH&CS</h2>
-    <input id="loginUser" autofocus required placeholder="Tài khoản" autocomplete="username" aria-label="Tài khoản"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 mb-2.5"/>
-    <input id="loginPass" type="password" required placeholder="Mật khẩu" autocomplete="current-password" aria-label="Mật khẩu"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-    <label class="flex items-center gap-1.5 mt-2.5 text-[12px] text-slate-500 cursor-pointer">
+<div id="loginScreen" class="hidden" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0f2f5;padding:16px">
+  <form id="loginForm" style="background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1),0 8px 16px rgba(0,0,0,0.1);border:1px solid #dadde1;padding:24px;width:100%;max-width:360px;box-sizing:border-box">
+    <img src="logo.png" alt="VietMedical" style="height:48px;display:block;margin:0 auto 24px">
+    <h2 style="font-size:18px;font-weight:700;margin:0 0 20px;text-align:center;text-transform:uppercase">ĐẶT HÀNG CH&CS</h2>
+    <input id="loginUser" type="text" autofocus required placeholder="Tài khoản" autocomplete="username"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:10px"/>
+    <input id="loginPass" type="password" required placeholder="Mật khẩu" autocomplete="current-password"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box"/>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#65676b;cursor:pointer">
       <input type="checkbox" id="loginRemember" checked> Ghi nhớ đăng nhập trên thiết bị này
     </label>
-    <div id="loginErr" role="alert" class="text-[12px] text-danger-600 mt-3 min-h-[16px]"></div>
+    <div id="loginErr" role="alert" style="color:#fa383e;font-size:12px;margin-top:12px;min-height:16px"></div>
     <button id="loginBtn" type="submit"
-            class="w-full mt-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-2 rounded-md text-[14px] font-medium transition-colors">
+            style="width:100%;margin-top:16px;background:#1877f2;color:#fff;padding:8px 12px;border-radius:6px;font-size:15px;font-weight:700;border:none;cursor:pointer">
       Đăng nhập
     </button>
-    <button id="toChangePw" type="button"
-            class="w-full mt-3 text-[12.5px] text-slate-500 hover:text-primary-600 transition-colors">
-      Đổi mật khẩu
-    </button>
+    <div style="margin-top:14px;text-align:center">
+      <button id="toChangePw" type="button" style="background:none;border:none;color:#1877f2;font-size:13px;cursor:pointer;padding:0">Đổi mật khẩu</button>
+    </div>
   </form>
 
-  <form id="pwForm" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 w-full max-w-sm">
-    <img src="logo.png" alt="VietMedical" class="h-12 mx-auto mb-6">
-    <h2 class="text-[18px] font-bold m-0 mb-5 text-center uppercase">ĐỔI MẬT KHẨU</h2>
-    <input id="pwUser" required placeholder="Tài khoản" autocomplete="username" aria-label="Tài khoản"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 mb-2.5"/>
-    <input id="pwOld" type="password" required placeholder="Mật khẩu hiện tại" autocomplete="current-password" aria-label="Mật khẩu hiện tại"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 mb-2.5"/>
-    <input id="pwNew" type="password" required placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" autocomplete="new-password" minlength="6" aria-label="Mật khẩu mới"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 mb-2.5"/>
-    <input id="pwNew2" type="password" required placeholder="Nhập lại mật khẩu mới" autocomplete="new-password" minlength="6" aria-label="Nhập lại mật khẩu mới"
-           class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-    <div id="pwErr" role="alert" class="text-[12px] text-danger-600 mt-3 min-h-[16px]"></div>
+  <form id="pwForm" class="hidden" style="background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1),0 8px 16px rgba(0,0,0,0.1);border:1px solid #dadde1;padding:24px;width:100%;max-width:360px;box-sizing:border-box">
+    <img src="logo.png" alt="VietMedical" style="height:48px;display:block;margin:0 auto 24px">
+    <h2 style="font-size:18px;font-weight:700;margin:0 0 20px;text-align:center;text-transform:uppercase">ĐỔI MẬT KHẨU</h2>
+    <input id="pwUser" type="text" required placeholder="Tài khoản" autocomplete="username"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:10px"/>
+    <input id="pwOld" type="password" required placeholder="Mật khẩu hiện tại" autocomplete="current-password"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:10px"/>
+    <input id="pwNew" type="password" required placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" autocomplete="new-password" minlength="6"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:10px"/>
+    <input id="pwNew2" type="password" required placeholder="Nhập lại mật khẩu mới" autocomplete="new-password" minlength="6"
+           style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box"/>
+    <div id="pwErr" role="alert" style="color:#fa383e;font-size:12px;margin-top:12px;min-height:16px"></div>
     <button id="pwBtn" type="submit"
-            class="w-full mt-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-2 rounded-md text-[14px] font-medium transition-colors">
+            style="width:100%;margin-top:16px;background:#1877f2;color:#fff;padding:8px 12px;border-radius:6px;font-size:15px;font-weight:700;border:none;cursor:pointer">
       Đổi mật khẩu
     </button>
-    <button id="pwCancel" type="button"
-            class="w-full mt-3 text-[12.5px] text-slate-500 hover:text-primary-600 transition-colors">
-      ← Quay lại đăng nhập
-    </button>
+    <div style="margin-top:14px;text-align:center">
+      <button id="pwCancel" type="button" style="background:none;border:none;color:#1877f2;font-size:13px;cursor:pointer;padding:0">Quay lại đăng nhập</button>
+    </div>
   </form>
   <div style="margin-top:24px;text-align:center;font-size:11px;color:#8a8d91">Designed and developed by Do Hoang Giang</div>
 </div>
