@@ -68,7 +68,7 @@ async function safeShowApp() {
     console.error('[showApp] fail:', e);
     // Reset về login nếu showApp bị crash
     const app = $('#app'); if (app) app.classList.add('hidden');
-    const login = $('#loginScreen'); if (login) login.classList.remove('hidden');
+    const login = $('#loginScreen'); if (login) login.style.display = 'flex';
     $('#loginErr').textContent = 'Lỗi khởi động: ' + e.message + '. Hãy đăng nhập lại.';
     localStorage.removeItem(TOKEN_KEY);
     state.token = null;
@@ -76,7 +76,7 @@ async function safeShowApp() {
 }
 
 function showLogin() {
-  $('#loginScreen').classList.remove('hidden');
+  $('#loginScreen').style.display = 'flex';
   $('#app').classList.add('hidden');
   $('#loginErr').textContent = '';
   // Không còn phiên nào để cảnh báo hết hạn -> huỷ hẹn giờ + ẩn banner cũ (nếu có).
@@ -157,7 +157,7 @@ function showLogin() {
 }
 
 async function showApp() {
-  $('#loginScreen').classList.add('hidden');
+  $('#loginScreen').style.display = 'none';
   $('#app').classList.remove('hidden');
   try { setupUserUI(); } catch (e) { console.error('setupUserUI:', e); }
   try { bindNav(); } catch (e) { console.error('bindNav:', e); }

@@ -227,7 +227,9 @@ Deno.serve(async (req) => {
 
     // Map role của bảng chung -> role app đặt hàng
     const ROLE_MAP: Record<string, string> = {
-      area_manager: "AM", product_manager: "PM", manager: "MANAGER", admin: "ADMIN", purchasing: "PURCHASING",
+      area_manager: "AM", sale_manager: "AM", am: "AM",
+      product_manager: "PM", pm: "PM",
+      manager: "MANAGER", admin: "ADMIN", purchasing: "PURCHASING",
       AM: "AM", PM: "PM", MANAGER: "MANAGER", ADMIN: "ADMIN", PURCHASING: "PURCHASING",
     };
     const role = ROLE_MAP[String(user.role || "").toLowerCase()] || ROLE_MAP[String(user.role || "")] || "";
