@@ -333,16 +333,17 @@ function renderSessionBanner() {
   if (!host) return;
   const sess = state.currentSession;
 
-  // Chú thích nguồn dữ liệu tồn kho (cycledate mới nhất trong bảng stock).
+  // Cập nhật tag ngày tồn kho trên thanh lọc
   const asof = state.stockAsof;
-  const stockNote = asof
-    ? `<div class="text-[11.5px] text-slate-500 mb-3 -mt-1 flex items-center gap-1.5">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Thông tin hàng tồn kho cập nhật đến ngày <strong class="text-slate-700">${esc(asof)}</strong></div>`
-    : '';
+  const tag = $('#stockAsofTag');
+  const tagDate = $('#stockAsofDate');
+  if (tag && tagDate) {
+    if (asof) { tagDate.textContent = 'Tồn kho đến ' + asof; tag.classList.remove('hidden'); }
+    else { tag.classList.add('hidden'); }
+  }
 
   if (!sess) {
-    host.innerHTML = stockNote;
+    host.innerHTML = '';
     return;
   }
 
@@ -351,7 +352,8 @@ function renderSessionBanner() {
     host.innerHTML = `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-3 flex items-center gap-2 text-[13px] text-danger-800">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         <span>Đợt <strong>${esc(sess.ten_dot)}</strong> đã bị <strong>hủy</strong> — chỉ xem, không thao tác được.</span>
-      </div>` + stockNote;
+      </div>`;
+
     return;
   }
 
@@ -420,7 +422,8 @@ function renderSessionBanner() {
         Thoát đợt
       </button>
     </div>
-  ` + stockNote;
+  `;
+
 
   const btnExit = $('#btnExitSession');
   if (btnExit) btnExit.onclick = async () => {
@@ -960,13 +963,11 @@ function updateOrderStats() {
   const fmtInt = n => fmt(Math.round(Number(n) || 0));
 
   $('#orderStats').innerHTML = [
-    statCard({ label: 'Tổng sản phẩm', value: fmtInt(totalProducts), sub: 'phân loại khác nhau', accent: 'slate' }),
     statCard({ label: 'Tổng SKU', value: fmtInt(totalSku), sub: 'trong danh mục', accent: 'slate' }),
     statCard({ label: 'Tổng tồn', value: fmtInt(totalStock), sub: 'DA + Ký gửi + Đi đường − GU', accent: 'primary' }),
     statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'gồm điền sẵn theo gợi ý', accent: 'primary' }),
     statCard({ label: 'Tổng giá trị yêu cầu', value: fmtVND(totalReqValue), sub: 'SL yêu cầu × đơn giá', accent: 'warning' }),
     statCard({ label: 'Tổng giá trị đặt hàng', value: fmtVND(totalOrderValue), sub: 'SL đặt hàng × đơn giá', accent: 'warning' }),
-    statCard({ label: 'SKU tồn thấp', value: fmtInt(lowCount), sub: 'cần đặt thêm', accent: lowCount > 0 ? 'danger' : 'slate' }),
   ].join('');
 }
 
