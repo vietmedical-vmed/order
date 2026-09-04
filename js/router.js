@@ -25,8 +25,11 @@ export function renderView() {
   if (!tpl) { main.innerHTML = '<div class="empty-state">Màn hình không tồn tại</div>'; return; }
   main.appendChild(tpl.content.cloneNode(true));
 
-  const fb = $('#orderFilterBar');
-  if (fb) fb.classList.toggle('hidden', state.view !== 'order');
+  const bars = { order: 'orderFilterBar', approval: 'approvalFilterBar', catalog: 'catalogFilterBar', audit: 'auditFilterBar' };
+  for (const [view, id] of Object.entries(bars)) {
+    const el = $('#' + id);
+    if (el) el.classList.toggle('hidden', state.view !== view);
+  }
 
   const init = VIEWS[state.view];
   if (init) init();

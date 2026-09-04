@@ -12,10 +12,15 @@ const ACTION_LABELS = {
   MANAGER_APPROVE: 'Manager phê duyệt', REJECT: 'Từ chối', EXPORT: 'Xuất Excel', PURCHASE: 'Đặt hàng (DM/PO)',
 };
 
+let _auditFilterBound = false;
+
 export async function initAuditView() {
-  $('#lAction').addEventListener('change', renderAudit);
-  $('#lSearch').addEventListener('input', debounce(renderAudit, 300));
-  $('#lRefresh').addEventListener('click', renderAudit);
+  if (!_auditFilterBound) {
+    _auditFilterBound = true;
+    $('#lAction').addEventListener('change', renderAudit);
+    $('#lSearch').addEventListener('input', debounce(renderAudit, 300));
+    $('#lRefresh').addEventListener('click', renderAudit);
+  }
   await renderAudit();
 }
 

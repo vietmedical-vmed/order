@@ -8,6 +8,19 @@ import { askConfirm } from '../modal.js';
 const CAT_RENDER_CAP = 600;
 const MUC_DO_OPTS = ['', 'Hay sử dụng', 'Ít sử dụng', 'Hiếm khi sử dụng'];
 
+let _catalogFilterBound = false;
+
+function bindCatalogFilterOnce() {
+  if (_catalogFilterBound) return;
+  _catalogFilterBound = true;
+  $('#catSearch').addEventListener('input', debounce(e => { state.catFilter.search = e.target.value.toLowerCase(); renderCatalogBody(); }, 200));
+  $('#catGrp').addEventListener('change', e => { state.catFilter.grp = e.target.value; renderCatalogBody(); });
+  $('#catOnlySel').addEventListener('change', e => { state.catFilter.onlySelected = e.target.checked; renderCatalogBody(); });
+  $('#catSelectAll').addEventListener('click', () => bulkSelectCatalog(true));
+  $('#catUnselectAll').addEventListener('click', () => bulkSelectCatalog(false));
+  $('#catSave').addEventListener('click', saveCatalog);
+}
+
 export async function initCatalogView() {
   if (!canEditCatalog()) {
     $('#main').innerHTML = '<div class="empty-state">Chỉ Admin/PM mới truy cập được tab này</div>';
@@ -17,12 +30,7 @@ export async function initCatalogView() {
   state.catalogDirty = new Map();
   state.catFilter = { search: '', grp: '', onlySelected: false };
 
-  $('#catSearch').addEventListener('input', debounce(e => { state.catFilter.search = e.target.value.toLowerCase(); renderCatalogBody(); }, 200));
-  $('#catGrp').addEventListener('change', e => { state.catFilter.grp = e.target.value; renderCatalogBody(); });
-  $('#catOnlySel').addEventListener('change', e => { state.catFilter.onlySelected = e.target.checked; renderCatalogBody(); });
-  $('#catSelectAll').addEventListener('click', () => bulkSelectCatalog(true));
-  $('#catUnselectAll').addEventListener('click', () => bulkSelectCatalog(false));
-  $('#catSave').addEventListener('click', saveCatalog);
+  bindCatalogFilterOnce();
   bindCatalogInputs();
 
   await loadCatalog();

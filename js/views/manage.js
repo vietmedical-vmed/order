@@ -8,14 +8,13 @@ import { loadSessions } from '../session.js';
 import { renderView } from '../router.js';
 import { exportToExcel } from '../export-excel.js';
 
-export async function initApprovalView() {
-  if (!canApprove() && !isAM() && !isPurchasing()) {
-    $('#main').innerHTML = '<div class="empty-state">Không có quyền</div>';
-    return;
-  }
+let _approvalFilterBound = false;
+
+function bindApprovalFilterOnce() {
+  if (_approvalFilterBound) return;
+  _approvalFilterBound = true;
   $('#mStatus').addEventListener('change', renderManageList);
   if (isAM()) {
-    // AM chỉ xem miền của mình — khoá bộ chọn miền, backend cũng đã giới hạn theo miền AM.
     state.manageMien = state.user.mien;
     const seg = $('#mMienSeg'); if (seg) seg.style.display = 'none';
   } else {
@@ -29,11 +28,18 @@ export async function initApprovalView() {
         renderManageList();
       });
     });
-    state.manageMien = state.manageMien || 'ALL';
   }
-  // Mua hàng: mặc định lọc "Đã duyệt" cho gọn (backend cũng chỉ trả APPROVED/CLOSED).
   if (isPurchasing()) { const st = $('#mStatus'); if (st) st.value = 'APPROVED'; }
   $('#mRefresh').addEventListener('click', async () => { await loadSessions(); renderManageList(); });
+}
+
+export async function initApprovalView() {
+  if (!canApprove() && !isAM() && !isPurchasing()) {
+    $('#main').innerHTML = '<div class="empty-state">Không có quyền</div>';
+    return;
+  }
+  state.manageMien = state.manageMien || 'ALL';
+  bindApprovalFilterOnce();
   bindManageActions();
   await renderManageList();
 }

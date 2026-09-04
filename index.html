@@ -158,6 +158,55 @@
       </div>
     </div>
 
+    <div id="approvalFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
+      <select id="mStatus" class="ctl-select" aria-label="Lọc theo trạng thái đợt">
+        <option value="ALL">Tất cả trạng thái</option>
+        <option value="DRAFT">AM đang nhập</option>
+        <option value="SUBMITTED">PM chờ duyệt</option>
+        <option value="PM_APPROVED">Manager chờ duyệt</option>
+        <option value="APPROVED">Đã duyệt</option>
+        <option value="CLOSED">Đã chốt</option>
+        <option value="CANCELED">Đã hủy</option>
+      </select>
+      <div id="mMienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+        <button data-mmien="ALL" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium active" aria-pressed="true">Tất cả</button>
+        <button data-mmien="MB" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Bắc</button>
+        <button data-mmien="MN" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Nam</button>
+      </div>
+      <button id="mRefresh" class="ctl-btn">Làm mới</button>
+    </div>
+
+    <div id="catalogFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Vật tư được đặt hàng</span>
+      <div class="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
+      <select id="catGrp" class="ctl-select" aria-label="Lọc theo nhóm sản phẩm"><option value="">Tất cả nhóm sản phẩm</option></select>
+      <label class="flex items-center gap-1.5 text-[12px] text-slate-600">
+        <input type="checkbox" id="catOnlySel" class="rounded"/> Chỉ hiện đã chọn
+      </label>
+      <input id="catSearch" placeholder="Tìm mã, code NCC, tên hàng…" aria-label="Tìm kiếm vật tư"
+             class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-full sm:w-64 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+      <button id="catSelectAll" class="ctl-btn">Chọn tất cả (đang lọc)</button>
+      <button id="catUnselectAll" class="ctl-btn">Bỏ chọn (đang lọc)</button>
+      <div class="flex-1"></div>
+      <span id="catCounter" role="status" class="text-[12px] text-slate-500"></span>
+      <button id="catSave" class="ctl-btn ctl-btn-primary" disabled>Lưu thay đổi</button>
+    </div>
+
+    <div id="auditFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
+      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
+      <select id="lAction" class="ctl-select" aria-label="Lọc theo thao tác">
+        <option value="ALL">Tất cả thao tác</option>
+        <option value="LOGIN">Đăng nhập</option><option value="LOGOUT">Đăng xuất</option>
+        <option value="PLACE_ORDER">Đặt hàng</option><option value="PLACE_ORDER_BUSY">Bị khoá</option>
+        <option value="APPROVE">Duyệt</option><option value="CLOSE_SESSION">Chốt đợt</option>
+        <option value="CREATE_SESSION">Tạo đợt</option>
+      </select>
+      <input id="lSearch" placeholder="Lọc theo username…" aria-label="Lọc theo username"
+             class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-full sm:w-64 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+      <button id="lRefresh" class="ctl-btn">Làm mới</button>
+    </div>
+
     <nav aria-label="Màn hình" class="px-3 sm:px-6 flex items-center gap-1 border-t border-slate-100 overflow-x-auto scroll-area">
       <button class="nav-tab" data-view="order">Chi tiết đặt hàng</button>
       <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
@@ -195,24 +244,6 @@
 
 <template id="tpl-approval">
   <div class="px-3 sm:px-6 pt-4">
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
-      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
-      <select id="mStatus" class="ctl-select" aria-label="Lọc theo trạng thái đợt">
-        <option value="ALL">Tất cả trạng thái</option>
-        <option value="DRAFT">AM đang nhập</option>
-        <option value="SUBMITTED">PM chờ duyệt</option>
-        <option value="PM_APPROVED">Manager chờ duyệt</option>
-        <option value="APPROVED">Đã duyệt</option>
-        <option value="CLOSED">Đã chốt</option>
-        <option value="CANCELED">Đã hủy</option>
-      </select>
-      <div id="mMienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
-        <button data-mmien="ALL" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium active" aria-pressed="true">Tất cả</button>
-        <button data-mmien="MB" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Bắc</button>
-        <button data-mmien="MN" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Nam</button>
-      </div>
-      <button id="mRefresh" class="ctl-btn">Làm mới</button>
-    </div>
     <div id="manageHost"></div>
   </div>
 </template>
@@ -281,40 +312,12 @@
 
 <template id="tpl-catalog">
   <div class="px-3 sm:px-6 pt-4">
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
-      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Vật tư được đặt hàng</span>
-      <div class="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
-      <select id="catGrp" class="ctl-select" aria-label="Lọc theo nhóm sản phẩm"><option value="">Tất cả nhóm sản phẩm</option></select>
-      <label class="flex items-center gap-1.5 text-[12px] text-slate-600">
-        <input type="checkbox" id="catOnlySel" class="rounded"/> Chỉ hiện đã chọn
-      </label>
-      <input id="catSearch" placeholder="Tìm mã, code NCC, tên hàng…" aria-label="Tìm kiếm vật tư"
-             class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-full sm:w-64 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-      <button id="catSelectAll" class="ctl-btn">Chọn tất cả (đang lọc)</button>
-      <button id="catUnselectAll" class="ctl-btn">Bỏ chọn (đang lọc)</button>
-      <div class="flex-1"></div>
-      <span id="catCounter" role="status" class="text-[12px] text-slate-500"></span>
-      <button id="catSave" class="ctl-btn ctl-btn-primary" disabled>Lưu thay đổi</button>
-    </div>
     <div id="catalogHost"></div>
   </div>
 </template>
 
 <template id="tpl-audit">
   <div class="px-3 sm:px-6 pt-4">
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
-      <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
-      <select id="lAction" class="ctl-select" aria-label="Lọc theo thao tác">
-        <option value="ALL">Tất cả thao tác</option>
-        <option value="LOGIN">Đăng nhập</option><option value="LOGOUT">Đăng xuất</option>
-        <option value="PLACE_ORDER">Đặt hàng</option><option value="PLACE_ORDER_BUSY">Bị khoá</option>
-        <option value="APPROVE">Duyệt</option><option value="CLOSE_SESSION">Chốt đợt</option>
-        <option value="CREATE_SESSION">Tạo đợt</option>
-      </select>
-      <input id="lSearch" placeholder="Lọc theo username…" aria-label="Lọc theo username"
-             class="px-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-full sm:w-64 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-      <button id="lRefresh" class="ctl-btn">Làm mới</button>
-    </div>
     <div id="auditHost"></div>
   </div>
 </template>
