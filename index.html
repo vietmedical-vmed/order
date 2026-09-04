@@ -224,19 +224,20 @@
 <!-- ============ TEMPLATES ============ -->
 <template id="tpl-order">
   <div class="px-3 sm:px-6 pt-4">
-    <div id="sessionBanner"></div>
-    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="orderStats"></div>
-
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-2">
-      <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Tạo đặt hàng
-      </button>
-      <button id="btnExport" class="ctl-btn" type="button">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Xuất Excel
-      </button>
+    <div class="flex items-start gap-3 mb-4 flex-wrap">
+      <div id="sessionBanner" class="flex-1 min-w-0"></div>
+      <div class="flex items-center gap-2 shrink-0 pt-0.5">
+        <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Tạo đặt hàng
+        </button>
+        <button id="btnExport" class="ctl-btn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Xuất Excel
+        </button>
+      </div>
     </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="orderStats"></div>
 
     <div id="orderTableHost"></div>
   </div>

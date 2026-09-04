@@ -348,17 +348,17 @@ function renderSessionBanner() {
       ? `Đang xem <strong>tổng hợp MB + MN</strong> (${state.rows.length} SKU, số tồn & xuất là tổng 2 miền). Chuyển sang <strong>Miền Bắc</strong> hoặc <strong>Miền Nam</strong> để xem chi tiết đợt đặt hàng.`
       : `Đang xem <strong>danh mục</strong> (${state.rows.length} SKU) — chưa có đợt đặt hàng nào cho miền <strong>${state.mien}</strong>.`;
     host.innerHTML = (canCreateSession() && !isAll
-      ? `<div class="bg-warning-50 border border-warning-200 rounded-lg px-4 py-2.5 mb-4 flex items-center gap-2 text-[13px] text-warning-900">
+      ? `<div class="bg-warning-50 border border-warning-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[13px] text-warning-900">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>${note} Bấm <strong>+ Tạo đặt hàng</strong> bên dưới để bắt đầu.</span>
+          <span>${note} Bấm <strong>+ Tạo đặt hàng</strong> để bắt đầu.</span>
         </div>`
-      : `<div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 mb-4 text-[13px] text-slate-600">${note}</div>`) + stockNote;
+      : `<div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-600">${note}</div>`) + stockNote;
     return;
   }
 
   // Đợt đã hủy: không hiển thị stepper (đã kết thúc) — chỉ báo trạng thái Đã hủy.
   if (sess.trang_thai === 'CANCELED') {
-    host.innerHTML = `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-2 text-[13px] text-danger-800">
+    host.innerHTML = `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-3 flex items-center gap-2 text-[13px] text-danger-800">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         <span>Đợt <strong>${esc(sess.ten_dot)}</strong> đã bị <strong>hủy</strong> — chỉ xem, không thao tác được.</span>
       </div>` + stockNote;
@@ -401,14 +401,14 @@ function renderSessionBanner() {
   const mienCls = sess.mien === 'MB' ? 'pill-info' : 'pill-mid';
 
   const rejectAlert = (sess.trang_thai === 'DRAFT' && sess.ly_do_tu_choi)
-    ? `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-2.5 mb-4 flex items-start gap-2 text-[13px] text-danger-800">
+    ? `<div class="bg-danger-50 border border-danger-200 rounded-lg px-4 py-2.5 flex items-start gap-2 text-[13px] text-danger-800">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 flex-shrink-0"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span><strong>Đợt bị từ chối${sess.tu_choi_o_buoc ? ' bởi ' + esc(sess.tu_choi_o_buoc) : ''}${sess.nguoi_tu_choi ? ' (' + esc(sess.nguoi_tu_choi) + ')' : ''}:</strong> ${esc(sess.ly_do_tu_choi)}<br>Vui lòng chỉnh sửa và xác nhận lại.</span>
       </div>`
     : '';
 
   host.innerHTML = rejectAlert + `
-    <div class="bg-white rounded-lg border border-slate-200 px-4 py-3 mb-4 flex items-center gap-4 flex-wrap shadow-sm">
+    <div class="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-center gap-4 flex-wrap shadow-sm">
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white flex-shrink-0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
