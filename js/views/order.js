@@ -207,7 +207,6 @@ function bindFilterBarOnce() {
   _filterBound = true;
   $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
   initPLFilter();
-  initMucDoFilter();
   $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
   $('#fOnlyQty').addEventListener('click', () => {
     state.filters.onlyWithQty = !state.filters.onlyWithQty;
@@ -343,16 +342,7 @@ function renderSessionBanner() {
     : '';
 
   if (!sess) {
-    const isAll = state.mien === 'ALL';
-    const note = isAll
-      ? `Đang xem <strong>tổng hợp MB + MN</strong> (${state.rows.length} SKU, số tồn & xuất là tổng 2 miền). Chuyển sang <strong>Miền Bắc</strong> hoặc <strong>Miền Nam</strong> để xem chi tiết đợt đặt hàng.`
-      : `Đang xem <strong>danh mục</strong> (${state.rows.length} SKU) — chưa có đợt đặt hàng nào cho miền <strong>${state.mien}</strong>.`;
-    host.innerHTML = (canCreateSession() && !isAll
-      ? `<div class="bg-warning-50 border border-warning-200 rounded-lg px-4 py-2.5 flex items-center gap-2 text-[13px] text-warning-900">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>${note} Bấm <strong>+ Tạo đặt hàng</strong> để bắt đầu.</span>
-        </div>`
-      : `<div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-600">${note}</div>`) + stockNote;
+    host.innerHTML = stockNote;
     return;
   }
 
@@ -462,59 +452,6 @@ function bindMenuKeyboard(btn, menu, openMenu, closeMenu) {
   });
 }
 
-// Dropdown lọc mức độ — cho phép chọn nhiều option qua checkbox.
-function initMucDoFilter() {
-  const btn = $('#fMucDoBtn');
-  const menu = $('#fMucDoMenu');
-  const label = $('#fMucDoLabel');
-  if (!btn || !menu || !label) return;
-
-  const opts = () => $$('.fmucdo-opt');
-  // Khôi phục trạng thái đã chọn khi view được render lại
-  const cur = state.filters.mucDo || [];
-  opts().forEach(o => { o.checked = cur.includes(o.value); });
-
-  const updateLabel = () => {
-    const sel = state.filters.mucDo || [];
-    if (!sel.length) label.textContent = 'Tất cả mức độ';
-    else if (sel.length === 1) label.textContent = sel[0];
-    else label.textContent = sel.length + ' mức độ';
-    btn.classList.toggle('ctl-active', sel.length > 0);
-  };
-  updateLabel();
-
-  const closeMenu = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
-  const openMenu = () => { menu.classList.remove('hidden'); btn.setAttribute('aria-expanded', 'true'); };
-
-  btn.onclick = (e) => {
-    e.stopPropagation();
-    menu.classList.contains('hidden') ? openMenu() : closeMenu();
-  };
-  opts().forEach(o => {
-    o.onchange = () => {
-      state.filters.mucDo = opts().filter(x => x.checked).map(x => x.value);
-      updateLabel();
-      renderOrderBody();
-    };
-  });
-  const clearBtn = $('#fMucDoClear');
-  if (clearBtn) clearBtn.onclick = (e) => {
-    e.stopPropagation();
-    opts().forEach(o => { o.checked = false; });
-    state.filters.mucDo = [];
-    updateLabel();
-    renderOrderBody();
-  };
-  bindMenuKeyboard(btn, menu, openMenu, closeMenu);
-
-  // Đóng menu khi click ra ngoài
-  if (window.__mucDoOutside) document.removeEventListener('click', window.__mucDoOutside);
-  window.__mucDoOutside = (e) => {
-    const wrap = $('#fMucDoWrap');
-    if (wrap && !wrap.contains(e.target)) closeMenu();
-  };
-  document.addEventListener('click', window.__mucDoOutside);
-}
 
 function populateGrpAndPLOptions() {
   const grps = [...new Set(state.rows.map(r => r.nhom_hang).filter(Boolean))].sort(viCmp);
@@ -613,7 +550,6 @@ function filteredOrderRows() {
   return state.rows.filter(r => {
     if (f.grp && r.nhom_hang !== f.grp) return false;
     if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
-    if (f.mucDo && f.mucDo.length && !f.mucDo.includes(r.muc_do_sd)) return false;
     if (f.lowStock && r.tong_ton > r.goi_y_dat) return false;
     // "Chỉ mã có số lượng": chỉ khi đang xem 1 đợt, lọc theo giá trị ĐÃ LƯU (không tính điền
     // sẵn gợi ý) — mã có ít nhất 1 trong SL yêu cầu / PM duyệt / đặt hàng > 0.
