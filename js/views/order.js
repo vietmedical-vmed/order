@@ -207,7 +207,6 @@ function bindFilterBarOnce() {
   _filterBound = true;
   $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
   initPLFilter();
-  $('#fLowStock').addEventListener('change', e => { state.filters.lowStock = e.target.checked; renderOrderBody(); });
   $('#fOnlyQty').addEventListener('click', () => {
     state.filters.onlyWithQty = !state.filters.onlyWithQty;
     syncOnlyQtyButton();
@@ -553,7 +552,6 @@ function filteredOrderRows() {
   return state.rows.filter(r => {
     if (f.grp && r.nhom_hang !== f.grp) return false;
     if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
-    if (f.lowStock && r.tong_ton > r.goi_y_dat) return false;
     // "Chỉ mã có số lượng": chỉ khi đang xem 1 đợt, lọc theo giá trị ĐÃ LƯU (không tính điền
     // sẵn gợi ý) — mã có ít nhất 1 trong SL yêu cầu / PM duyệt / đặt hàng > 0.
     if (f.onlyWithQty && state.currentSession && !hasSavedQty(r)) return false;
@@ -718,7 +716,6 @@ function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
   const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
-  const lowStockCount = allItems.filter(r => r.tong_ton <= r.goi_y_dat && r.muc_do_sd === 'Hay sử dụng').length;
   const open = gIdx === 0;
   const cols = columns();
 
@@ -727,7 +724,7 @@ function groupCardHtml(grp, plMap, gIdx) {
       <svg class="chev text-slate-500 ${open ? '' : '-rotate-90'} transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       <div class="flex-1 min-w-0">
         <div class="group-title">${esc(grp)}</div>
-        <div class="group-meta">${totalSku} SKU · ${plMap.size} phân loại${lowStockCount ? ` · <span class="text-danger-600 font-medium">${lowStockCount} SKU tồn thấp</span>` : ''}</div>
+        <div class="group-meta">${totalSku} SKU · ${plMap.size} phân loại</div>
       </div>
       <div class="hidden md:flex items-center gap-5">
         <div class="group-stat"><div class="group-stat-label">SKU</div><div class="group-stat-value text-slate-700">${totalSku}</div></div>
@@ -958,7 +955,6 @@ function updateOrderStats() {
   const totalReqQty = rows.reduce((s, r) => s + eff(r, 'sl_dat'), 0);
   const totalReqValue = rows.reduce((s, r) => s + eff(r, 'sl_dat') * Number(r.gia || 0), 0);
   const totalOrderValue = rows.reduce((s, r) => s + eff(r, 'sl_dat_hang') * Number(r.gia || 0), 0);
-  const lowCount = rows.filter(r => stockOf(r) <= r.goi_y_dat && r.muc_do_sd === 'Hay sử dụng').length;
 
   const fmtInt = n => fmt(Math.round(Number(n) || 0));
 
