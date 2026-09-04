@@ -24,6 +24,10 @@ export function renderView() {
   const tpl = $('#tpl-' + state.view);
   if (!tpl) { main.innerHTML = '<div class="empty-state">Màn hình không tồn tại</div>'; return; }
   main.appendChild(tpl.content.cloneNode(true));
+
+  const fb = $('#orderFilterBar');
+  if (fb) fb.classList.toggle('hidden', state.view !== 'order');
+
   const init = VIEWS[state.view];
   if (init) init();
 }

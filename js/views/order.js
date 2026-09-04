@@ -200,8 +200,11 @@ function columns() {
 }
 
 // ============ KHỞI TẠO MÀN HÌNH ============
-export async function initOrderView() {
-  $('#btnNewSession').addEventListener('click', openCreateSessionModal);
+let _filterBound = false;
+
+function bindFilterBarOnce() {
+  if (_filterBound) return;
+  _filterBound = true;
   $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
   initPLFilter();
   initMucDoFilter();
@@ -213,31 +216,22 @@ export async function initOrderView() {
     updateOrderStats();
   });
   $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
-  const btnExport = $('#btnExport');
-  if (btnExport) btnExport.onclick = () => exportToExcel();
-  bindOrderInputs();
-  bindPLToggles();
-  bindSortHeaders();
 
-  // Bind mien buttons (chúng nằm trong template tpl-order, phải bind lại sau mỗi render)
   const role = state.user.role;
   $$('.mien-btn').forEach(b => {
-    // AM: ẩn các miền khác miền của user; chỉ giữ nút miền của mình
     if (role === 'AM') {
       if (b.dataset.mien !== state.user.mien) {
         b.style.display = 'none';
         return;
       }
     }
-    b.classList.toggle('active', b.dataset.mien === state.mien);
-    b.setAttribute('aria-pressed', b.dataset.mien === state.mien ? 'true' : 'false');
     b.addEventListener('click', async () => {
       const m = b.dataset.mien;
       if (m === state.mien) return;
       if (state.changes.size > 0 && !(await askConfirm({ title: 'Chuyển miền', message: 'Có thay đổi chưa lưu. Chuyển miền sẽ mất. Tiếp tục?', danger: true }))) return;
       state.mien = m;
       state.changes.clear();
-      state.pinnedSessionId = null;   // đổi miền -> chọn lại đợt của miền mới
+      state.pinnedSessionId = null;
       $$('.mien-btn').forEach(x => {
         x.classList.toggle('active', x === b);
         x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
@@ -246,6 +240,25 @@ export async function initOrderView() {
       await loadOrderData();
     });
   });
+}
+
+function syncMienButtons() {
+  $$('.mien-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mien === state.mien);
+    b.setAttribute('aria-pressed', b.dataset.mien === state.mien ? 'true' : 'false');
+  });
+}
+
+export async function initOrderView() {
+  $('#btnNewSession').addEventListener('click', openCreateSessionModal);
+  const btnExport = $('#btnExport');
+  if (btnExport) btnExport.onclick = () => exportToExcel();
+  bindOrderInputs();
+  bindPLToggles();
+  bindSortHeaders();
+
+  bindFilterBarOnce();
+  syncMienButtons();
 
   await loadOrderData();
 }

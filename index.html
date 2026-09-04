@@ -107,38 +107,7 @@
       </div>
     </div>
 
-    <nav aria-label="Màn hình" class="px-3 sm:px-6 flex items-center gap-1 border-t border-slate-100 overflow-x-auto scroll-area">
-      <button class="nav-tab" data-view="order">Chi tiết đặt hàng</button>
-      <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
-      <button class="nav-tab" data-view="catalog" data-need="catalog">Cấu hình danh mục</button>
-      <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
-      <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
-    </nav>
-  </header>
-
-  <div id="banner" role="status" class="hidden px-3 sm:px-6 py-2 bg-warning-50 border-b border-warning-200 text-[12px] text-warning-900"></div>
-
-  <main id="main" class="pb-12"></main>
-</div>
-
-<!-- ============ TEMPLATES ============ -->
-<template id="tpl-order">
-  <div class="px-3 sm:px-6 pt-4">
-    <div id="sessionBanner"></div>
-    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="orderStats"></div>
-
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-2">
-      <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Tạo đặt hàng
-      </button>
-      <button id="btnExport" class="ctl-btn" type="button">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Xuất Excel
-      </button>
-    </div>
-
-    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-4">
+    <div id="orderFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
       <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Lọc</span>
       <div id="mienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
         <button data-mien="ALL" data-need="approver" class="mien-btn px-3 py-1 text-[12px] rounded font-medium">Tất cả</button>
@@ -187,6 +156,37 @@
         <input id="fSearch" placeholder="Tìm mã, code NCC, tên hàng, sản phẩm…" aria-label="Tìm kiếm SKU"
                class="pl-8 pr-3 py-1.5 text-[13px] border border-slate-200 rounded-md w-full sm:w-64 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
       </div>
+    </div>
+
+    <nav aria-label="Màn hình" class="px-3 sm:px-6 flex items-center gap-1 border-t border-slate-100 overflow-x-auto scroll-area">
+      <button class="nav-tab" data-view="order">Chi tiết đặt hàng</button>
+      <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
+      <button class="nav-tab" data-view="catalog" data-need="catalog">Cấu hình danh mục</button>
+      <button class="nav-tab" data-view="config" data-need="admin">Cấu hình</button>
+      <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
+    </nav>
+  </header>
+
+  <div id="banner" role="status" class="hidden px-3 sm:px-6 py-2 bg-warning-50 border-b border-warning-200 text-[12px] text-warning-900"></div>
+
+  <main id="main" class="pb-12"></main>
+</div>
+
+<!-- ============ TEMPLATES ============ -->
+<template id="tpl-order">
+  <div class="px-3 sm:px-6 pt-4">
+    <div id="sessionBanner"></div>
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4" id="orderStats"></div>
+
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2.5 flex items-center gap-2.5 flex-wrap mb-2">
+      <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Tạo đặt hàng
+      </button>
+      <button id="btnExport" class="ctl-btn" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Xuất Excel
+      </button>
     </div>
 
     <div id="orderTableHost"></div>
