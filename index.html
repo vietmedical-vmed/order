@@ -130,6 +130,14 @@
       <button type="button" id="fOnlyQty" class="ctl-btn hidden ml-1" aria-pressed="false"
         title="Chỉ hiện mã đã có SL yêu cầu / PM duyệt / đặt hàng. Bấm để xem toàn bộ danh mục.">Chỉ mã có số lượng</button>
       <div class="flex-1"></div>
+      <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Tạo đặt hàng
+      </button>
+      <button id="btnExport" class="ctl-btn" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Xuất Excel
+      </button>
       <div class="relative w-full sm:w-auto">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true">
           <path d="m21 21-4.34-4.34"/><path d="M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/>
@@ -205,19 +213,7 @@
 <!-- ============ TEMPLATES ============ -->
 <template id="tpl-order">
   <div class="px-3 sm:px-6 pt-4">
-    <div class="flex items-start gap-3 mb-4 flex-wrap">
-      <div id="sessionBanner" class="flex-1 min-w-0"></div>
-      <div class="flex items-center gap-2 shrink-0 pt-0.5">
-        <button id="btnNewSession" data-need="creator" class="ctl-btn ctl-btn-primary">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          Tạo đặt hàng
-        </button>
-        <button id="btnExport" class="ctl-btn" type="button">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Xuất Excel
-        </button>
-      </div>
-    </div>
+    <div id="sessionBanner" class="mb-4"></div>
     <div class="flex gap-3 mb-4 overflow-x-auto scroll-area" id="orderStats"></div>
 
     <div id="orderTableHost"></div>

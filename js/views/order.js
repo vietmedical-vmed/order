@@ -205,6 +205,9 @@ let _filterBound = false;
 function bindFilterBarOnce() {
   if (_filterBound) return;
   _filterBound = true;
+  $('#btnNewSession').addEventListener('click', openCreateSessionModal);
+  const btnExport = $('#btnExport');
+  if (btnExport) btnExport.onclick = () => exportToExcel();
   $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
   initPLFilter();
   $('#fOnlyQty').addEventListener('click', () => {
@@ -248,9 +251,6 @@ function syncMienButtons() {
 }
 
 export async function initOrderView() {
-  $('#btnNewSession').addEventListener('click', openCreateSessionModal);
-  const btnExport = $('#btnExport');
-  if (btnExport) btnExport.onclick = () => exportToExcel();
   bindOrderInputs();
   bindPLToggles();
   bindSortHeaders();
@@ -716,7 +716,7 @@ function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
   const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
-  const open = gIdx === 0;
+  const open = false;
   const cols = columns();
 
   return `<div class="group-card" data-grp="${esc(grp)}">
