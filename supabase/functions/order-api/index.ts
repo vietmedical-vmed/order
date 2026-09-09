@@ -367,7 +367,7 @@ async function fetchProducts(supa: SupabaseClient) {
     rows.push(...batch);
     if (batch.length < PAGE) break;
   }
-  return rows.map((v: any) => ({
+  const mapped = rows.map((v: any) => ({
     ma_bravo: v.ma_bravo,
     code_ncc: v.ma_ncc || "",
     ten_hang_hoa: v.ten_vat_tu || "",
@@ -383,6 +383,17 @@ async function fetchProducts(supa: SupabaseClient) {
     san_pham: v.san_pham || "",             // khoá tra mapping/sale_target
     so_thang_dat: v.so_thang_dat ?? null,   // fallback config default ở loadOrderScreen
   }));
+  // Gộp trùng cặp (code_ncc, ma_bravo): giữ bản đầu, bỏ duplicate
+  const seen = new Set<string>();
+  const deduped = mapped.filter(p => {
+    const k = p.code_ncc + "|" + p.ma_bravo;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  // Sắp xếp theo Mã NCC (A→Z), cùng NCC thì theo ma_bravo
+  deduped.sort((a, b) => (a.code_ncc || "").localeCompare(b.code_ncc || "", "vi") || (a.ma_bravo || "").localeCompare(b.ma_bravo || "", "vi"));
+  return deduped;
 }
 
 // stock.mien / sv.area lưu 'Miền Bắc'/'Miền Nam', app dùng 'MB'/'MN'.
@@ -812,7 +823,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       all.push(...batch);
       if (batch.length < PAGE) break;
     }
-    let out = all.map((v: any) => ({
+    const mapped = all.map((v: any) => ({
       ma_bravo: v.ma_bravo,
       code_ncc: v.ma_ncc || "",
       ten_hang: v.ten_vat_tu || "",
@@ -825,6 +836,15 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       safety_stock: num(v.safety_stock),
       dat_hang: v.dat_hang === true,
     }));
+    // Gộp trùng cặp (code_ncc, ma_bravo)
+    const seen = new Set<string>();
+    let out = mapped.filter(p => {
+      const k = p.code_ncc + "|" + p.ma_bravo;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    out.sort((a, b) => (a.code_ncc || "").localeCompare(b.code_ncc || "", "vi") || (a.ma_bravo || "").localeCompare(b.ma_bravo || "", "vi"));
     // PM chỉ thấy vật tư thuộc nhóm sản phẩm mình phụ trách (scope).
     if (u.role === "PM") {
       const grants = await getGrants(supa, u);
