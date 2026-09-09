@@ -727,7 +727,7 @@ function groupCardHtml(grp, plMap, gIdx) {
       <svg class="chev text-slate-500 ${open ? '' : '-rotate-90'} transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       <div class="flex-1 min-w-0">
         <div class="group-title">${esc(grp)}</div>
-        <div class="group-meta">${totalSku} SKU · Tồn ${fmt(Math.round(totalStock))}</div>
+        <div class="group-meta md:hidden">${totalSku} SKU · Tồn ${fmt(Math.round(totalStock))}</div>
       </div>
       <div class="hidden md:flex items-center gap-0">
         <div class="group-stat" style="min-width:60px"><div class="group-stat-label">SKU</div><div class="group-stat-value text-slate-700">${totalSku}</div></div>
