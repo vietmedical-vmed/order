@@ -916,9 +916,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "AM") q = q.eq("mien", u.mien);
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
     // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
-    if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED", "CLOSED"]);
-    // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED) hoặc đã chốt (CLOSED).
-    if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED", "CLOSED"]);
+    if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
+    // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
+    if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     const list = sessions || [];
@@ -1172,7 +1172,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   // Admin ghi đè: sửa BẤT KỲ cột số lượng nào (sl_dat / sl_duyet / sl_dat_hang) + ghi chú,
-  // ở BẤT KỲ trạng thái nào (kể cả APPROVED/CLOSED), KHÔNG ràng buộc scope, KHÔNG đổi trạng thái.
+  // ở BẤT KỲ trạng thái nào (kể cả APPROVED), KHÔNG ràng buộc scope, KHÔNG đổi trạng thái.
   // Chỉ ghi các dòng client gửi lên (đã lọc "có chỉnh" phía client) để không đụng dòng khác.
   async adminSaveItems(supa, u, [sessionId, items]) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin dùng được lưu ghi đè");
@@ -1261,7 +1261,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được đặt hàng");
     const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
-    if (s.trang_thai !== "APPROVED" && s.trang_thai !== "CLOSED")
+    if (s.trang_thai !== "APPROVED")
       throw new Error("Chỉ đặt hàng khi đợt đã được duyệt (APPROVED)");
     const deNghi = String(dm || "").trim();
     const poStr = String(po || "").trim();
@@ -1287,19 +1287,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return { ok: true, count: approvals.length };
   },
 
-  async closeSession(supa, u, [sessionId]) {
-    if (!canApprove(u)) throw new Error("Không có quyền chốt đợt");
-    await supa.schema("app_order").from("order_sessions").update({ trang_thai: "CLOSED" }).eq("session_id", sessionId);
-    await audit(supa, u.username, "CLOSE_SESSION", sessionId, "");
-    return { ok: true };
-  },
-
   async exportOrderData(supa, u, [sessionId]) {
     const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!session) throw new Error("Không tìm thấy đợt");
     if (u.role !== "MANAGER" && u.role !== "ADMIN" && u.role !== "PURCHASING")
       throw new Error("Chỉ Manager/Admin/Mua hàng được xuất file Excel");
-    if (session.trang_thai !== "APPROVED" && session.trang_thai !== "CLOSED")
+    if (session.trang_thai !== "APPROVED")
       throw new Error("Chỉ xuất được khi đợt đã được Manager phê duyệt (APPROVED)");
 
     const mienExp = session.mien;
@@ -1393,7 +1386,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 // ---------- workflow helpers ----------
 function actionForSession(u: any, session: any) {
   const st = session.trang_thai;
-  if (st === "APPROVED" || st === "CLOSED") return null;
+  if (st === "APPROVED") return null;
   if (st === "DRAFT" && canActAs(u, "AM")) {
     if (u.role === "AM" && u.mien !== session.mien) return null;
     return { code: "AM_CONFIRM", label: u.role === "ADMIN" ? "Xác nhận (thay AM)" : "Xác nhận",
@@ -1420,7 +1413,7 @@ function editContextForSession(u: any, session: any) {
   if (u.role === "ADMIN") {
     const noteByStatus: Record<string, string> = {
       DRAFT: "ghi_chu_dat", SUBMITTED: "ghi_chu_duyet",
-      PM_APPROVED: "ghi_chu_dat_hang", APPROVED: "ghi_chu_dat_hang", CLOSED: "ghi_chu_dat_hang",
+      PM_APPROVED: "ghi_chu_dat_hang", APPROVED: "ghi_chu_dat_hang",
     };
     return {
       // changesOnly: chỉ ghi ô đã sửa (không điền sẵn hàng loạt); prefill off (không có cột "chính").
@@ -1472,8 +1465,8 @@ function editContextForSession(u: any, session: any) {
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
-  else if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED", "CLOSED"]);
-  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED", "CLOSED"]);
+  else if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
+  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED"]);
   if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
   const { data } = await q;
   const cands = data || [];
@@ -1481,8 +1474,8 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   const priority: Record<string, string[]> = {
     AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
     PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED"],
-    MANAGER: ["PM_APPROVED", "APPROVED", "CLOSED"],
-    PURCHASING: ["APPROVED", "CLOSED"],
+    MANAGER: ["PM_APPROVED", "APPROVED"],
+    PURCHASING: ["APPROVED"],
     ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
   };
   const order = priority[u.role] || priority.ADMIN;

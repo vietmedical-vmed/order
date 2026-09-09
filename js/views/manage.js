@@ -44,8 +44,8 @@ export async function initApprovalView() {
   await renderManageList();
 }
 
-const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CLOSED: 'Đã chốt', CANCELED: 'Đã hủy' };
-const ST_CLS = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CLOSED: 'st-close', CANCELED: 'pill-hot' };
+const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', CANCELED: 'Đã hủy' };
+const ST_CLS = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', CANCELED: 'pill-hot' };
 
 async function renderManageList() {
   const host = $('#manageHost');
@@ -94,9 +94,8 @@ async function renderManageList() {
           if (canReject) action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
           // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
           if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
-          if (role === 'ADMIN' && st === 'APPROVED') action += ` <button class="ctl-btn" data-act="close" data-id="${s.session_id}">Chốt đợt</button>`;
-          if (canPurchase && (st === 'APPROVED' || st === 'CLOSED')) action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
-          if (canExport && (st === 'APPROVED' || st === 'CLOSED')) action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
+          if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
+          if (canExport && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
 
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
@@ -188,14 +187,6 @@ function bindManageActions() {
     } else if (act === 'purchase') {
       const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
       openPurchaseModal(sess);
-    } else if (act === 'close') {
-      if (!(await askConfirm({ title: 'Chốt đợt', message: 'Chốt đợt này? Sẽ không sửa được nữa.', danger: true, okLabel: 'Chốt đợt' }))) return;
-      try {
-        await rpc('closeSession', id);
-        toast('Đã chốt đợt');
-        await loadSessions();
-        renderManageList();
-      } catch (e) { toast('Lỗi: ' + e.message, 'error'); }
     }
   });
 }

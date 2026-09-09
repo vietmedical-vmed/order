@@ -365,7 +365,7 @@ function renderSessionBanner() {
     APPROVED: 'Đợt đã duyệt — Mua hàng ghi DM/PO và xuất Excel',
   };
   const currIdx = statusOrder.indexOf(sess.trang_thai);
-  const isDone = sess.trang_thai === 'APPROVED' || sess.trang_thai === 'CLOSED';
+  const isDone = sess.trang_thai === 'APPROVED';
 
   const stepsHtml = statusOrder.map((st, i) => {
     let circleCls, content;

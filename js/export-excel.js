@@ -67,7 +67,7 @@ async function exportCatalogToExcel() {
 }
 
 // Xuất đợt đặt hàng (có session). Backend chỉ cho Manager/Admin
-// xuất khi đợt đã APPROVED/CLOSED, nên đây chỉ là lớp UX phía trước.
+// xuất khi đợt đã APPROVED, nên đây chỉ là lớp UX phía trước.
 async function exportSessionToExcel(session) {
   const sess = session;
   const btn = $('#btnExport');
