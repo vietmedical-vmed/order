@@ -715,6 +715,7 @@ function rowContext() {
 function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
+  const totalStock = allItems.reduce((s, r) => s + (r.tong_ton || 0), 0);
   const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
   const open = false;
   const cols = columns();
@@ -724,10 +725,11 @@ function groupCardHtml(grp, plMap, gIdx) {
       <svg class="chev text-slate-500 ${open ? '' : '-rotate-90'} transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       <div class="flex-1 min-w-0">
         <div class="group-title">${esc(grp)}</div>
-        <div class="group-meta">${totalSku} SKU · ${plMap.size} phân loại</div>
+        <div class="group-meta">${totalSku} SKU · Tồn ${fmt(totalStock)}</div>
       </div>
       <div class="hidden md:flex items-center gap-5">
         <div class="group-stat"><div class="group-stat-label">SKU</div><div class="group-stat-value text-slate-700">${totalSku}</div></div>
+        <div class="group-stat"><div class="group-stat-label">Tồn</div><div class="group-stat-value text-slate-700">${fmt(totalStock)}</div></div>
         <div class="group-stat"><div class="group-stat-label">SL đã đặt</div><div class="group-stat-value text-primary-700">${fmt(totalOrdered)}</div></div>
       </div>
     </button>
