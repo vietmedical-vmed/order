@@ -1179,7 +1179,6 @@ function openCreateSessionModal() {
   $('#modalSubmit').onclick = async () => {
     const name = $('#modalSessName').value.trim();
     if (!name) { $('#modalErr').textContent = 'Vui lòng nhập tên đợt'; return; }
-    const ngayDong = $('#modalSessClose').value;
     const btn = $('#modalSubmit');
     btn.disabled = true; btn.textContent = 'Đang tạo…';
     try {
@@ -1187,12 +1186,11 @@ function openCreateSessionModal() {
       const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value);
       const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
       if (role === 'AM') {
-        const s = await rpc('createSession', name, state.user.mien, ngayDong || '', nhom);
-        // Mở thẳng đợt vừa tạo (không còn auto-pick ở backend).
+        const s = await rpc('createSession', name, state.user.mien, '', nhom);
         state.pinnedSessionId = (s && s.session_id) || null;
         toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}${nhomLabel}`;
       } else {
-        const r = await rpc('createSessionBoth', name, ngayDong || '', nhom);
+        const r = await rpc('createSessionBoth', name, '', nhom);
         toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${nhomLabel}`;
         // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
         const targetMien = state.mien === 'MN' ? 'MN' : 'MB';

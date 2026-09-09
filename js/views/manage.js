@@ -76,7 +76,6 @@ async function renderManageList() {
           <th class="hidden lg:table-cell">Ngày yêu cầu</th>
           <th class="hidden lg:table-cell">Ngày PM duyệt</th>
           <th class="hidden lg:table-cell">Ngày Manager duyệt</th>
-          <th class="hidden lg:table-cell">Ngày đóng</th>
           <th class="c">Trạng thái</th>
           <th class="r">SKU · SL đặt</th>
           <th class="r">SL duyệt</th>
@@ -113,7 +112,6 @@ async function renderManageList() {
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_yeu_cau)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_pm_duyet)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_manager_duyet)}</td>
-            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_dong)}</td>
             <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
             <td class="r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
             <td class="r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>

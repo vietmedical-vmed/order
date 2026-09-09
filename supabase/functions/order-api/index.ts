@@ -1107,11 +1107,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async createSession(supa, u, [name, mien, ngayDong, nhomSanPham]) {
+  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham]) {
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const row: any = { ten_dot: name, mien, ngay_dong: ngayDong || null, trang_thai: "DRAFT", tao_boi: u.username };
+    const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username };
     // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
     // vẫn tạo được kể cả khi cột chưa migrate.
     const grp = normalizeGroups(nhomSanPham);
