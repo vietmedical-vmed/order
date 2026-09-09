@@ -208,7 +208,7 @@ function bindFilterBarOnce() {
   $('#btnNewSession').addEventListener('click', openCreateSessionModal);
   const btnExport = $('#btnExport');
   if (btnExport) btnExport.onclick = () => exportToExcel();
-  $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); });
+  $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); updateOrderStats(); });
   initPLFilter();
   $('#fOnlyQty').addEventListener('click', () => {
     state.filters.onlyWithQty = !state.filters.onlyWithQty;
@@ -216,7 +216,7 @@ function bindFilterBarOnce() {
     renderOrderBody();
     updateOrderStats();
   });
-  $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); }, 250));
+  $('#fSearch').addEventListener('input', debounce(e => { state.filters.search = e.target.value.toLowerCase(); renderOrderBody(); updateOrderStats(); }, 250));
 
   const role = state.user.role;
   $$('.mien-btn').forEach(b => {
@@ -489,6 +489,7 @@ function renderPLOptions() {
       state.filters.pl = $$('.fpl-opt', menu).filter(x => x.checked).map(x => x.value);
       updatePLLabel();
       renderOrderBody();
+      updateOrderStats();
     };
   });
   const clr = $('#fPLClear');
@@ -498,6 +499,7 @@ function renderPLOptions() {
     renderPLOptions();
     updatePLLabel();
     renderOrderBody();
+    updateOrderStats();
   };
   updatePLLabel();
 }
