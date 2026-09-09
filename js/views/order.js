@@ -715,7 +715,7 @@ function rowContext() {
 function groupCardHtml(grp, plMap, gIdx) {
   const allItems = Array.from(plMap.values()).flat();
   const totalSku = allItems.length;
-  const totalStock = allItems.reduce((s, r) => s + (r.tong_ton || 0), 0);
+  const totalStock = allItems.reduce((s, r) => s + Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0) + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0), 0);
   const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
   const open = false;
   const cols = columns();
@@ -946,7 +946,8 @@ function updateOrderStats() {
   // Thống kê theo phần đang HIỂN THỊ (đã áp bộ lọc, gồm "chỉ mã có số lượng").
   const rows = filteredOrderRows();
   const eff = (r, field) => qtyEffective(r, field);
-  const stockOf = r => Number(r.tong_ton || 0);
+  const stockOf = r => Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0)
+    + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0);
 
   // Tổng sản phẩm = số phân loại (sản phẩm) khác nhau; SKU cùng sản phẩm gộp 1.
   const totalProducts = new Set(rows.map(r => (r.nhom_hang || '') + '|' + (r.phan_loai || ''))).size;
