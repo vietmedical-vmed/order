@@ -1157,7 +1157,6 @@ function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
-  $('#modalSessClose').value = '';
   $('#modalErr').textContent = '';
   populateSessionGroupOptions();
 
