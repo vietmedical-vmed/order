@@ -63,11 +63,11 @@ async function renderAudit() {
           const sess = (meta.sessMap && meta.sessMap[l.session_id]) || {};
           const mien = sess.mien || '';
           return `<tr>
-            <td class="text-slate-600">${fmtDate(l.timestamp)}</td>
-            <td><div class="font-medium text-slate-800">${esc(ho_ten)}</div><div class="text-[11px] text-slate-500">${esc(l.username)}</div></td>
-            <td><span class="pill ${cls}">${esc(ACTION_LABELS[l.action] || l.action)}</span></td>
-            <td class="text-slate-600 hidden md:table-cell">${esc(sess.ten_dot || '—')}${mien ? ' · ' + mien : ''}</td>
-            <td class="text-slate-500 text-[11.5px] hidden md:table-cell">${esc(l.detail || '')}</td>
+            <td class="text-slate-600" style="white-space:nowrap">${fmtDate(l.timestamp)}</td>
+            <td style="white-space:nowrap"><div class="font-medium text-slate-800">${esc(ho_ten)}</div><div class="text-[11px] text-slate-500">${esc(l.username)}</div></td>
+            <td style="white-space:nowrap"><span class="pill ${cls}">${esc(ACTION_LABELS[l.action] || l.action)}</span></td>
+            <td class="text-slate-600 hidden md:table-cell" style="white-space:nowrap">${esc(sess.ten_dot || '—')}${mien ? ' · ' + mien : ''}</td>
+            <td class="text-slate-500 text-[11.5px] hidden md:table-cell" style="width:99%">${esc(l.detail || '')}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>
