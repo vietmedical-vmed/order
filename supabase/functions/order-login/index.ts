@@ -141,10 +141,10 @@ async function handleChangePassword(supa: SupabaseClient, body: any, cors: Recor
   if (String(oldPassword) === String(newPassword)) {
     return json({ error: "Mật khẩu mới phải khác mật khẩu hiện tại" }, 400, cors);
   }
-  const uname = String(username).trim().toLowerCase();
+  const uname = String(username).trim();
 
   const { data: user } = await supa
-    .schema("shared").from("users").select("*").eq("username", uname).maybeSingle();
+    .schema("shared").from("users").select("*").ilike("username", uname).maybeSingle();
   if (!user || !user.password_hash || user.active === false) {
     await new Promise((r) => setTimeout(r, 400)); // chống dò
     return json({ error: "Tài khoản hoặc mật khẩu hiện tại không đúng" }, 401, cors);
@@ -167,7 +167,7 @@ async function handleChangePassword(supa: SupabaseClient, body: any, cors: Recor
   const newHashV2 = await hashPasswordV2(newPassword);
 
   const { error } = await supa.schema("shared").from("users")
-    .update({ password_hash: newHash, salt, password_hash_v2: newHashV2 }).eq("username", uname);
+    .update({ password_hash: newHash, salt, password_hash_v2: newHashV2 }).eq("username", user.username);
   if (error) return json({ error: error.message }, 500, cors);
 
   await supa.schema("app_order").from("audit_log").insert({
@@ -195,26 +195,27 @@ Deno.serve(async (req) => {
     if (!username || !password) {
       return json({ error: "Thiếu tài khoản hoặc mật khẩu" }, 400, cors);
     }
-    const uname = String(username).trim().toLowerCase();
+    const uname = String(username).trim();
     const ip = getClientIp(req);
 
-    if (await isRateLimited(supa, uname, ip)) {
+    if (await isRateLimited(supa, uname.toLowerCase(), ip)) {
       return json({ error: "Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút." }, 429, cors);
     }
 
     // users = bảng DÙNG CHUNG (identity + mật khẩu + role + mien)
+    // ilike: cho phép username viết hoa/thường tuỳ ý
     const { data: user } = await supa
-      .schema("shared").from("users").select("*").eq("username", uname).maybeSingle();
+      .schema("shared").from("users").select("*").ilike("username", uname).maybeSingle();
 
     if (!user || !user.password_hash || user.active === false) {
-      await recordFailedLogin(supa, uname, ip);
+      await recordFailedLogin(supa, uname.toLowerCase(), ip);
       await new Promise((r) => setTimeout(r, 400)); // chống dò
       return json({ error: "Tài khoản hoặc mật khẩu không đúng" }, 401, cors);
     }
 
     const verify = await verifyPassword(user, password);
     if (!verify.ok) {
-      await recordFailedLogin(supa, uname, ip);
+      await recordFailedLogin(supa, uname.toLowerCase(), ip);
       await new Promise((r) => setTimeout(r, 400));
       return json({ error: "Tài khoản hoặc mật khẩu không đúng" }, 401, cors);
     }
@@ -222,19 +223,19 @@ Deno.serve(async (req) => {
     // công; best-effort, không chặn đăng nhập nếu update lỗi. Không đổi password_hash/salt cũ.
     if (verify.viaLegacy) {
       const v2 = await hashPasswordV2(password);
-      await supa.schema("shared").from("users").update({ password_hash_v2: v2 }).eq("username", uname);
+      await supa.schema("shared").from("users").update({ password_hash_v2: v2 }).eq("username", user.username);
     }
 
     // Map role của bảng chung -> role app đặt hàng
     const ROLE_MAP: Record<string, string> = {
-      area_manager: "AM", sale_manager: "AM", am: "AM",
+      area_manager: "AM", sale_manager: "AM", am: "AM", ps: "AM",
       product_manager: "PM", pm: "PM",
       manager: "MANAGER", admin: "ADMIN", purchasing: "PURCHASING",
       AM: "AM", PM: "PM", MANAGER: "MANAGER", ADMIN: "ADMIN", PURCHASING: "PURCHASING",
     };
     const role = ROLE_MAP[String(user.role || "").toLowerCase()] || ROLE_MAP[String(user.role || "")] || "";
     if (!role) {
-      return json({ error: "Tài khoản (role: " + user.role + ") chưa được cấp quyền cho app Đặt hàng CTCH" }, 403, cors);
+      return json({ error: "Tài khoản (role: " + user.role + ") chưa được cấp quyền cho app Đặt hàng" }, 403, cors);
     }
     const ho_ten = user.ho_va_ten || user.ho_ten || user.username;
 

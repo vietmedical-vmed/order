@@ -27,7 +27,7 @@ const dec = new TextDecoder("utf-8"); // <- fix UTF-8 (không dùng atob trực 
 // Chấp nhận cả role đã map cũ (am/pm/admin...) để tương thích token cũ.
 const ROLE_MAP: Record<string, string> = {
   admin: "ADMIN", manager: "MANAGER",
-  area_manager: "AM", sale_manager: "AM", am: "AM",
+  area_manager: "AM", sale_manager: "AM", am: "AM", ps: "AM",
   product_manager: "PM", pm: "PM",
   purchasing: "PURCHASING",
 };
@@ -76,7 +76,7 @@ async function verifyToken(token: string, secret: string): Promise<any> {
   const payload = JSON.parse(dec.decode(b64urlToBytes(payloadB64))); // UTF-8 decode
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) throw new Error("AUTH_REQUIRED");
   const mapped = ROLE_MAP[String(payload.role || "").toLowerCase()] || "";
-  if (!ORDER_ROLES.has(mapped)) throw new Error("Tài khoản không có quyền dùng app Đặt hàng CTCH");
+  if (!ORDER_ROLES.has(mapped)) throw new Error("Tài khoản không có quyền dùng app Đặt hàng");
   payload.role = mapped;
   return payload;
 }
@@ -328,15 +328,15 @@ function normalizeGroups(v: any): string {
 // Đọc bu/scope trực tiếp từ users để không phụ thuộc token cũ & cập nhật tức thì.
 async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; scope: string }> {
   if (u.role === "ADMIN" || u.role === "MANAGER" || u.role === "PURCHASING") return { bu: "", scope: "" };
-  const { data } = await supa.schema("shared").from("users").select("bu, scope").eq("username", u.username).maybeSingle();
+  const { data } = await supa.schema("shared").from("users").select("bu, scope").ilike("username", u.username).maybeSingle();
   return { bu: (data && data.bu) || u.bu || "", scope: (data && data.scope) || u.scope || "" };
 }
 
 // Trả predicate lọc theo dòng dm_vat_tu ({ bu, nhom_san_pham }); null = xem tất cả.
 function makeVisibleFilter(role: string, grants: { bu: string; scope: string }) {
   if (role === "AM") {
-    const set = grants.bu ? parseScope(grants.bu) : null;        // BU (có thể nhiều, phân tách phẩy)
-    return set ? (r: any) => set.has(normGroup(r.bu || "")) : null;
+    const set = grants.bu ? parseScope(grants.bu) : null;        // BU code (có thể nhiều, phân tách phẩy)
+    return set ? (r: any) => set.has(normGroup(r.bu_code || r.bu || "")) : null;
   }
   if (role === "PM") {
     const set = grants.scope ? parseScope(grants.scope) : null;  // nhóm sản phẩm
@@ -358,7 +358,7 @@ async function fetchProducts(supa: SupabaseClient) {
       // (mapping bên dưới cố tình đọc undefined -> fallback 0/''/null, phòng khi cột được thêm
       // sau) — TUYỆT ĐỐI không thêm các tên này vào select() vì PostgREST sẽ lỗi "column does
       // not exist" (đã từng gây lỗi 500 toàn màn Chi tiết đặt hàng, xem OPTIMIZATION_PLAN).
-      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, muc_do_sd, safety_stock, don_gia_thau_moi")
+      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, bu_code, muc_do_sd, safety_stock, don_gia_thau_moi")
       .eq("dat_hang", true)
       .order("ma_bravo", { ascending: true })
       .range(from, from + PAGE - 1);
@@ -374,7 +374,8 @@ async function fetchProducts(supa: SupabaseClient) {
     nhom_hang: v.nhom_san_pham || v.phan_loai_1 || "",   // "nhóm hàng" = nhóm sản phẩm
     phan_loai: v.san_pham || v.phan_loai_2 || "",   // group bảng chi tiết theo sản phẩm
     nhom_san_pham: v.nhom_san_pham || "",   // PM lọc theo nhóm sản phẩm
-    bu: v.bu || "",                          // AM lọc theo BU
+    bu: v.bu || "",                          // tên hiển thị BU
+    bu_code: v.bu_code || "",                // ID chuẩn để lọc theo users.bu
     muc_do_sd: v.muc_do_sd || "",
     safety_stock: num(v.safety_stock),      // tồn kho an toàn (cấu hình danh mục)
     don_vi: v.don_vi || "",
@@ -678,7 +679,7 @@ function tbKh3Thang(p: any, sumByBo: Record<string, number>, spBoMap: Record<str
 const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<any>> = {
 
   async getCurrentUser(_supa, u) {
-    return { username: u.username, ho_ten: u.ho_ten, role: u.role, mien: u.mien, scope: u.scope || "", initials: initials(u.ho_ten) };
+    return { username: u.username, ho_ten: u.ho_ten, role: u.role, mien: u.mien, bu: u.bu || "", scope: u.scope || "", initials: initials(u.ho_ten) };
   },
 
   async logout(supa, u) { await audit(supa, u.username, "LOGOUT"); return { ok: true }; },
@@ -690,6 +691,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Danh sách nhóm sản phẩm (nhom_san_pham) trong danh mục đặt hàng — cho combobox tạo đợt.
   async listProductGroups(supa) {
     return await listOrderGroups(supa);
+  },
+
+  async listBU(supa) {
+    const { data, error } = await supa.schema("shared").from("dm_bu").select("bu, ten_bu, bu_code").order("bu");
+    if (error) throw new Error(error.message);
+    return data || [];
   },
 
   // Soi TB KH cho 1 vật tư: nhánh lẻ/bộ, danh sách bộ, Σ từng bộ, và TB cuối.
@@ -913,8 +920,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async listSessions(supa, u, [filter]) {
     filter = filter || {};
     let q = supa.schema("app_order").from("order_sessions").select("*");
-    if (u.role === "AM") q = q.eq("mien", u.mien);
+    if (u.role === "AM") { q = q.eq("mien", u.mien); if (u.bu) q = q.eq("bu", u.bu); }
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
+    if (filter.bu && filter.bu !== "ALL") q = q.eq("bu", filter.bu);
     // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
     if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
@@ -940,6 +948,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       session_id: String(s.session_id),
       ten_dot: String(s.ten_dot || ""),
       mien: String(s.mien || ""),
+      bu: String(s.bu || ""),
       ngay_mo: s.ngay_mo ? new Date(s.ngay_mo).toISOString() : "",
       ngay_dong: s.ngay_dong ? new Date(s.ngay_dong).toISOString() : "",
       trang_thai: String(s.trang_thai || ""),
@@ -979,11 +988,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     const visFilter = makeVisibleFilter(u.role, grants);
     let products = visFilter ? products0.filter(visFilter) : products0;
-    // AM: nếu cấu hình BU không khớp sản phẩm nào (BU trống/sai lệch dữ liệu) thì hiển thị
-    // toàn bộ danh mục thay vì màn trắng "không có SKU". AM vẫn bị giới hạn theo miền
-    // qua tồn kho & phạm vi đợt đặt hàng.
-    if (u.role === "AM" && visFilter && products.length === 0 && products0.length > 0) {
-      products = products0;
+    // Multi-BU: không fallback hiện toàn bộ khi BU không khớp — user chỉ thấy sản phẩm đúng BU.
+    if (false) {
     }
     // Đợt gắn 1 hoặc NHIỀU nhóm sản phẩm -> chỉ hiển thị danh mục thuộc các nhóm đó
     // (áp sau lọc theo vai trò). parseScope tách "A;B" và chuẩn hoá chữ thường.
@@ -1058,7 +1064,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const goi_y_dat = Math.max(0, Math.round((spGoiY[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
       return {
         ma_bravo: p.ma_bravo, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
-        nhom_hang: p.nhom_hang, phan_loai: p.phan_loai, nhom_san_pham: p.nhom_san_pham,
+        nhom_hang: p.nhom_hang, phan_loai: p.phan_loai, nhom_san_pham: p.nhom_san_pham, bu: p.bu || "", bu_code: p.bu_code || "",
         muc_do_sd: p.muc_do_sd,
         safety_stock: num(p.safety_stock),
         don_vi: p.don_vi || "", gia: num(p.gia), leadtime_ngay: num(p.leadtime_ngay),
@@ -1083,6 +1089,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (session) {
       sessionOut = {
         session_id: session.session_id, ten_dot: session.ten_dot, mien: session.mien,
+        bu: session.bu || "",
         ngay_mo: session.ngay_mo ? new Date(session.ngay_mo).toISOString() : "",
         ngay_dong: session.ngay_dong ? new Date(session.ngay_dong).toISOString() : "",
         trang_thai: session.trang_thai, tao_boi: session.tao_boi,
@@ -1107,11 +1114,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham]) {
+  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham, bu]) {
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username };
+    const sessionBu = bu || u.bu || "";
+    const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username, bu: sessionBu };
     // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
     // vẫn tạo được kể cả khi cột chưa migrate.
     const grp = normalizeGroups(nhomSanPham);
@@ -1122,10 +1130,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return data;
   },
 
-  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham]) {
+  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham, bu]) {
     if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được tạo đợt cho cả 2 miền");
-    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham]);
-    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham]);
+    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham, bu]);
+    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham, bu]);
     return { mb, mn };
   },
 
@@ -1514,15 +1522,10 @@ async function saveAndAdvance(
     const info: Record<string, any> = {};
     for (let i = 0; i < mas.length; i += 500) {
       const { data } = await supa.schema("shared").from("dm_vat_tu")
-        .select("ma_bravo, bu, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
+        .select("ma_bravo, bu, bu_code, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
       (data || []).forEach((r: any) => { info[r.ma_bravo] = r; });
     }
-    const filtered = workItems.filter((it: any) => info[it.ma_bravo] && visFilter(info[it.ma_bravo]));
-    // ĐỒNG BỘ với read-path: khi BU của AM không khớp SKU nào, loadOrderScreen hiển thị TOÀN
-    // danh mục (fallback) và cho nhập. Nếu ở đây vẫn lọc rỗng thì SL yêu cầu AM vừa nhập bị
-    // xoá trắng khi submit (bug cũ). Chỉ giữ nguyên khi filter rỗng — còn khi BU khớp một phần
-    // thì vẫn siết đúng phạm vi (nhất quán với danh sách AM nhìn thấy).
-    workItems = (u.role === "AM" && filtered.length === 0 && workItems.length > 0) ? workItems : filtered;
+    workItems = workItems.filter((it: any) => info[it.ma_bravo] && visFilter(info[it.ma_bravo]));
   }
 
   for (const it of workItems) {

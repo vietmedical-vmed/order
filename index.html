@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Ứng dụng đặt hàng cho CH&CS — tạo đợt, nhập số lượng, duyệt và theo dõi trạng thái đơn hàng.">
-  <title>Đặt hàng CH&CS</title>
+  <meta name="description" content="Ứng dụng đặt hàng — tạo đợt, nhập số lượng, duyệt và theo dõi trạng thái đơn hàng.">
+  <title>Đặt hàng</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://nrfxymnfmjhbsgpipvkb.supabase.co">
   <!-- CSS build tĩnh (Tailwind CLI, xem src/tailwind.css). Sửa class Tailwind trong file này
@@ -26,7 +26,7 @@
 <div id="loginScreen" style="display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;background:#f0f2f5;padding:16px">
   <form id="loginForm" style="background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1),0 8px 16px rgba(0,0,0,0.1);border:1px solid #dadde1;padding:24px;width:100%;max-width:360px;box-sizing:border-box">
     <img src="logo.png" alt="VietMedical" style="height:48px;display:block;margin:0 auto 24px">
-    <h2 style="font-size:18px;font-weight:700;margin:0 0 20px;text-align:center;text-transform:uppercase">ĐẶT HÀNG CH&CS</h2>
+    <h2 style="font-size:18px;font-weight:700;margin:0 0 20px;text-align:center;text-transform:uppercase">ĐẶT HÀNG</h2>
     <input id="loginUser" type="text" autofocus required placeholder="Tài khoản" autocomplete="username"
            style="width:100%;padding:8px 12px;border:1px solid #dadde1;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;margin-bottom:10px"/>
     <input id="loginPass" type="password" required placeholder="Mật khẩu" autocomplete="current-password"
@@ -75,7 +75,7 @@
       <div class="flex items-center gap-3 min-w-0">
         <div id="userAvatar" style="width:44px;height:44px;border-radius:50%;background:#1877f2;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">DH</div>
         <div class="min-w-0" style="line-height:1.25">
-          <h1 class="text-[15px] font-bold leading-tight truncate uppercase md:text-[17px]">Đặt hàng CH&CS</h1>
+          <h1 id="appTitle" class="text-[15px] font-bold leading-tight truncate uppercase md:text-[17px]">Đặt hàng</h1>
           <div class="flex items-center gap-2" style="margin-top:2px">
             <span id="userMeta" class="text-[12px] text-slate-500"></span>
             <span id="userBadge" style="display:none;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid"></span>
@@ -149,6 +149,7 @@
 
     <div id="approvalFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
       <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
+      <select id="mBU" class="ctl-select" aria-label="Lọc theo BU"><option value="ALL">Tất cả BU</option></select>
       <select id="mStatus" class="ctl-select" aria-label="Lọc theo trạng thái đợt">
         <option value="ALL">Tất cả trạng thái</option>
         <option value="DRAFT">AM đang nhập</option>
@@ -311,6 +312,10 @@
       <div id="modalNote" class="bg-primary-50 border border-primary-100 rounded-md p-3 text-[12px] text-primary-800 mb-4">
         Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.
       </div>
+      <label for="modalSessBU" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">BU (đơn vị kinh doanh)</label>
+      <select id="modalSessBU" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100">
+        <option value="">Đang tải…</option>
+      </select>
       <label for="modalSessName" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Tên đợt</label>
       <input id="modalSessName" placeholder="VD: Q3-2026 đợt 1" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
       <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Nhóm sản phẩm <span class="text-slate-500 normal-case">(chọn nhiều · để trống = tất cả)</span></label>

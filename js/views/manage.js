@@ -2,6 +2,7 @@
 import { $, $$, esc, fmt, fmtDate, splitGroups } from '../utils.js';
 import { rpc } from '../api.js';
 import { state, canApprove, isAM, isPurchasing } from '../state.js';
+let _buListLoaded = false;
 import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
@@ -9,6 +10,26 @@ import { renderView } from '../router.js';
 import { exportToExcel } from '../export-excel.js';
 
 let _approvalFilterBound = false;
+
+async function loadBUFilter() {
+  if (_buListLoaded) return;
+  _buListLoaded = true;
+  const sel = $('#mBU');
+  if (!sel) return;
+  if (isAM() && state.user.bu) {
+    sel.innerHTML = `<option value="${esc(state.user.bu)}">${esc(state.user.bu)}</option>`;
+    sel.disabled = true;
+    state.manageBU = state.user.bu;
+    return;
+  }
+  try {
+    const list = await rpc('listBU');
+    if (Array.isArray(list) && list.length) {
+      sel.innerHTML = '<option value="ALL">Tất cả BU</option>' + list.map(b => `<option value="${esc(b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
+    }
+  } catch (e) { console.warn('[loadBUFilter]', e); }
+  sel.addEventListener('change', () => { state.manageBU = sel.value; renderManageList(); });
+}
 
 function bindApprovalFilterOnce() {
   if (_approvalFilterBound) return;
@@ -39,7 +60,9 @@ export async function initApprovalView() {
     return;
   }
   state.manageMien = state.manageMien || 'ALL';
+  state.manageBU = state.manageBU || 'ALL';
   bindApprovalFilterOnce();
+  await loadBUFilter();
   bindManageActions();
   await renderManageList();
 }
@@ -54,7 +77,8 @@ async function renderManageList() {
   try {
     const status = $('#mStatus').value;
     const mien = state.manageMien || 'ALL';
-    const list = await rpc('listSessions', { mien: mien, status: status });
+    const bu = state.manageBU || 'ALL';
+    const list = await rpc('listSessions', { mien, status, bu });
     if (!Array.isArray(list)) throw new Error(`Server trả về ${list === null ? 'null' : typeof list} thay vì danh sách đợt.`);
     if (!list.length) {
       host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có đợt nào</div>`;
@@ -71,6 +95,7 @@ async function renderManageList() {
       <table class="dt">
         <thead><tr>
           <th>Đợt</th>
+          <th class="c">BU</th>
           <th class="c">Miền</th>
           <th>Ngày mở</th>
           <th class="hidden lg:table-cell">Ngày yêu cầu</th>
@@ -106,6 +131,7 @@ async function renderManageList() {
             : '';
           return `<tr>
             <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}${s.nhom_san_pham ? ` · nhóm <span class="text-slate-600 font-medium">${esc(splitGroups(s.nhom_san_pham).join(', '))}</span>` : ''}</div></td>
+            <td class="c"><span class="pill">${esc(s.bu || '—')}</span></td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="text-slate-600">${fmtDate(s.ngay_mo)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_yeu_cau)}</td>

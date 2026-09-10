@@ -198,6 +198,11 @@ function setupUserUI() {
 
   // Default mien theo role: AM khoá theo miền của mình; ADMIN/PM/MANAGER → 'ALL'
   state.mien = isAM() ? (u.mien || 'MB') : 'ALL';
+
+  // Hiển thị BU trên header (nếu có)
+  const titleEl = $('#appTitle');
+  if (titleEl) titleEl.textContent = u.bu ? `Đặt hàng ${u.bu}` : 'Đặt hàng';
+  document.title = u.bu ? `Đặt hàng ${u.bu}` : 'Đặt hàng';
 }
 
 function bindLogout() {

@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, dash0, fmtVND, debounce, viCmp, splitGroups } from '../utils.js';
 import { DRAFT_KEY } from '../config.js';
 import { rpc } from '../api.js';
-import { state, canCreateSession } from '../state.js';
+import { state, canCreateSession, canApprove } from '../state.js';
 import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
@@ -408,6 +408,7 @@ function renderSessionBanner() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Đang xem</span>
             <h2 class="font-semibold text-[14px] text-slate-900 truncate">${esc(sess.ten_dot)}</h2>
+            ${sess.bu ? `<span class="pill">${esc(sess.bu)}</span>` : ''}
             <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
             ${splitGroups(sess.nhom_san_pham).map(g => `<span class="pill pill-info" title="Đợt chỉ gồm danh mục các nhóm sản phẩm này">${esc(g)}</span>`).join('')}
           </div>
@@ -647,7 +648,30 @@ export function renderOrderBody() {
   // Cache plMap theo tên nhóm để render lười: nhóm đóng chỉ dựng tbody khi mở lần đầu
   // (xem bindGroupToggles) — placeOrder() không phụ thuộc DOM nên an toàn (xem 3.4).
   state.orderGroupsCache = new Map(sortedGroups);
-  host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
+
+  // Admin/Manager/PM: group nhom_hang theo BU, hiện banner BU phía trên
+  const buValues = new Set(rows.map(r => r.bu).filter(Boolean));
+  const showBU = ['ADMIN', 'MANAGER', 'PM'].includes(state.user.role) && buValues.size >= 1;
+  if (showBU) {
+    const byBU = new Map();
+    sortedGroups.forEach(([grp, plMap]) => {
+      const buSet = new Set(Array.from(plMap.values()).flat().map(r => r.bu || '(không có BU)'));
+      for (const bu of buSet) {
+        if (!byBU.has(bu)) byBU.set(bu, []);
+        byBU.get(bu).push([grp, plMap]);
+      }
+    });
+    const sortedBUs = Array.from(byBU.entries()).sort((a, b) => viCmp(a[0], b[0]));
+    let gIdx = 0;
+    host.innerHTML = sortedBUs.map(([bu, groups]) => {
+      const buSku = groups.reduce((s, [, pm]) => s + Array.from(pm.values()).flat().length, 0);
+      const html = `<div class="bu-banner"><div class="bu-banner-inner">${esc(bu)} <span class="bu-banner-count">${buSku} SKU</span></div></div>`
+        + groups.map(([grp, plMap]) => groupCardHtml(grp, plMap, gIdx++)).join('');
+      return html;
+    }).join('');
+  } else {
+    host.innerHTML = sortedGroups.map(([grp, plMap], gIdx) => groupCardHtml(grp, plMap, gIdx)).join('');
+  }
   bindGroupToggles();
   setupOrderTable();
   host.querySelectorAll('textarea.note-textarea').forEach(ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; });
@@ -1153,14 +1177,38 @@ async function populateSessionGroupOptions() {
   }
 }
 
+async function populateSessionBUOptions() {
+  const sel = $('#modalSessBU');
+  if (!sel) return;
+  const role = state.user.role;
+  if (role === 'AM' && state.user.bu) {
+    sel.innerHTML = `<option value="${esc(state.user.bu)}">${esc(state.user.bu)}</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  try {
+    const list = await rpc('listBU');
+    if (Array.isArray(list) && list.length) {
+      sel.innerHTML = list.map(b => `<option value="${esc(b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
+      if (state.user.bu) sel.value = state.user.bu;
+    } else {
+      sel.innerHTML = '<option value="">Không có BU</option>';
+    }
+  } catch (e) {
+    console.warn('[populateSessionBUOptions]', e);
+    sel.innerHTML = '<option value="">Lỗi tải BU</option>';
+  }
+}
+
 function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
   $('#modalErr').textContent = '';
   populateSessionGroupOptions();
+  populateSessionBUOptions();
 
-  // Hiển thị thông báo phù hợp role
   const role = state.user.role;
   const noteEl = $('#modalNote');
   if (noteEl) {
@@ -1178,19 +1226,23 @@ function openCreateSessionModal() {
   $('#modalSubmit').onclick = async () => {
     const name = $('#modalSessName').value.trim();
     if (!name) { $('#modalErr').textContent = 'Vui lòng nhập tên đợt'; return; }
+    const buSel = $('#modalSessBU');
+    const bu = buSel ? buSel.value : '';
+    if (!bu) { $('#modalErr').textContent = 'Vui lòng chọn BU'; return; }
     const btn = $('#modalSubmit');
     btn.disabled = true; btn.textContent = 'Đang tạo…';
     try {
       let toastMsg;
       const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value);
       const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
+      const buLabel = ` · ${bu}`;
       if (role === 'AM') {
-        const s = await rpc('createSession', name, state.user.mien, '', nhom);
+        const s = await rpc('createSession', name, state.user.mien, '', nhom, bu);
         state.pinnedSessionId = (s && s.session_id) || null;
-        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}${nhomLabel}`;
+        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}${buLabel}${nhomLabel}`;
       } else {
-        const r = await rpc('createSessionBoth', name, '', nhom);
-        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${nhomLabel}`;
+        const r = await rpc('createSessionBoth', name, '', nhom, bu);
+        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${buLabel}${nhomLabel}`;
         // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
         const targetMien = state.mien === 'MN' ? 'MN' : 'MB';
         const created = targetMien === 'MN' ? (r && r.mn) : (r && r.mb);
