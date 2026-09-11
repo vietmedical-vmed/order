@@ -812,7 +812,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async listCatalog(supa, u) {
-    if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được xem cấu hình danh mục");
+    if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được xem cấu hình danh mục");
     const cols = "ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, phan_loai_2, san_pham, don_gia_thau_moi, muc_do_sd, safety_stock, dat_hang";
     // PostgREST giới hạn mỗi request tối đa = Max rows (mặc định 1000) → phải phân trang
     // để lấy đủ toàn bộ dm_vat_tu (>2300 dòng). Order 2 cấp cho phân trang ổn định.
@@ -1131,7 +1131,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham, bu]) {
-    if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được tạo đợt cho cả 2 miền");
+    if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được tạo đợt cho cả 2 miền");
     const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham, bu]);
     const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham, bu]);
     return { mb, mn };
