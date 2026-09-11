@@ -1,5 +1,5 @@
 // ============ MÀN CẤU HÌNH DANH MỤC (Admin + PM) ============
-import { $, esc, fmt, debounce } from '../utils.js';
+import { $, $$, esc, fmt, debounce } from '../utils.js';
 import { rpc, rpcOpts } from '../api.js';
 import { state, canEditCatalog } from '../state.js';
 import { toast } from '../toast.js';
@@ -100,6 +100,24 @@ function updateCatHeader() {
   btn.textContent = state.catalogDirty.size ? `Lưu thay đổi (${state.catalogDirty.size})` : 'Lưu thay đổi';
 }
 
+function catRowHtml(r) {
+  const eff = catEffective(r);
+  const dirty = state.catalogDirty.has(r.ma_bravo);
+  return `<tr class="${dirty ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}">
+    <td class="c"><input type="checkbox" data-cat-chk="${esc(r.ma_bravo)}" ${eff.dat_hang ? 'checked' : ''} aria-label="Đặt hàng — ${esc(r.ma_bravo)}"/></td>
+    <td class="font-mono text-[11px] text-slate-700 nowrap">${esc(r.ma_bravo)}</td>
+    <td class="font-mono text-[11px] text-slate-500 nowrap">${esc(r.code_ncc || '—')}</td>
+    <td class="text-slate-800">${esc(r.ten_hang || '')}</td>
+    <td class="text-slate-600 text-[12px] hidden lg:table-cell">${esc(r.phan_loai_1 || '—')}</td>
+    <td class="text-slate-600 text-[12px] hidden lg:table-cell">${esc(r.phan_loai_2 || '—')}</td>
+    <td class="r num text-slate-600 hidden md:table-cell">${fmt(r.gia)}</td>
+    <td class="c"><select class="ctl-select" data-cat-muc="${esc(r.ma_bravo)}" style="width:100%" aria-label="Mức độ sử dụng — ${esc(r.ma_bravo)}">
+      ${MUC_DO_OPTS.map(o => `<option value="${esc(o)}" ${eff.muc_do_sd === o ? 'selected' : ''}>${o || '—'}</option>`).join('')}
+    </select></td>
+    <td class="c"><input type="number" class="qty-input" min="0" step="1" value="${eff.safety_stock ?? 0}" data-cat-safety="${esc(r.ma_bravo)}" style="width:100%" aria-label="Safety stock — ${esc(r.ma_bravo)}"/></td>
+  </tr>`;
+}
+
 function renderCatalogBody() {
   const host = $('#catalogHost');
   const all = filteredCatalog();
@@ -112,44 +130,63 @@ function renderCatalogBody() {
   const capNote = all.length > CAT_RENDER_CAP
     ? `<div class="px-4 py-2 text-[12px] text-warning-700 bg-warning-50 border-b border-warning-100">Hiển thị ${CAT_RENDER_CAP}/${fmt(all.length)} dòng — lọc bớt để xem hết. ("Chọn tất cả đang lọc" vẫn áp cho toàn bộ ${fmt(all.length)} dòng.)</div>`
     : '';
+
+  const bySP = new Map();
+  rows.forEach(r => {
+    const sp = r.san_pham || '(không có sản phẩm)';
+    if (!bySP.has(sp)) bySP.set(sp, []);
+    bySP.get(sp).push(r);
+  });
+
+  const theadHtml = `<thead><tr>
+    <th class="c" style="width:64px">Đặt hàng</th>
+    <th style="width:130px">Mã Bravo</th>
+    <th style="width:120px">Mã NCC</th>
+    <th style="min-width:240px">Tên vật tư</th>
+    <th class="hidden lg:table-cell" style="width:130px">Phân loại 1</th>
+    <th class="hidden lg:table-cell" style="width:130px">Phân loại 2</th>
+    <th class="r hidden md:table-cell" style="width:110px">Đơn giá thầu</th>
+    <th class="c" style="width:150px">Mức độ SD</th>
+    <th class="c" style="width:120px">Safety stock</th>
+  </tr></thead>`;
+
+  const bodyHtml = Array.from(bySP.entries()).map(([sp, items]) => {
+    const selected = items.filter(r => catEffective(r).dat_hang).length;
+    return `<tr class="pl-parent" data-cat-sp-toggle="${esc(sp)}">
+      <td colspan="9" style="cursor:pointer">
+        <div class="flex items-center gap-2">
+          <svg class="cat-chev text-slate-500 -rotate-90 transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <span class="font-semibold text-[13px] text-slate-800">${esc(sp)}</span>
+          <span class="text-[11px] text-slate-500">${items.length} SKU · ${selected} đã chọn</span>
+        </div>
+      </td>
+    </tr>` + items.map(r => `<tr class="cat-child cat-child-hidden ${state.catalogDirty.has(r.ma_bravo) ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}" data-cat-sp="${esc(sp)}" style="display:none">${catRowHtml(r).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '')}</tr>`).join('');
+  }).join('');
+
   host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
     ${capNote}
     <table class="dt">
-      <thead><tr>
-        <th class="c" style="width:64px">Đặt hàng</th>
-        <th style="width:130px">Mã Bravo</th>
-        <th style="width:120px">Mã NCC</th>
-        <th style="min-width:240px">Tên vật tư</th>
-        <th style="width:140px">Sản phẩm</th>
-        <th class="hidden lg:table-cell" style="width:130px">Phân loại 1</th>
-        <th class="hidden lg:table-cell" style="width:130px">Phân loại 2</th>
-        <th class="r hidden md:table-cell" style="width:110px">Đơn giá thầu</th>
-        <th class="c" style="width:150px">Mức độ SD</th>
-        <th class="c" style="width:120px">Safety stock</th>
-      </tr></thead>
-      <tbody>${rows.map(r => {
-        const eff = catEffective(r);
-        const dirty = state.catalogDirty.has(r.ma_bravo);
-        return `<tr class="${dirty ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}">
-          <td class="c"><input type="checkbox" data-cat-chk="${esc(r.ma_bravo)}" ${eff.dat_hang ? 'checked' : ''} aria-label="Đặt hàng — ${esc(r.ma_bravo)}"/></td>
-          <td class="font-mono text-[11px] text-slate-700 nowrap">${esc(r.ma_bravo)}</td>
-          <td class="font-mono text-[11px] text-slate-500 nowrap">${esc(r.code_ncc || '—')}</td>
-          <td class="text-slate-800">${esc(r.ten_hang || '')}</td>
-          <td class="text-slate-600 text-[12px]">${esc(r.san_pham || '—')}</td>
-          <td class="text-slate-600 text-[12px] hidden lg:table-cell">${esc(r.phan_loai_1 || '—')}</td>
-          <td class="text-slate-600 text-[12px] hidden lg:table-cell">${esc(r.phan_loai_2 || '—')}</td>
-          <td class="r num text-slate-600 hidden md:table-cell">${fmt(r.gia)}</td>
-          <td class="c"><select class="ctl-select" data-cat-muc="${esc(r.ma_bravo)}" style="width:100%" aria-label="Mức độ sử dụng — ${esc(r.ma_bravo)}">
-            ${MUC_DO_OPTS.map(o => `<option value="${esc(o)}" ${eff.muc_do_sd === o ? 'selected' : ''}>${o || '—'}</option>`).join('')}
-          </select></td>
-          <td class="c"><input type="number" class="qty-input" min="0" step="1" value="${eff.safety_stock ?? 0}" data-cat-safety="${esc(r.ma_bravo)}" style="width:100%" aria-label="Safety stock — ${esc(r.ma_bravo)}"/></td>
-        </tr>`;
-      }).join('')}</tbody>
+      ${theadHtml}
+      <tbody>${bodyHtml}</tbody>
     </table>
   </div>`;
+
+  bindCatGroupToggles();
 }
 
-// 1 listener delegation trên host (thay vì gắn cho từng checkbox/select/input mỗi lần render).
+function bindCatGroupToggles() {
+  $$('[data-cat-sp-toggle]', $('#catalogHost')).forEach(row => {
+    row.addEventListener('click', () => {
+      const sp = row.dataset.catSpToggle;
+      const children = $$(`[data-cat-sp="${CSS.escape(sp)}"]`, $('#catalogHost'));
+      const open = children[0] && children[0].style.display !== 'none';
+      children.forEach(c => c.style.display = open ? 'none' : '');
+      const chev = row.querySelector('.cat-chev');
+      if (chev) chev.classList.toggle('-rotate-90', open);
+    });
+  });
+}
+
 function bindCatalogInputs() {
   const host = $('#catalogHost');
   host.addEventListener('change', e => {
