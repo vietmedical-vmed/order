@@ -105,6 +105,7 @@ function catRowHtml(r) {
   const dirty = state.catalogDirty.has(r.ma_bravo);
   return `<tr class="${dirty ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}">
     <td class="c"><input type="checkbox" data-cat-chk="${esc(r.ma_bravo)}" ${eff.dat_hang ? 'checked' : ''} aria-label="Đặt hàng — ${esc(r.ma_bravo)}"/></td>
+    <td class="text-slate-600 text-[12px]">${esc(r.nhom_san_pham || '—')}</td>
     <td class="font-mono text-[11px] text-slate-700 nowrap">${esc(r.ma_bravo)}</td>
     <td class="font-mono text-[11px] text-slate-500 nowrap">${esc(r.code_ncc || '—')}</td>
     <td class="text-slate-800">${esc(r.ten_hang || '')}</td>
@@ -140,6 +141,7 @@ function renderCatalogBody() {
 
   const theadHtml = `<thead><tr>
     <th class="c" style="width:64px">Đặt hàng</th>
+    <th style="width:130px">Nhóm SP</th>
     <th style="width:130px">Mã Bravo</th>
     <th style="width:120px">Mã NCC</th>
     <th style="min-width:240px">Tên vật tư</th>
@@ -153,11 +155,11 @@ function renderCatalogBody() {
   const bodyHtml = Array.from(bySP.entries()).map(([sp, items]) => {
     const selected = items.filter(r => catEffective(r).dat_hang).length;
     return `<tr class="pl-parent" data-cat-sp-toggle="${esc(sp)}">
-      <td colspan="9" style="cursor:pointer">
+      <td colspan="10" style="cursor:pointer">
         <div class="flex items-center gap-2">
           <svg class="cat-chev text-slate-500 -rotate-90 transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
           <span class="font-semibold text-[13px] text-slate-800">${esc(sp)}</span>
-          <span class="text-[11px] text-slate-500">${items.length} SKU · ${selected} đã chọn</span>
+          <span class="text-[11px] text-slate-500">Đã chọn ${selected}/${items.length} SKU</span>
         </div>
       </td>
     </tr>` + items.map(r => `<tr class="cat-child cat-child-hidden ${state.catalogDirty.has(r.ma_bravo) ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}" data-cat-sp="${esc(sp)}" style="display:none">${catRowHtml(r).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '')}</tr>`).join('');
