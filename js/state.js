@@ -29,4 +29,4 @@ export function canApprove() {
   return ['PM', 'MANAGER', 'ADMIN', 'PRODUCT_MANAGER'].indexOf(state.user.role) >= 0;
 }
 export function canCreateSession() { return state.user.role === 'ADMIN' || state.user.role === 'AM'; }
-export function canEditCatalog() { return ['ADMIN', 'PM', 'PRODUCT_MANAGER'].includes(state.user.role); }
+export function canEditCatalog() { return ['ADMIN', 'MANAGER', 'PM', 'PRODUCT_MANAGER'].includes(state.user.role); }

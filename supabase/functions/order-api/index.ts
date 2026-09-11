@@ -862,7 +862,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async saveCatalog(supa, u, [changes]) {
-    if (u.role !== "ADMIN" && u.role !== "PM") throw new Error("Chỉ Admin/PM được cấu hình danh mục");
+    if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được cấu hình danh mục");
     let list = Array.isArray(changes) ? changes : [];
     if (!list.length) return { ok: true, updated: 0 };
 
