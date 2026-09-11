@@ -2,9 +2,8 @@
 export const $ = (sel, root) => (root || document).querySelector(sel);
 export const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
-export const fmt = n => (n == null || n === '') ? '—' : Number(n).toLocaleString('vi-VN');
-// Như fmt nhưng giá trị 0 cũng hiển thị "—" (dùng cho dải cột Tồn kho(DA) → Gợi ý).
-export const dash0 = n => (n == null || n === '' || Number(n) === 0) ? '—' : Number(n).toLocaleString('vi-VN');
+export const fmt = n => (n == null || n === '') ? '—' : Math.round(Number(n)).toLocaleString('vi-VN');
+export const dash0 = n => (n == null || n === '' || Number(n) === 0) ? '—' : Math.round(Number(n)).toLocaleString('vi-VN');
 
 export const fmtDate = d => {
   if (!d) return '—';
