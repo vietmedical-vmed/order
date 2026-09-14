@@ -920,9 +920,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async listSessions(supa, u, [filter]) {
     filter = filter || {};
     let q = supa.schema("app_order").from("order_sessions").select("*");
-    if (u.role === "AM") { q = q.eq("mien", u.mien); if (u.bu) q = q.eq("bu", u.bu); }
+    if (u.role === "AM") { q = q.eq("mien", u.mien); if (u.bu) q = q.ilike("bu", u.bu); }
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
-    if (filter.bu && filter.bu !== "ALL") q = q.eq("bu", filter.bu);
+    if (filter.bu && filter.bu !== "ALL") q = q.ilike("bu", filter.bu);
     // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
     if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
