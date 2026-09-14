@@ -25,7 +25,7 @@ async function loadBUFilter() {
   try {
     const list = await rpc('listBU');
     if (Array.isArray(list) && list.length) {
-      sel.innerHTML = '<option value="ALL">Tất cả BU</option>' + list.map(b => `<option value="${esc(b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
+      sel.innerHTML = '<option value="ALL">Tất cả BU</option>' + list.map(b => `<option value="${esc(b.bu_code || b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
     }
   } catch (e) { console.warn('[loadBUFilter]', e); }
   sel.addEventListener('change', () => { state.manageBU = sel.value; renderManageList(); });

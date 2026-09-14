@@ -1190,7 +1190,7 @@ async function populateSessionBUOptions() {
   try {
     const list = await rpc('listBU');
     if (Array.isArray(list) && list.length) {
-      sel.innerHTML = list.map(b => `<option value="${esc(b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
+      sel.innerHTML = list.map(b => `<option value="${esc(b.bu_code || b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
       if (state.user.bu) sel.value = state.user.bu;
     } else {
       sel.innerHTML = '<option value="">Không có BU</option>';
