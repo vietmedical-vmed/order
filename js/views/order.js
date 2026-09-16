@@ -119,7 +119,7 @@ const BASE_COLUMNS = [
   numCol('sl_th_fy25', 'SL TH FY25', 90, { override: { title: 'SL thực hiện FY25 (T04/2025 – T03/2026)' } }),
   numCol('sl_th_fy26_ytd', 'SL TH FY26', 95, { override: { title: 'SL thực hiện FY26 YTD (từ T04/2026)' } }),
   // TB tháng TH = TB SL thực hiện, chỉ chia cho SỐ THÁNG CÓ PHÁT SINH (gộp CKNT + YTD cũ).
-  numCol('tb_th', 'TB tháng TH', 95),
+  numCol('tb_th', 'TB tháng TH', 95, { override: { title: 'TB tháng thực hiện = tổng SL TH ÷ số tháng có phát sinh (gộp CKNT + YTD)' } }),
   {
     // TB KH là số ở mức sản phẩm (phân loại) — dòng SKU không có giá trị riêng nên không sắp xếp được.
     key: 'tb_kh_3_thang', label: 'TB tháng KH', cls: 'r', width: 95, sort: null,
