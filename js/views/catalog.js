@@ -1,5 +1,5 @@
 // ============ MÀN CẤU HÌNH DANH MỤC (Admin + PM) ============
-import { $, $$, esc, fmt, debounce } from '../utils.js';
+import { $, $$, esc, fmt, debounce, viCmp } from '../utils.js';
 import { rpc, rpcOpts } from '../api.js';
 import { state, canEditCatalog } from '../state.js';
 import { toast } from '../toast.js';
@@ -138,6 +138,7 @@ function renderCatalogBody() {
     if (!bySP.has(sp)) bySP.set(sp, []);
     bySP.get(sp).push(r);
   });
+  const sortedSP = Array.from(bySP.entries()).sort((a, b) => viCmp(a[0], b[0]));
 
   const theadHtml = `<thead><tr>
     <th class="c" style="width:64px">Đặt hàng</th>
@@ -152,7 +153,7 @@ function renderCatalogBody() {
     <th class="c" style="width:120px">Safety stock</th>
   </tr></thead>`;
 
-  const bodyHtml = Array.from(bySP.entries()).map(([sp, items]) => {
+  const bodyHtml = sortedSP.map(([sp, items]) => {
     const selected = items.filter(r => catEffective(r).dat_hang).length;
     return `<tr class="pl-parent" data-cat-sp-toggle="${esc(sp)}">
       <td colspan="10" style="cursor:pointer">
