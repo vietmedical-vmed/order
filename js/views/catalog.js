@@ -138,7 +138,12 @@ function renderCatalogBody() {
     if (!bySP.has(sp)) bySP.set(sp, []);
     bySP.get(sp).push(r);
   });
-  const sortedSP = Array.from(bySP.entries()).sort((a, b) => viCmp(a[0], b[0]));
+  const noSP = '(không có sản phẩm)';
+  const sortedSP = Array.from(bySP.entries()).sort((a, b) => {
+    if (a[0] === noSP) return 1;
+    if (b[0] === noSP) return -1;
+    return viCmp(a[0], b[0]);
+  });
 
   const theadHtml = `<thead><tr>
     <th class="c" style="width:64px">Đặt hàng</th>
