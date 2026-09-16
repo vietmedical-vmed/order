@@ -698,8 +698,9 @@ function updateFilterCount(shown) {
 }
 
 // Nguồn "gợi ý mặc định" để điền sẵn cho mỗi ô số lượng theo bước:
-//  SL yêu cầu ← Gợi ý · SL PM duyệt ← SL yêu cầu · SL đặt hàng ← SL PM duyệt.
-const QTY_DEFAULT_SRC = { sl_dat: 'goi_y_dat', sl_duyet: 'sl_dat', sl_dat_hang: 'sl_duyet' };
+//  SL PM duyệt ← SL yêu cầu · SL đặt hàng ← SL PM duyệt.
+//  SL yêu cầu KHÔNG tự điền từ gợi ý — AM tự nhập.
+const QTY_DEFAULT_SRC = { sl_duyet: 'sl_dat', sl_dat_hang: 'sl_duyet' };
 
 // Giá trị điền sẵn (gợi ý) cho 1 ô số lượng của 1 dòng.
 function qtyDefault(r, field) {
