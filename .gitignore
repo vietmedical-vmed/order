@@ -5,3 +5,5 @@ export.xlsx
 chi_tiet.xlsx
 sdvt.xlsx
 node_modules/
+supabase/.temp/
+.claude/
