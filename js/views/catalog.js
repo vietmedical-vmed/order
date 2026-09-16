@@ -171,7 +171,7 @@ function renderCatalogBody() {
     </tr>` + items.map(r => `<tr class="cat-child cat-child-hidden ${state.catalogDirty.has(r.ma_bravo) ? 'dirty' : ''}" data-cat="${esc(r.ma_bravo)}" data-cat-sp="${esc(sp)}" style="display:none">${catRowHtml(r).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '')}</tr>`).join('');
   }).join('');
 
-  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+  host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-auto scroll-area" style="max-height:calc(100vh - 220px)">
     ${capNote}
     <table class="dt">
       ${theadHtml}
