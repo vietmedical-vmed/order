@@ -458,7 +458,7 @@ async function latestCycledate(supa: SupabaseClient): Promise<string> {
 
 // ---------- usage đọc từ bảng sv qua RPC usage_agg ----------
 // sv: { month, item_code, quantity, area }  — area = miền ('MB' | 'MN')
-// Tổng SL thực hiện + SỐ THÁNG có phát sinh (cửa sổ T01 năm trước..tháng liền trước)
+// Tổng SL thực hiện + SỐ THÁNG có phát sinh (cửa sổ 12 tháng gần nhất, hết ở tháng liền trước)
 // được tính trong SQL (xem usage_agg).
 //
 // usage_agg trả per (mien, item_code) các tổng THÔ + san_pham; phần chia trung bình /

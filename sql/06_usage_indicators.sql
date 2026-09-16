@@ -42,7 +42,7 @@ alter table app_order.usage_indicators enable row level security;
 --  cũ cho đến khi commit.
 --
 --  Logic khớp 1-1 với JS trong Edge Function:
---    TB TH  = usage_agg  (cửa sổ T01 năm trước .. tháng trước hiện tại)
+--    TB TH  = usage_agg  (cửa sổ 12 tháng gần nhất, hết ở tháng liền trước)
 --    %SD    = SL item / SL sản phẩm  (cùng cửa sổ TH)
 --    FY     = usage_fy_agg  (FY24 / FY25 / FY26 YTD)
 --    TB KH  = sale_target ÷ số tháng đặt  (logic bộ / vật tư lẻ)
@@ -118,13 +118,14 @@ begin
     group by b.mien, b.item_code, b.y, b.mo
   ),
 
-  -- ── TH: tổng + số tháng có phát sinh trong cửa sổ ──
+  -- ── TH: tổng + số tháng có phát sinh trong cửa sổ 12 THÁNG GẦN NHẤT ──
+  --    (hết ở tháng liền trước; tháng không phát sinh loại khỏi cả tử lẫn mẫu)
   usage_raw as (
     select m.mien, m.item_code,
       coalesce(sum(m.q) filter (
-        where m.q > 0 and m.y*12+m.mo <= v_y*12+v_m-1), 0)        as th,
+        where m.q > 0 and m.y*12+m.mo between v_y*12+v_m-12 and v_y*12+v_m-1), 0)        as th,
       coalesce(count(*) filter (
-        where m.q > 0 and m.y*12+m.mo <= v_y*12+v_m-1), 0)::int   as th_months
+        where m.q > 0 and m.y*12+m.mo between v_y*12+v_m-12 and v_y*12+v_m-1), 0)::int   as th_months
     from per_month m
     where m.y >= v_y - 1
     group by m.mien, m.item_code

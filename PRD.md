@@ -335,7 +335,7 @@ public.sale_target         (kế hoạch theo miền — nguồn TB KH)
 
 ### 7.3 RPC (`sql/03_rpc_aggregates.sql`, `05_rpc_usage_fy.sql`, `06_usage_indicators.sql`)
 
-- `public.usage_agg(p_mien, p_y, p_m)` → per (mien, item_code): `th, th_months, san_pham` (cửa sổ T01 năm ngoái → tháng liền trước).
+- `public.usage_agg(p_mien, p_y, p_m)` → per (mien, item_code): `th, th_months, san_pham` (cửa sổ 12 tháng gần nhất, kết thúc ở tháng liền trước).
 - `public.stock_agg(...)` → gom DA/GU/KG theo `ma_bravo/mien`.
 - `public.session_stats()` → SL / SKU tổng hợp theo `session_id`.
 - `public.refresh_usage_indicators()` → tính lại `usage_indicators`.

@@ -12,7 +12,7 @@
 
 -- ---------- INDEX phục vụ RPC (production-only, trước đây note thủ công) ----------
 create index if not exists idx_sv_area_month           on app_order.sv (area, month);
-create index if not exists idx_sale_target_mien_thang  on public.sale_target (mien, thang_ke_hoach);
+create index if not exists idx_sale_target_mien_thang  on shared.sale_target (mien, thang_ke_hoach);
 -- stock đã có idx_stock_mien_cycle (mien, cycledate desc) ở 02_order_app.sql.
 
 -- =====================================================================
@@ -22,9 +22,11 @@ create index if not exists idx_sale_target_mien_thang  on public.sale_target (mi
 --    th        = Σ quantity của các THÁNG CÓ PHÁT SINH trong cửa sổ
 --    th_months = SỐ tháng có phát sinh trong cửa sổ  ⇒ TB tháng TH = th / th_months
 --  %SD cũng lấy từ th (SL của mã bravo / SL của cả sản phẩm, cùng cửa sổ).
---  Cửa sổ TH = T01 năm trước .. tháng LIỀN TRƯỚC tháng hiện tại. Bỏ tháng hiện
---  tại vì chưa đủ tháng (nửa tháng sẽ kéo trung bình xuống). "Có phát sinh" =
---  tổng quantity của tháng đó > 0 (gộp các dòng cùng tháng trước khi đếm).
+--  Cửa sổ TH = 12 THÁNG GẦN NHẤT, kết thúc ở tháng LIỀN TRƯỚC tháng hiện tại
+--  (vd tháng hiện tại 2026-09 -> 2025-09..2026-08). Bỏ tháng hiện tại vì chưa
+--  đủ tháng (nửa tháng sẽ kéo trung bình xuống). "Có phát sinh" = tổng quantity
+--  của tháng đó > 0 (gộp các dòng cùng tháng trước khi đếm); tháng không phát
+--  sinh bị loại khỏi CẢ tử số lẫn mẫu số.
 --  p_y / p_m = năm/tháng hiện tại theo giờ UTC (khớp `new Date()` trong Deno).
 -- =====================================================================
 drop function if exists public.usage_agg(text, int, int);   -- đổi kiểu trả về (ytd/cknt/yr -> th/th_months)
@@ -43,7 +45,9 @@ language sql stable as $$
     from app_order.sv s
     where s.item_code is not null
       and s.month ~ '^[0-9]{4}-[0-9]{1,2}'
-      and s.month >= ((p_y - 1)::text || '-01')          -- chỉ từ T01 năm ngoái
+      -- Prefilter thô để dùng index (so sánh chuỗi): cửa sổ 12 tháng luôn nằm
+      -- trong khoảng này. Cắt chính xác bằng số học y*12+mo ở CTE agg bên dưới.
+      and s.month >= ((p_y - 1)::text || '-01')
       and ( (p_mien = 'ALL' and s.area in ('MB','Miền Bắc','MN','Miền Nam'))
          or (p_mien = 'MB'  and s.area in ('MB','Miền Bắc'))
          or (p_mien = 'MN'  and s.area in ('MN','Miền Nam')) )
@@ -58,14 +62,14 @@ language sql stable as $$
     select
       m.mien,
       m.item_code,
-      coalesce(sum(m.q) filter (where m.q > 0 and (m.y * 12 + m.mo) <= (p_y * 12 + p_m - 1)), 0) as th,
-      (count(*)     filter (where m.q > 0 and (m.y * 12 + m.mo) <= (p_y * 12 + p_m - 1)))::int   as th_months
+      coalesce(sum(m.q) filter (where m.q > 0 and (m.y * 12 + m.mo) between (p_y * 12 + p_m - 12) and (p_y * 12 + p_m - 1)), 0) as th,
+      (count(*)     filter (where m.q > 0 and (m.y * 12 + m.mo) between (p_y * 12 + p_m - 12) and (p_y * 12 + p_m - 1)))::int   as th_months
     from per_month m
     group by m.mien, m.item_code
   ),
   vt as (           -- 1 dòng / ma_bravo (phòng danh mục có mã trùng -> nhân đôi tổng)
     select d.ma_bravo, max(d.san_pham) as san_pham
-    from public.dm_vat_tu d group by d.ma_bravo
+    from shared.dm_vat_tu d group by d.ma_bravo
   )
   select a.mien, a.item_code, vt.san_pham, a.th, a.th_months
   from agg a
@@ -165,7 +169,7 @@ language sql stable as $$
     sum(case when st.sl_ke_hoach_update is not null
              then coalesce(st.sl_ke_hoach_update, 0)
              else coalesce(st.sl_ke_hoach_dau_nam, 0) end) as tong
-  from public.sale_target st
+  from shared.sale_target st
   where st.thang_ke_hoach = any(p_months)
     and ( (p_mien = 'ALL' and st.mien in ('MB','Miền Bắc','MN','Miền Nam'))
        or (p_mien = 'MB'  and st.mien in ('MB','Miền Bắc'))
