@@ -108,9 +108,10 @@ const BASE_COLUMNS = [
   numCol('hang_ktv_bv', 'Hàng ký gửi', 90),
   numCol('hang_vet_thau', 'Vét thầu (GU)', 80),
   numCol('hang_di_duong', 'Hàng đi đường', 90),
-  numCol('tong_ton', 'Tổng tồn', 80, { cellCls: 'font-semibold text-slate-800', aggCls: 'text-slate-900' }),
+  numCol('tong_ton', 'Tổng tồn', 80, { cellCls: 'font-semibold text-slate-800', aggCls: 'text-slate-900', override: { title: 'Tổng tồn = Tồn kho (DA) + Hàng ký gửi + Hàng đi đường − Vét thầu (GU)' } }),
   {
     key: 'ty_le_sd_pct', label: '% SD', cls: 'r', width: 80, sort: NUM,
+    title: '% sử dụng = SL TH mã bravo ÷ SL TH sản phẩm × 100 (cùng cửa sổ TH)',
     cell: r => `<td class="r num text-slate-700">${r.ty_le_sd_pct ? `${Math.round(r.ty_le_sd_pct)}%<div class="mini-bar"><i style="width:${Math.min(100, r.ty_le_sd_pct * 5)}%"></i></div>` : '—'}</td>`,
     agg: () => `<td class="r num text-slate-400">—</td>`,
   },
@@ -121,7 +122,8 @@ const BASE_COLUMNS = [
   numCol('tb_th', 'TB tháng TH', 95),
   {
     // TB KH là số ở mức sản phẩm (phân loại) — dòng SKU không có giá trị riêng nên không sắp xếp được.
-    key: 'tb_kh_3_thang', label: 'TB KH', cls: 'r', width: 90, sort: null,
+    key: 'tb_kh_3_thang', label: 'TB tháng KH', cls: 'r', width: 95, sort: null,
+    title: 'TB tháng kế hoạch = trung bình SL kế hoạch 3 tháng gần nhất (ở mức sản phẩm)',
     cell: () => `<td class="r num text-slate-300">—</td>`,
     agg: a => `<td class="r num">${dash0(a.tb_kh_3_thang)}</td>`,
   },
@@ -146,6 +148,7 @@ const BASE_COLUMNS = [
   },
   {
     key: 'goi_y_dat', label: 'Gợi ý', cls: 'c', width: 60, sort: NUM,
+    title: 'Gợi ý đặt = max(0, TB tháng KH × Số tháng đặt + Safety stock − Tổng tồn)',
     cell: r => `<td class="c num"><span class="font-bold text-primary-700">${dash0(r.goi_y_dat)}</span></td>`,
     agg: a => `<td class="c num text-primary-700">${dash0(a.goi_y_dat)}</td>`,
   },
