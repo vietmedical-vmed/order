@@ -4,6 +4,7 @@
 //  Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -1495,6 +1496,69 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   return cands.sort((a, b) => +new Date(b.ngay_mo) - +new Date(a.ngay_mo))[0];
 }
 
+// ---------- email thông báo bước duyệt (best-effort, SMTP nội bộ) ----------
+async function sendMail(to: string[], subject: string, html: string) {
+  const host = Deno.env.get("SMTP_HOST");
+  if (!host) return;
+  const client = new SMTPClient({
+    connection: {
+      hostname: host,
+      port: Number(Deno.env.get("SMTP_PORT") || "465"),
+      tls: true,
+      auth: {
+        username: Deno.env.get("SMTP_USER") || "",
+        password: Deno.env.get("SMTP_PASS") || "",
+      },
+    },
+  });
+  try {
+    await client.send({
+      from: Deno.env.get("SMTP_FROM") || Deno.env.get("SMTP_USER") || "",
+      to,
+      subject,
+      html,
+    });
+  } finally {
+    await client.close();
+  }
+}
+
+const STEP_TITLE: Record<string, string> = {
+  SUBMITTED: "AM đã gửi duyệt — chờ PM duyệt",
+  PM_APPROVED: "PM đã duyệt — chờ Manager duyệt",
+};
+
+// Gửi email cho người nhận cấu hình ở bảng notify_recipients theo bước. Không cấu hình SMTP
+// hoặc không có người nhận -> im lặng bỏ qua (không chặn luồng duyệt).
+async function notifyApprovers(
+  supa: SupabaseClient, session: any, step: string, stats: { created: number; updated: number },
+) {
+  if (!Deno.env.get("SMTP_HOST")) return;
+  if (step !== "SUBMITTED" && step !== "PM_APPROVED") return;
+  const { data } = await supa.schema("app_order").from("notify_recipients")
+    .select("email").eq("step", step).eq("active", true);
+  const to = [...new Set((data || []).map((r: any) => String(r.email || "").trim()).filter(Boolean))];
+  if (!to.length) return;
+
+  const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
+  const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
+  const appUrl = Deno.env.get("APP_URL") || "";
+  const link = appUrl ? `<p><a href="${appUrl}">Mở app Đặt hàng để duyệt</a></p>` : "";
+  const subject = `[Đặt hàng] ${STEP_TITLE[step]}: ${session.ten_dot} (${mien})`;
+  const html = `
+    <p>${STEP_TITLE[step]}.</p>
+    <ul>
+      <li><b>Đợt:</b> ${session.ten_dot}</li>
+      <li><b>Miền:</b> ${mien}</li>
+      ${groups ? `<li><b>Nhóm sản phẩm:</b> ${groups}</li>` : ""}
+      <li><b>Người gửi:</b> ${session.tao_boi || "—"}</li>
+      <li><b>Số dòng vừa ghi:</b> +${stats.created} ~${stats.updated}</li>
+    </ul>
+    ${link}
+  `;
+  await sendMail(to, subject, html);
+}
+
 async function saveAndAdvance(
   supa: SupabaseClient, u: any, sessionId: string, items: any[],
   fields: string[], fromStatus: string | string[], toStatus: string | null, actionName: string,
@@ -1567,6 +1631,11 @@ async function saveAndAdvance(
   if (Object.keys(sessPatch).length)
     await supa.schema("app_order").from("order_sessions").update(sessPatch).eq("session_id", sessionId);
   const finalStatus = toStatus || from;
+  // Thông báo email cho người duyệt khi THỰC SỰ chuyển sang bước chờ duyệt (best-effort).
+  if (toStatus && toStatus !== from) {
+    try { await notifyApprovers(supa, session, toStatus, { created, updated }); }
+    catch (e) { console.error("notifyApprovers:", e); }
+  }
   await audit(supa, u.username, actionName, sessionId, `+${created} ~${updated} -${deleted} → ${finalStatus}`);
   return { ok: true, created, updated, deleted, newStatus: finalStatus };
 }
