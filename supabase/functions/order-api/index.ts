@@ -1527,7 +1527,16 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
 }
 
 // ---------- email thông báo bước duyệt (best-effort, SMTP nội bộ) ----------
-async function sendMail(to: string[], subject: string, html: string) {
+// Bỏ dấu tiếng Việt -> ASCII. Webmail nội bộ không decode quoted-printable/encoded-word,
+// nên gửi ASCII + text thuần để đọc được ở mọi client.
+function noDiacritics(s: string): string {
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d").replace(/Đ/g, "D")
+    .replace(/[‐-―]/g, "-")                    // – — ... -> -
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+}
+
+async function sendMail(to: string[], subject: string, text: string) {
   const host = Deno.env.get("SMTP_HOST");
   if (!host) return;
   const client = new SMTPClient({
@@ -1545,8 +1554,8 @@ async function sendMail(to: string[], subject: string, html: string) {
     await client.send({
       from: Deno.env.get("SMTP_FROM") || Deno.env.get("SMTP_USER") || "",
       to,
-      subject,
-      html,
+      subject: noDiacritics(subject),
+      content: noDiacritics(text),   // text thuần, không dấu -> 1 phần text/plain, đọc được mọi nơi
     });
   } finally {
     await client.close();
@@ -1592,28 +1601,24 @@ async function notifyEvent(
   }).map((r: any) => String(r.email || "").trim()).filter(Boolean))];
   if (!to.length) return;
 
-  const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
+  const mien = session.mien === "MB" ? "Mien Bac" : session.mien === "MN" ? "Mien Nam" : session.mien;
   const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
   const appUrl = Deno.env.get("APP_URL") || "";
-  const link = appUrl ? `<p><a href="${appUrl}">Mở app Đặt hàng</a></p>` : "";
-  const extra = [
-    meta.actor ? `<li><b>Người thao tác:</b> ${meta.actor}</li>` : "",
-    meta.reason ? `<li><b>Lý do từ chối:</b> ${meta.reason}</li>` : "",
-    (meta.dm || meta.po) ? `<li><b>DM/PO:</b> ${meta.dm || "—"} / ${meta.po || "—"}</li>` : "",
-  ].join("");
-  const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
-  const html = `
-    <p>${EVENT_TITLE[event]}.</p>
-    <ul>
-      <li><b>Đợt:</b> ${session.ten_dot}</li>
-      <li><b>Miền:</b> ${mien}</li>
-      ${groups ? `<li><b>Nhóm sản phẩm:</b> ${groups}</li>` : ""}
-      <li><b>Người tạo đợt:</b> ${session.tao_boi || "—"}</li>
-      ${extra}
-    </ul>
-    ${link}
-  `;
-  await sendMail(to, subject, html);
+  const subject = `[Dat hang] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
+  const lines = [
+    EVENT_TITLE[event] + ".",
+    "",
+    "Dot: " + (session.ten_dot || "-"),
+    "Mien: " + mien,
+    groups ? "Nhom san pham: " + groups : "",
+    "Nguoi tao dot: " + (session.tao_boi || "-"),
+    meta.actor ? "Nguoi thao tac: " + meta.actor : "",
+    meta.reason ? "Ly do tu choi: " + meta.reason : "",
+    (meta.dm || meta.po) ? "DM/PO: " + (meta.dm || "-") + " / " + (meta.po || "-") : "",
+    appUrl ? "" : "",
+    appUrl ? "Mo app: " + appUrl : "",
+  ].filter((x) => x !== "");
+  await sendMail(to, subject, lines.join("\n"));
 }
 
 // Chuyển trạng thái đích -> mã sự kiện (chỉ các bước có người cần nhận).
