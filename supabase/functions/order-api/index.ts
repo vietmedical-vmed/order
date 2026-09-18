@@ -814,9 +814,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Quản lý email nhận thông báo (Admin) — nguồn shared.users.email.
   async listUserEmails(supa, u) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin xem/sửa email thông báo");
-    const { data } = await supa.schema("shared").from("users")
-      .select("username, ho_va_ten, ho_ten, role, mien, scope, email, active").eq("active", true);
-    return (data || []).map((r: any) => ({
+    // select("*") -> không phụ thuộc tên cột (tránh lỗi cột không tồn tại làm rỗng danh sách).
+    const { data, error } = await supa.schema("shared").from("users").select("*");
+    if (error) throw new Error("Đọc users: " + error.message);
+    return (data || []).filter((r: any) => r.active !== false).map((r: any) => ({
       username: r.username,
       ho_ten: r.ho_va_ten || r.ho_ten || r.username,
       role: ROLE_MAP[String(r.role || "").toLowerCase()] || String(r.role || ""),
