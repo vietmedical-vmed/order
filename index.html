@@ -281,6 +281,16 @@
     </div>
 
     <div class="bg-white rounded-lg border border-slate-200 p-4 sm:p-6 mt-5">
+      <div class="flex items-center justify-between gap-3 mb-1 flex-wrap">
+        <h3 class="text-[14px] font-semibold text-slate-800">Email nhận thông báo</h3>
+        <button id="emailSave" class="ctl-btn ctl-btn-primary">Lưu email</button>
+      </div>
+      <p class="text-[12px] text-slate-500 mb-3">Điền email để user nhận thông báo khi đợt chuyển trạng thái. Bỏ trống = không nhận. AM chỉ nhận đợt mình tạo; PM theo nhóm phụ trách; Manager/Mua hàng nhận theo bước.</p>
+      <span id="emailMsg" class="text-[12px]"></span>
+      <div id="emailCfgHost" class="mt-2"></div>
+    </div>
+
+    <div class="bg-white rounded-lg border border-slate-200 p-4 sm:p-6 mt-5">
       <h3 class="text-[14px] font-semibold text-slate-800 mb-1">Lịch sử cấu hình công thức</h3>
       <p class="text-[12px] text-slate-500 mb-3">Mỗi bản có hiệu lực từ thời điểm lưu đến khi có bản mới. Khi xem lại một đợt, Gợi ý dùng bản có hiệu lực tại thời điểm mở đợt. Các bản lưu trước khi gộp CKNT + YTD được quy đổi về 2 hệ số (k1 = k1<sub>cũ</sub> + k2<sub>cũ</sub>, k2 = k3<sub>cũ</sub>).</p>
       <div id="cfgLogHost"></div>

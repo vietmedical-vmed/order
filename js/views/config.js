@@ -22,6 +22,8 @@ export async function initConfigView() {
     $('#cfgMsg').className = 'text-[12px] text-danger-600';
   }
   renderConfigLog();
+  renderUserEmails();
+  $('#emailSave').addEventListener('click', saveUserEmails);
 
   ['cfgK1', 'cfgK2'].forEach(id => {
     $('#' + id).addEventListener('input', updateCfgSumNote);
@@ -62,6 +64,60 @@ export async function initConfigView() {
     updateCfgSumNote();
     updateCfgGroupPlaceholders();
   });
+}
+
+// Quản lý email nhận thông báo — đọc/sửa shared.users.email (Admin).
+async function renderUserEmails() {
+  const host = $('#emailCfgHost');
+  if (!host) return;
+  host.innerHTML = `<div class="p-1" aria-busy="true">${'<div class="skeleton-line"></div>'.repeat(4)}</div>`;
+  try {
+    const list = await rpc('listUserEmails');
+    if (!Array.isArray(list) || !list.length) {
+      host.innerHTML = `<div class="empty-state text-[12px]">Không có user nào.</div>`;
+      return;
+    }
+    host.innerHTML = `<div class="border border-slate-200 rounded-md overflow-x-auto scroll-area">
+      <table class="dt">
+        <thead><tr>
+          <th>Họ tên</th><th style="width:120px">Username</th>
+          <th class="c" style="width:90px">Role</th>
+          <th class="c" style="width:60px">Miền</th>
+          <th style="width:150px">Scope (PM)</th>
+          <th style="width:230px">Email nhận noti</th>
+        </tr></thead>
+        <tbody>${list.map(r => `<tr>
+          <td class="text-slate-700 text-[12px]">${esc(r.ho_ten)}</td>
+          <td class="font-mono text-[11px] text-slate-500">${esc(r.username)}</td>
+          <td class="c"><span class="pill st-draft">${esc(r.role)}</span></td>
+          <td class="c text-slate-600 text-[11px]">${esc(r.mien || '—')}</td>
+          <td class="text-slate-500 text-[11px] truncate">${esc(r.scope || '—')}</td>
+          <td><input type="email" class="email-inp px-2 py-1 border border-slate-200 rounded text-[12px] w-full outline-none focus:border-primary-500"
+            data-username="${esc(r.username)}" value="${esc(r.email)}" placeholder="—@caotoc24.com" aria-label="Email ${esc(r.username)}"/></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  } catch (e) {
+    host.innerHTML = `<div class="empty-state text-[12px] text-danger-600">
+      <div class="mb-2">Lỗi tải danh sách: ${esc(e.message)}</div>
+      <button id="emailRetry" class="ctl-btn" type="button">Thử lại</button></div>`;
+    const retry = $('#emailRetry');
+    if (retry) retry.onclick = () => renderUserEmails();
+  }
+}
+
+async function saveUserEmails() {
+  const rows = $$('#emailCfgHost input.email-inp').map(i => ({ username: i.dataset.username, email: i.value.trim() }));
+  const msg = $('#emailMsg');
+  try {
+    const r = await rpc('saveUserEmails', rows);
+    msg.textContent = `✓ Đã lưu email (${r.updated} user) lúc ` + new Date().toLocaleTimeString('vi-VN');
+    msg.className = 'text-[12px] text-primary-600';
+    toast('Đã lưu email nhận thông báo');
+  } catch (e) {
+    msg.textContent = 'Lỗi: ' + e.message;
+    msg.className = 'text-[12px] text-danger-600';
+  }
 }
 
 // Lịch sử phiên bản cấu hình công thức (mới nhất trước).

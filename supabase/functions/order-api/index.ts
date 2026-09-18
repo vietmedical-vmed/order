@@ -811,6 +811,38 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     }));
   },
 
+  // Quản lý email nhận thông báo (Admin) — nguồn shared.users.email.
+  async listUserEmails(supa, u) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin xem/sửa email thông báo");
+    const { data } = await supa.schema("shared").from("users")
+      .select("username, ho_va_ten, ho_ten, role, mien, scope, email, active").eq("active", true);
+    return (data || []).map((r: any) => ({
+      username: r.username,
+      ho_ten: r.ho_va_ten || r.ho_ten || r.username,
+      role: ROLE_MAP[String(r.role || "").toLowerCase()] || String(r.role || ""),
+      mien: r.mien || "",
+      scope: r.scope || "",
+      email: r.email || "",
+    })).sort((a: any, b: any) => a.role.localeCompare(b.role) || a.username.localeCompare(b.username));
+  },
+
+  async saveUserEmails(supa, u, [list]) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin sửa email thông báo");
+    const rows = Array.isArray(list) ? list : [];
+    let updated = 0;
+    for (const r of rows) {
+      if (!r || !r.username) continue;
+      const email = String(r.email || "").trim();
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Email không hợp lệ: " + email);
+      const { error } = await supa.schema("shared").from("users")
+        .update({ email: email || null }).eq("username", r.username);
+      if (error) throw new Error("Lưu email " + r.username + ": " + error.message);
+      updated++;
+    }
+    await audit(supa, u.username, "SAVE_USER_EMAILS", "", updated + " user");
+    return { ok: true, updated };
+  },
+
   async listCatalog(supa, u) {
     if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được xem cấu hình danh mục");
     const cols = "ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, phan_loai_2, san_pham, don_gia_thau_moi, muc_do_sd, safety_stock, dat_hang";
