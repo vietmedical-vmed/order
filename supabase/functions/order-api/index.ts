@@ -1667,11 +1667,10 @@ async function saveAndAdvance(
         fields.forEach((f) => { if (it[f] !== undefined) patch[f] = it[f]; });
         await supa.schema("app_order").from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
       }
-    } else if (isBaseEdit && sl > 0) {
-      // Dòng mới chỉ tạo được khi ghi cột gốc SL yêu cầu (DRAFT, hoặc AM bổ sung khi SUBMITTED).
-      await supa.schema("app_order").from("order_items").insert({
-        session_id: sessionId, ma_bravo: it.ma_bravo, sl_dat: sl, ghi_chu_dat: note, updated_by: u.username,
-      }); created++;
+    } else if (sl > 0) {
+      const row: any = { session_id: sessionId, ma_bravo: it.ma_bravo, updated_by: u.username };
+      fields.forEach((f) => { if (it[f] !== undefined) row[f] = it[f]; });
+      await supa.schema("app_order").from("order_items").insert(row); created++;
     }
   }
 
