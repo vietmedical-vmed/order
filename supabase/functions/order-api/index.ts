@@ -833,8 +833,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     let updated = 0;
     for (const r of rows) {
       if (!r || !r.username) continue;
-      const email = String(r.email || "").trim();
-      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Email không hợp lệ: " + email);
+      // Cho nhiều email ngăn bằng , hoặc ; -> validate từng cái, lưu chuẩn hoá "a@x, b@y".
+      const parts = String(r.email || "").split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+      const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+      for (const p of parts) if (!re.test(p)) throw new Error("Email không hợp lệ: " + p);
+      const email = parts.join(", ");
       const { error } = await supa.schema("shared").from("users")
         .update({ email: email || null }).eq("username", r.username);
       if (error) throw new Error("Lưu email " + r.username + ": " + error.message);
@@ -1609,7 +1612,9 @@ async function notifyEvent(
     }
     return true;                                                      // MANAGER, PURCHASING
   };
-  const to = [...new Set(users.filter(pass).map((u2) => String(u2.email || "").trim()).filter(Boolean))];
+  // 1 user có thể có NHIỀU email (ngăn bằng , hoặc ;) -> tách hết thành danh sách nhận.
+  const to = [...new Set(users.filter(pass)
+    .flatMap((u2) => String(u2.email || "").split(/[,;]/).map((s) => s.trim()).filter(Boolean)))];
   if (!to.length) return;
 
   const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;

@@ -92,8 +92,8 @@ async function renderUserEmails() {
           <td class="c"><span class="pill st-draft">${esc(r.role)}</span></td>
           <td class="c text-slate-600 text-[11px]">${esc(r.mien || '—')}</td>
           <td class="text-slate-500 text-[11px] truncate">${esc(r.scope || '—')}</td>
-          <td><input type="email" class="email-inp px-2 py-1 border border-slate-200 rounded text-[12px] w-full outline-none focus:border-primary-500"
-            data-username="${esc(r.username)}" value="${esc(r.email)}" placeholder="—@caotoc24.com" aria-label="Email ${esc(r.username)}"/></td>
+          <td><input type="text" class="email-inp px-2 py-1 border border-slate-200 rounded text-[12px] w-full outline-none focus:border-primary-500"
+            data-username="${esc(r.username)}" value="${esc(r.email)}" placeholder="a@caotoc24.com, b@caotoc24.com" aria-label="Email ${esc(r.username)}"/></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>`;
