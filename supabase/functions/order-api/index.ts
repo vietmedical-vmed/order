@@ -927,7 +927,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
     if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
-    if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED"]);
+    if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "CLOSED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     const list = sessions || [];
@@ -1484,7 +1484,7 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
     AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
     PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED"],
     MANAGER: ["PM_APPROVED", "APPROVED"],
-    PURCHASING: ["APPROVED"],
+    PURCHASING: ["APPROVED", "CLOSED", "PM_APPROVED", "SUBMITTED"],
     ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
   };
   const order = priority[u.role] || priority.ADMIN;
