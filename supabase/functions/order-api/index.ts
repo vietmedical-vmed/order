@@ -1592,13 +1592,37 @@ async function notifyEvent(
   const roles = EVENT_ROLES[event];
   if (!roles || !session) return;
   const { data } = await supa.schema("app_order").from("notify_contacts")
-    .select("email, role, mien, all_events").eq("active", true);
-  const to = [...new Set((data || []).filter((r: any) => {
-    if (r.all_events) return true;                                   // nhận mọi sự kiện (admin/theo dõi)
+    .select("username, email, role, all_events").eq("active", true);
+  const rows = (data || []) as any[];
+
+  // Nhóm sản phẩm của đợt (rỗng = tất cả nhóm -> mọi PM nhận).
+  const sessGroups = parseScope(session.nhom_san_pham || "");
+  const allGroups = sessGroups.size === 0;
+
+  // Đợt có nhóm cụ thể -> đọc scope của các PM để lọc giao nhau (nguồn: shared.users.scope).
+  const pmScope: Record<string, Set<string>> = {};
+  if (!allGroups && roles.includes("PM")) {
+    const pmUsers = rows.filter((r) => !r.all_events && r.role === "PM").map((r) => r.username).filter(Boolean);
+    if (pmUsers.length) {
+      const { data: us } = await supa.schema("shared").from("users").select("username, scope").in("username", pmUsers);
+      (us || []).forEach((u2: any) => { pmScope[u2.username] = parseScope(u2.scope || ""); });
+    }
+  }
+
+  const pass = (r: any): boolean => {
+    if (r.all_events) return true;                                   // admin/theo dõi -> mọi sự kiện
     if (!roles.includes(r.role)) return false;
-    if (r.role === "AM" && r.mien && session.mien && r.mien !== session.mien) return false;  // AM chỉ miền của mình
-    return true;
-  }).map((r: any) => String(r.email || "").trim()).filter(Boolean))];
+    if (r.role === "AM") return !!r.username && r.username === session.tao_boi;   // chỉ người TẠO đợt
+    if (r.role === "PM") {
+      if (allGroups) return true;                                    // đợt tất cả nhóm -> mọi PM
+      const sc = pmScope[r.username];
+      if (!sc || sc.size === 0) return false;                        // PM chưa có scope -> bỏ
+      for (const g of sc) if (sessGroups.has(g)) return true;        // scope PM giao nhóm đợt
+      return false;
+    }
+    return true;                                                     // MANAGER, PURCHASING -> nhận hết
+  };
+  const to = [...new Set(rows.filter(pass).map((r) => String(r.email || "").trim()).filter(Boolean))];
   if (!to.length) return;
 
   const mien = session.mien === "MB" ? "Mien Bac" : session.mien === "MN" ? "Mien Nam" : session.mien;
