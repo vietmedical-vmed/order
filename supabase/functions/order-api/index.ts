@@ -4,7 +4,6 @@
 //  Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -1527,41 +1526,6 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
 }
 
 // ---------- email thông báo bước duyệt (best-effort, SMTP nội bộ) ----------
-// Bỏ dấu tiếng Việt -> ASCII. Webmail nội bộ không decode quoted-printable/encoded-word,
-// nên gửi ASCII + text thuần để đọc được ở mọi client.
-function noDiacritics(s: string): string {
-  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d").replace(/Đ/g, "D")
-    .replace(/[‐-―]/g, "-")                    // – — ... -> -
-    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
-}
-
-async function sendMail(to: string[], subject: string, text: string) {
-  const host = Deno.env.get("SMTP_HOST");
-  if (!host) return;
-  const client = new SMTPClient({
-    connection: {
-      hostname: host,
-      port: Number(Deno.env.get("SMTP_PORT") || "465"),
-      tls: true,
-      auth: {
-        username: Deno.env.get("SMTP_USER") || "",
-        password: Deno.env.get("SMTP_PASS") || "",
-      },
-    },
-  });
-  try {
-    await client.send({
-      from: Deno.env.get("SMTP_FROM") || Deno.env.get("SMTP_USER") || "",
-      to,
-      subject: noDiacritics(subject),
-      content: noDiacritics(text),   // text thuần, không dấu -> 1 phần text/plain, đọc được mọi nơi
-    });
-  } finally {
-    await client.close();
-  }
-}
-
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["PM", "MANAGER"],            // AM gửi duyệt
@@ -1582,67 +1546,59 @@ const EVENT_TITLE: Record<string, string> = {
   CLOSE:           "Đợt đã chốt",
 };
 
-// Gửi email cho các role liên quan (bảng notify_contacts). Không cấu hình SMTP hoặc không
-// có người nhận -> im lặng bỏ qua (không chặn luồng). Role AM lọc theo miền của đợt.
+// Enqueue thông báo vào hộp gửi chung shared.notifications (sender xử lý + retry).
+// Người nhận: resolve từ shared.users theo role app (ROLE_MAP), lọc theo nghiệp vụ:
+//   AM  -> đúng người tạo đợt; PM -> scope giao nhóm đợt (đợt "tất cả nhóm" -> mọi PM);
+//   MANAGER/PURCHASING -> nhận hết. Email lấy từ shared.users.email.
 async function notifyEvent(
   supa: SupabaseClient, session: any, event: string,
   meta: { actor?: string; reason?: string; dm?: string; po?: string } = {},
 ) {
-  if (!Deno.env.get("SMTP_HOST")) return;
   const roles = EVENT_ROLES[event];
   if (!roles || !session) return;
-  const { data } = await supa.schema("app_order").from("notify_contacts")
-    .select("username, email, role, all_events").eq("active", true);
-  const rows = (data || []) as any[];
 
-  // Nhóm sản phẩm của đợt (rỗng = tất cả nhóm -> mọi PM nhận).
   const sessGroups = parseScope(session.nhom_san_pham || "");
   const allGroups = sessGroups.size === 0;
 
-  // Đợt có nhóm cụ thể -> đọc scope của các PM để lọc giao nhau (nguồn: shared.users.scope).
-  const pmScope: Record<string, Set<string>> = {};
-  if (!allGroups && roles.includes("PM")) {
-    const pmUsers = rows.filter((r) => !r.all_events && r.role === "PM").map((r) => r.username).filter(Boolean);
-    if (pmUsers.length) {
-      const { data: us } = await supa.schema("shared").from("users").select("username, scope").in("username", pmUsers);
-      (us || []).forEach((u2: any) => { pmScope[u2.username] = parseScope(u2.scope || ""); });
-    }
-  }
+  const { data } = await supa.schema("shared").from("users")
+    .select("username, email, role, mien, scope").eq("active", true);
+  const users = (data || []) as any[];
 
-  const pass = (r: any): boolean => {
-    if (r.all_events) return true;                                   // admin/theo dõi -> mọi sự kiện
-    if (!roles.includes(r.role)) return false;
-    if (r.role === "AM") return !!r.username && r.username === session.tao_boi;   // chỉ người TẠO đợt
-    if (r.role === "PM") {
-      if (allGroups) return true;                                    // đợt tất cả nhóm -> mọi PM
-      const sc = pmScope[r.username];
-      if (!sc || sc.size === 0) return false;                        // PM chưa có scope -> bỏ
-      for (const g of sc) if (sessGroups.has(g)) return true;        // scope PM giao nhóm đợt
+  const pass = (u2: any): boolean => {
+    const appRole = ROLE_MAP[String(u2.role || "").toLowerCase()] || "";
+    if (!roles.includes(appRole)) return false;
+    if (appRole === "AM") return !!u2.username && u2.username === session.tao_boi;   // chỉ người TẠO đợt
+    if (appRole === "PM") {
+      if (allGroups) return true;                                     // đợt tất cả nhóm -> mọi PM
+      const sc = parseScope(u2.scope || "");
+      for (const g of sc) if (sessGroups.has(g)) return true;         // scope PM giao nhóm đợt
       return false;
     }
-    return true;                                                     // MANAGER, PURCHASING -> nhận hết
+    return true;                                                      // MANAGER, PURCHASING
   };
-  const to = [...new Set(rows.filter(pass).map((r) => String(r.email || "").trim()).filter(Boolean))];
+  const to = [...new Set(users.filter(pass).map((u2) => String(u2.email || "").trim()).filter(Boolean))];
   if (!to.length) return;
 
-  const mien = session.mien === "MB" ? "Mien Bac" : session.mien === "MN" ? "Mien Nam" : session.mien;
+  const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
   const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
   const appUrl = Deno.env.get("APP_URL") || "";
-  const subject = `[Dat hang] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
-  const lines = [
+  const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
+  const body = [
     EVENT_TITLE[event] + ".",
     "",
-    "Dot: " + (session.ten_dot || "-"),
-    "Mien: " + mien,
-    groups ? "Nhom san pham: " + groups : "",
-    "Nguoi tao dot: " + (session.tao_boi || "-"),
-    meta.actor ? "Nguoi thao tac: " + meta.actor : "",
-    meta.reason ? "Ly do tu choi: " + meta.reason : "",
+    "Đợt: " + (session.ten_dot || "-"),
+    "Miền: " + mien,
+    groups ? "Nhóm sản phẩm: " + groups : "",
+    "Người tạo đợt: " + (session.tao_boi || "-"),
+    meta.actor ? "Người thao tác: " + meta.actor : "",
+    meta.reason ? "Lý do từ chối: " + meta.reason : "",
     (meta.dm || meta.po) ? "DM/PO: " + (meta.dm || "-") + " / " + (meta.po || "-") : "",
-    appUrl ? "" : "",
-    appUrl ? "Mo app: " + appUrl : "",
-  ].filter((x) => x !== "");
-  await sendMail(to, subject, lines.join("\n"));
+    appUrl ? "Mở app: " + appUrl : "",
+  ].filter((x) => x !== "").join("\n");
+
+  await supa.schema("shared").from("notifications").insert({
+    app: "order", event, to_emails: to, subject, body, channel: "email",
+  });
 }
 
 // Chuyển trạng thái đích -> mã sự kiện (chỉ các bước có người cần nhận).

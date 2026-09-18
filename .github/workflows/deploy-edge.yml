@@ -28,3 +28,7 @@ jobs:
 
       - name: Deploy order-login
         run: supabase functions deploy order-login --project-ref "$PROJECT_REF"
+
+      - name: Deploy notify-sender
+        # Gọi bởi pg_cron (server-to-server), tự bảo vệ bằng header x-cron-secret -> tắt verify JWT.
+        run: supabase functions deploy notify-sender --project-ref "$PROJECT_REF" --no-verify-jwt
