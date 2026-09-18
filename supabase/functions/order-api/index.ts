@@ -1247,6 +1247,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ngay_pm_duyet: null, ngay_manager_duyet: null,
     }).eq("session_id", sessionId);
     await audit(supa, u.username, "REJECT", sessionId, buoc + ": " + lyDo);
+    try { await notifyEvent(supa, s, "REJECT", { actor: u.username, reason: lyDo }); } catch (e) { console.error("notifyEvent:", e); }
     return { ok: true, newStatus: "DRAFT" };
   },
 
@@ -1262,6 +1263,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       trang_thai: "CANCELED", ngay_dong: new Date().toISOString(),
     }).eq("session_id", sessionId);
     await audit(supa, u.username, "CANCEL_SESSION", sessionId, "Hủy khi đang " + s.trang_thai);
+    try { await notifyEvent(supa, s, "CANCEL", { actor: u.username }); } catch (e) { console.error("notifyEvent:", e); }
     return { ok: true, newStatus: "CANCELED" };
   },
 
@@ -1280,6 +1282,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       nguoi_mua_hang: u.username, ngay_mua_hang: new Date().toISOString(),
     }).eq("session_id", sessionId);
     await audit(supa, u.username, "PURCHASE", sessionId, "DM: " + deNghi + " · PO: " + poStr);
+    try { await notifyEvent(supa, s, "PURCHASE", { actor: u.username, dm: deNghi, po: poStr }); } catch (e) { console.error("notifyEvent:", e); }
     return { ok: true, de_nghi_mua_hang: deNghi, po: poStr };
   },
 
@@ -1523,41 +1526,73 @@ async function sendMail(to: string[], subject: string, html: string) {
   }
 }
 
-const STEP_TITLE: Record<string, string> = {
-  SUBMITTED: "AM đã gửi duyệt — chờ PM duyệt",
-  PM_APPROVED: "PM đã duyệt — chờ Manager duyệt",
+// Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
+const EVENT_ROLES: Record<string, string[]> = {
+  SUBMIT:          ["PM", "MANAGER"],            // AM gửi duyệt
+  PM_APPROVE:      ["MANAGER", "AM"],            // PM duyệt
+  MANAGER_APPROVE: ["PURCHASING", "AM", "PM"],   // Manager duyệt
+  REJECT:          ["AM"],                       // Manager từ chối -> AM
+  CANCEL:          ["PM", "MANAGER"],            // AM hủy
+  PURCHASE:        ["AM", "PM", "MANAGER"],      // Mua hàng ghi DM/PO
+  CLOSE:           ["AM", "PM"],                 // chốt đợt
+};
+const EVENT_TITLE: Record<string, string> = {
+  SUBMIT:          "AM gửi duyệt — chờ PM duyệt",
+  PM_APPROVE:      "PM đã duyệt — chờ Manager duyệt",
+  MANAGER_APPROVE: "Manager đã duyệt — chờ Mua hàng đặt",
+  REJECT:          "Đợt bị từ chối — trả về AM chỉnh sửa",
+  CANCEL:          "Đợt đã bị hủy",
+  PURCHASE:        "Đã ghi thông tin đặt hàng (DM/PO)",
+  CLOSE:           "Đợt đã chốt",
 };
 
-// Gửi email cho người nhận cấu hình ở bảng notify_recipients theo bước. Không cấu hình SMTP
-// hoặc không có người nhận -> im lặng bỏ qua (không chặn luồng duyệt).
-async function notifyApprovers(
-  supa: SupabaseClient, session: any, step: string, stats: { created: number; updated: number },
+// Gửi email cho các role liên quan (bảng notify_contacts). Không cấu hình SMTP hoặc không
+// có người nhận -> im lặng bỏ qua (không chặn luồng). Role AM lọc theo miền của đợt.
+async function notifyEvent(
+  supa: SupabaseClient, session: any, event: string,
+  meta: { actor?: string; reason?: string; dm?: string; po?: string } = {},
 ) {
   if (!Deno.env.get("SMTP_HOST")) return;
-  if (step !== "SUBMITTED" && step !== "PM_APPROVED") return;
-  const { data } = await supa.schema("app_order").from("notify_recipients")
-    .select("email").eq("step", step).eq("active", true);
-  const to = [...new Set((data || []).map((r: any) => String(r.email || "").trim()).filter(Boolean))];
+  const roles = EVENT_ROLES[event];
+  if (!roles || !session) return;
+  const { data } = await supa.schema("app_order").from("notify_contacts")
+    .select("email, role, mien, all_events").eq("active", true);
+  const to = [...new Set((data || []).filter((r: any) => {
+    if (r.all_events) return true;                                   // nhận mọi sự kiện (admin/theo dõi)
+    if (!roles.includes(r.role)) return false;
+    if (r.role === "AM" && r.mien && session.mien && r.mien !== session.mien) return false;  // AM chỉ miền của mình
+    return true;
+  }).map((r: any) => String(r.email || "").trim()).filter(Boolean))];
   if (!to.length) return;
 
   const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
   const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
   const appUrl = Deno.env.get("APP_URL") || "";
-  const link = appUrl ? `<p><a href="${appUrl}">Mở app Đặt hàng để duyệt</a></p>` : "";
-  const subject = `[Đặt hàng] ${STEP_TITLE[step]}: ${session.ten_dot} (${mien})`;
+  const link = appUrl ? `<p><a href="${appUrl}">Mở app Đặt hàng</a></p>` : "";
+  const extra = [
+    meta.actor ? `<li><b>Người thao tác:</b> ${meta.actor}</li>` : "",
+    meta.reason ? `<li><b>Lý do từ chối:</b> ${meta.reason}</li>` : "",
+    (meta.dm || meta.po) ? `<li><b>DM/PO:</b> ${meta.dm || "—"} / ${meta.po || "—"}</li>` : "",
+  ].join("");
+  const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
   const html = `
-    <p>${STEP_TITLE[step]}.</p>
+    <p>${EVENT_TITLE[event]}.</p>
     <ul>
       <li><b>Đợt:</b> ${session.ten_dot}</li>
       <li><b>Miền:</b> ${mien}</li>
       ${groups ? `<li><b>Nhóm sản phẩm:</b> ${groups}</li>` : ""}
-      <li><b>Người gửi:</b> ${session.tao_boi || "—"}</li>
-      <li><b>Số dòng vừa ghi:</b> +${stats.created} ~${stats.updated}</li>
+      <li><b>Người tạo đợt:</b> ${session.tao_boi || "—"}</li>
+      ${extra}
     </ul>
     ${link}
   `;
   await sendMail(to, subject, html);
 }
+
+// Chuyển trạng thái đích -> mã sự kiện (chỉ các bước có người cần nhận).
+const STATUS_EVENT: Record<string, string> = {
+  SUBMITTED: "SUBMIT", PM_APPROVED: "PM_APPROVE", APPROVED: "MANAGER_APPROVE",
+};
 
 async function saveAndAdvance(
   supa: SupabaseClient, u: any, sessionId: string, items: any[],
@@ -1631,10 +1666,10 @@ async function saveAndAdvance(
   if (Object.keys(sessPatch).length)
     await supa.schema("app_order").from("order_sessions").update(sessPatch).eq("session_id", sessionId);
   const finalStatus = toStatus || from;
-  // Thông báo email cho người duyệt khi THỰC SỰ chuyển sang bước chờ duyệt (best-effort).
-  if (toStatus && toStatus !== from) {
-    try { await notifyApprovers(supa, session, toStatus, { created, updated }); }
-    catch (e) { console.error("notifyApprovers:", e); }
+  // Thông báo email cho các cấp liên quan khi THỰC SỰ chuyển trạng thái (best-effort).
+  if (toStatus && toStatus !== from && STATUS_EVENT[toStatus]) {
+    try { await notifyEvent(supa, session, STATUS_EVENT[toStatus], { actor: u.username }); }
+    catch (e) { console.error("notifyEvent:", e); }
   }
   await audit(supa, u.username, actionName, sessionId, `+${created} ~${updated} -${deleted} → ${finalStatus}`);
   return { ok: true, created, updated, deleted, newStatus: finalStatus };
