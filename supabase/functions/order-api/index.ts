@@ -930,7 +930,21 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "CLOSED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
-    const list = sessions || [];
+    let list = sessions || [];
+    // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách (overlap scope ↔ session.nhom_san_pham).
+    // Đợt không gắn nhóm (trống) = tất cả nhóm → PM vẫn thấy.
+    if (u.role === "PM") {
+      const grants = await getGrants(supa, u);
+      if (grants.scope) {
+        const pmScope = parseScope(grants.scope);
+        list = list.filter((s: any) => {
+          if (!s.nhom_san_pham) return true;
+          const sessGroups = parseScope(s.nhom_san_pham);
+          for (const g of sessGroups) { if (pmScope.has(g)) return true; }
+          return false;
+        });
+      }
+    }
 
     // Thống kê SKU/SL theo đợt: group ngay trong DB (RPC session_stats) thay vì
     // kéo toàn bộ order_items về JS — tránh PostgREST cắt 1000 dòng khi tổng
@@ -1478,10 +1492,23 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
   else if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
-  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["APPROVED"]);
+  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
   if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
   const { data } = await q;
-  const cands = data || [];
+  let cands = data || [];
+  // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách.
+  if (u.role === "PM") {
+    const grants = await getGrants(supa, u);
+    if (grants.scope) {
+      const pmScope = parseScope(grants.scope);
+      cands = cands.filter((s: any) => {
+        if (!s.nhom_san_pham) return true;
+        const sessGroups = parseScope(s.nhom_san_pham);
+        for (const g of sessGroups) { if (pmScope.has(g)) return true; }
+        return false;
+      });
+    }
+  }
   if (!cands.length) return null;
   const priority: Record<string, string[]> = {
     AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
