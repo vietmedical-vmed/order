@@ -1690,7 +1690,7 @@ async function saveAndAdvance(
         fields.forEach((f) => { if (it[f] !== undefined) patch[f] = it[f]; });
         await supa.schema("app_order").from("order_items").update(patch).eq("item_id", cur.item_id); updated++;
       }
-    } else if (sl > 0) {
+    } else if (sl > 0 || note) {
       const row: any = { session_id: sessionId, ma_bravo: it.ma_bravo, updated_by: u.username };
       fields.forEach((f) => { if (it[f] !== undefined) row[f] = it[f]; });
       await supa.schema("app_order").from("order_items").insert(row); created++;

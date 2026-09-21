@@ -1118,12 +1118,13 @@ async function placeOrder() {
     // theo gợi ý, không chỉ các dòng chỉnh tay) — không phụ thuộc dòng có đang render hay
     // không (bộ lọc ẩn dòng, nhóm đang đóng…), tránh sót thay đổi khi dòng không có trong DOM.
     state.rows.forEach(r => {
-      if (r.editable === false) return; // ngoài scope -> không render input, không gửi
+      if (r.editable === false) return;
       const qty = qtyEffective(r, action.editField);
-      if (qty <= 0) return;
+      const note = noteEffective(r, action.editNoteField);
+      if (qty <= 0 && !note) return;
       const item = { ma_bravo: r.ma_bravo };
-      item[action.editField] = qty;
-      item[action.editNoteField] = noteEffective(r, action.editNoteField);
+      item[action.editField] = Math.max(0, qty);
+      item[action.editNoteField] = note;
       items.push(item);
     });
   }
