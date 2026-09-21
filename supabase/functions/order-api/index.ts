@@ -1351,10 +1351,6 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async exportOrderData(supa, u, [sessionId]) {
     const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!session) throw new Error("Không tìm thấy đợt");
-    if (u.role !== "MANAGER" && u.role !== "ADMIN" && u.role !== "PURCHASING")
-      throw new Error("Chỉ Manager/Admin/Mua hàng được xuất file Excel");
-    if (session.trang_thai !== "APPROVED")
-      throw new Error("Chỉ xuất được khi đợt đã được Manager phê duyệt (APPROVED)");
 
     const mienExp = session.mien;
     const ngayMoExp = session.ngay_mo || null;
