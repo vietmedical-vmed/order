@@ -992,7 +992,7 @@ function updateOrderStats() {
   $('#orderStats').innerHTML = [
     statCard({ label: 'Tổng SKU', value: fmtInt(totalSku), sub: 'trong danh mục', accent: 'slate' }),
     statCard({ label: 'Tổng tồn', value: fmtInt(totalStock), sub: 'DA + Ký gửi + Đi đường − GU', accent: 'primary' }),
-    statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'gồm điền sẵn theo gợi ý', accent: 'primary' }),
+    statCard({ label: 'Tổng SL yêu cầu', value: fmtInt(totalReqQty), sub: 'SL yêu cầu', accent: 'primary' }),
     statCard({ label: 'Tổng giá trị yêu cầu', value: fmtVND(totalReqValue), sub: 'SL yêu cầu × đơn giá', accent: 'warning' }),
     statCard({ label: 'Tổng giá trị đặt hàng', value: fmtVND(totalOrderValue), sub: 'SL đặt hàng × đơn giá', accent: 'warning' }),
   ].join('');
@@ -1070,8 +1070,8 @@ export function updateDraftIndicator() {
     return;
   }
 
-  // Số dòng sẽ gửi = số ô số lượng (bước hiện tại) có giá trị > 0 (đã gồm điền sẵn theo gợi ý).
-  const fillN = state.rows.reduce((a, r) => a + (qtyEffective(r, action.editField) > 0 ? 1 : 0), 0);
+  // Số dòng sẽ gửi = có qty > 0 HOẶC có ghi chú.
+  const fillN = state.rows.reduce((a, r) => a + ((qtyEffective(r, action.editField) > 0 || noteEffective(r, action.editNoteField)) ? 1 : 0), 0);
 
   if (fillN > 0) {
     draftActions.classList.remove('hidden');
