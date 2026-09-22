@@ -107,20 +107,20 @@ function renderTable() {
   }
 
   const html = `
-    <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+    <div id="rptTableWrap" class="bg-white rounded-lg border border-slate-200 overflow-auto scroll-area" style="max-height:calc(100vh - 180px)">
       <table class="dt text-[12px]">
         <thead>
           <tr>
-            <th colspan="4" class="text-center border-b border-r border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide">Thông tin đặt hàng</th>
-            <th colspan="13" class="text-center border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide">Số lượng đặt hàng</th>
+            <th colspan="4" class="text-center border-b border-r border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide" style="top:0;z-index:12">Thông tin đặt hàng</th>
+            <th colspan="13" class="text-center border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide" style="top:0;z-index:12">Số lượng đặt hàng</th>
           </tr>
           <tr>
-            <th class="c" style="width:45px">STT</th>
-            <th style="min-width:120px">Mã vật tư</th>
-            <th style="min-width:90px">Mã NCC</th>
-            <th style="min-width:220px" class="border-r border-slate-200">Tên vật tư</th>
-            <th class="c" style="min-width:70px">Tổng</th>
-            ${MONTHS.map(m => `<th class="c" style="min-width:70px">${esc(MONTH_LABELS[m])}</th>`).join('')}
+            <th class="c" style="width:45px;top:35px;z-index:12">STT</th>
+            <th style="min-width:120px;top:35px;z-index:12">Mã vật tư</th>
+            <th style="min-width:90px;top:35px;z-index:12">Mã NCC</th>
+            <th style="min-width:220px;top:35px;z-index:12" class="border-r border-slate-200">Tên vật tư</th>
+            <th class="c" style="min-width:70px;top:35px;z-index:12">Tổng</th>
+            ${MONTHS.map(m => `<th class="c" style="min-width:70px;top:35px;z-index:12">${esc(MONTH_LABELS[m])}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
