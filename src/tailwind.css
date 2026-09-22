@@ -14,9 +14,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .scroll-area::-webkit-scrollbar-track { background: transparent; }
 
 /* Mien toggle */
-.mien-btn, .mmien-btn { color: #4b4f56; transition: all 0.15s; }
-.mien-btn:hover, .mmien-btn:hover { background: #fff; }
-.mien-btn.active, .mmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.mien-btn, .mmien-btn, .rmien-btn { color: #4b4f56; transition: all 0.15s; }
+.mien-btn:hover, .mmien-btn:hover, .rmien-btn:hover { background: #fff; }
+.mien-btn.active, .mmien-btn.active, .rmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
 /* Nav tabs */
 /* 4.2: không cho tiêu đề tab xuống dòng — màn hẹp thì thanh tab cuộn ngang thay vì cao 3 dòng */

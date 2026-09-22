@@ -1430,6 +1430,102 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     }));
   },
 
+  async loadOrderReport(supa, u, [filter]) {
+    filter = filter || {};
+    const products = await fetchProducts(supa);
+
+    // Lọc theo nhóm sản phẩm (multi-select)
+    let filtered = products;
+    if (filter.groups && filter.groups.length) {
+      const set = new Set(filter.groups.map((g: string) => g.trim().toLowerCase()));
+      filtered = filtered.filter((p: any) => set.has((p.nhom_san_pham || "").toLowerCase()));
+    }
+
+    // Lọc theo quyền (AM theo BU, PM theo scope)
+    const grants = await getGrants(supa, u);
+    const visFilter = makeVisibleFilter(u.role, grants);
+    if (visFilter) filtered = filtered.filter(visFilter);
+
+    const maBravos = filtered.map((p: any) => p.ma_bravo);
+    if (!maBravos.length) return { rows: [], months: [] };
+
+    // Lấy sessions APPROVED/CLOSED, lọc miền nếu cần
+    let sq = supa.schema("app_order").from("order_sessions")
+      .select("session_id, ten_dot, mien, ngay_mo, trang_thai")
+      .in("trang_thai", ["APPROVED", "CLOSED"]);
+    if (filter.mien && filter.mien !== "ALL") sq = sq.eq("mien", filter.mien);
+    const { data: sessions } = await sq;
+    if (!sessions || !sessions.length) return { rows: [], months: [] };
+
+    // Map session_id -> tháng (1-12 theo ngay_mo)
+    const sessMonth: Record<string, number> = {};
+    const sessMien: Record<string, string> = {};
+    for (const s of sessions) {
+      const d = new Date(s.ngay_mo);
+      sessMonth[s.session_id] = d.getMonth() + 1;
+      sessMien[s.session_id] = s.mien || "";
+    }
+    const sessionIds = sessions.map((s: any) => s.session_id);
+
+    // Lấy order_items cho các sessions đã lọc, phân trang
+    const PAGE = 1000;
+    const allItems: any[] = [];
+    for (let i = 0; i < sessionIds.length; i += 10) {
+      const batch = sessionIds.slice(i, i + 10);
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supa.schema("app_order").from("order_items")
+          .select("session_id, ma_bravo, sl_dat_hang")
+          .in("session_id", batch)
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(error.message);
+        const rows = data || [];
+        allItems.push(...rows);
+        if (rows.length < PAGE) break;
+      }
+    }
+
+    // Aggregate: ma_bravo -> { month -> tổng sl_dat_hang }
+    const agg: Record<string, Record<number, number>> = {};
+    const maBravoSet = new Set(maBravos);
+    for (const it of allItems) {
+      if (!maBravoSet.has(it.ma_bravo)) continue;
+      const sl = Number(it.sl_dat_hang || 0);
+      if (!sl) continue;
+      const month = sessMonth[it.session_id];
+      if (!month) continue;
+      if (!agg[it.ma_bravo]) agg[it.ma_bravo] = {};
+      agg[it.ma_bravo][month] = (agg[it.ma_bravo][month] || 0) + sl;
+    }
+
+    // Build output rows: chỉ vật tư có ít nhất 1 tháng có SL
+    const pMap: Record<string, any> = {};
+    for (const p of filtered) pMap[p.ma_bravo] = p;
+
+    const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+    const rows = Object.keys(agg).map((mb) => {
+      const p = pMap[mb];
+      if (!p) return null;
+      const mData = agg[mb];
+      let tong = 0;
+      const byMonth: Record<number, number> = {};
+      for (const m of months) {
+        byMonth[m] = mData[m] || 0;
+        tong += byMonth[m];
+      }
+      return {
+        ma_bravo: mb, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
+        nhom_san_pham: p.nhom_san_pham, tong, ...byMonth,
+      };
+    }).filter(Boolean);
+
+    // Sort theo code_ncc A-Z
+    rows.sort((a: any, b: any) =>
+      (a.code_ncc || "").localeCompare(b.code_ncc || "", "vi") ||
+      (a.ma_bravo || "").localeCompare(b.ma_bravo || "", "vi"));
+
+    return { rows, months };
+  },
+
   async resolveAuditMeta(supa) {
     const { data: users } = await supa.schema("shared").from("users").select("username, ho_va_ten");
     const { data: sessions } = await supa.schema("app_order").from("order_sessions").select("session_id, ten_dot, mien");

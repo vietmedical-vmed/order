@@ -7,6 +7,7 @@ import { initApprovalView } from './views/manage.js';
 import { initAuditView } from './views/audit.js';
 import { initConfigView } from './views/config.js';
 import { initCatalogView } from './views/catalog.js';
+import { initReportView } from './views/report.js';
 
 const VIEWS = {
   order: initOrderView,
@@ -14,6 +15,7 @@ const VIEWS = {
   audit: initAuditView,
   config: initConfigView,
   catalog: initCatalogView,
+  report: initReportView,
 };
 
 export function renderView() {
@@ -25,7 +27,7 @@ export function renderView() {
   if (!tpl) { main.innerHTML = '<div class="empty-state">Màn hình không tồn tại</div>'; return; }
   main.appendChild(tpl.content.cloneNode(true));
 
-  const bars = { order: 'orderFilterBar', approval: 'approvalFilterBar', catalog: 'catalogFilterBar', audit: 'auditFilterBar' };
+  const bars = { order: 'orderFilterBar', approval: 'approvalFilterBar', catalog: 'catalogFilterBar', audit: 'auditFilterBar', report: 'reportFilterBar' };
   for (const [view, id] of Object.entries(bars)) {
     const el = $('#' + id);
     if (el) el.classList.toggle('hidden', state.view !== view);
