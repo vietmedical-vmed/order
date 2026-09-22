@@ -51,7 +51,6 @@ function bindApprovalFilterOnce() {
     });
   }
   if (isPurchasing()) { const st = $('#mStatus'); if (st) st.value = 'APPROVED'; }
-  $('#mRefresh').addEventListener('click', async () => { await loadSessions(); renderManageList(); });
 }
 
 export async function initApprovalView() {
@@ -104,7 +103,7 @@ async function renderManageList() {
           <th class="r">SKU · SL đặt</th>
           <th class="r">SL duyệt</th>
           <th class="r">SL đặt hàng</th>
-          <th class="c">Tác vụ</th>
+          <th>Tác vụ</th>
         </tr></thead>
         <tbody>${list.map(s => {
           const st = s.trang_thai;
@@ -112,8 +111,8 @@ async function renderManageList() {
           const reviewable = (st === 'SUBMITTED' && canPM) || (st === 'PM_APPROVED' && canMgr);
           // Từ chối CHỈ còn ở bước Manager (PM_APPROVED). Đã bỏ luồng PM từ chối AM.
           const canReject = (st === 'PM_APPROVED' && canMgr);
-          // Thứ tự nút: Xem/Sửa · Phê duyệt · Từ chối · Chốt đợt · Nhập thông tin (Đặt hàng) · Xuất Excel
-          let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">${reviewable ? 'Xem / Sửa' : 'Xem'}</button>`;
+          // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Đặt hàng
+          let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
           if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
           if (canReject) action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
           // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
@@ -139,7 +138,7 @@ async function renderManageList() {
             <td class="r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
             <td class="r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
             <td class="r num text-primary-800">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
-            <td class="c whitespace-nowrap">${action}</td>
+            <td class="whitespace-nowrap">${action}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>
