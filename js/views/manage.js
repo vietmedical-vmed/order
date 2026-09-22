@@ -7,7 +7,7 @@ import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
 import { renderView } from '../router.js';
-import { exportToExcel } from '../export-excel.js';
+
 
 let _approvalFilterBound = false;
 
@@ -88,7 +88,6 @@ async function renderManageList() {
     const canPM = (role === 'PM' || role === 'ADMIN');           // duyệt đợt SUBMITTED (PM không còn từ chối)
     const canMgr = (role === 'MANAGER' || role === 'ADMIN');     // duyệt/từ chối đợt PM_APPROVED
     const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // đặt hàng (ghi DM/PO) đợt APPROVED
-    const canExport = (role === 'MANAGER' || role === 'ADMIN' || role === 'PURCHASING');
     const canCancel = (role === 'AM' || role === 'ADMIN');            // AM hủy đợt khi PM chưa duyệt
 
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
@@ -120,7 +119,6 @@ async function renderManageList() {
           // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
           if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
           if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Đặt hàng</button>`;
-          if (canExport && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-ok" data-act="export" data-id="${s.session_id}">Xuất Excel</button>`;
 
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
@@ -207,9 +205,6 @@ function bindManageActions() {
         await loadSessions();
         renderManageList();
       } catch (e) { toast('Lỗi: ' + e.message, 'error'); b.disabled = false; }
-    } else if (act === 'export') {
-      const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: 'dot', mien: '' };
-      await exportToExcel(sess);
     } else if (act === 'purchase') {
       const sess = state.sessions.find(s => s.session_id === id) || { session_id: id, ten_dot: '' };
       openPurchaseModal(sess);
