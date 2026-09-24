@@ -177,20 +177,11 @@ async function getConfigAt(supa: SupabaseClient, atTime?: string | null) {
 
 // Danh sách nhóm sản phẩm (nhom_san_pham) của các vật tư đang được đặt hàng.
 async function listOrderGroups(supa: SupabaseClient) {
-  const PAGE = 1000;
+  const { data, error } = await supa.schema("shared").from("dm_nhom_san_pham")
+    .select("nhom_san_pham").order("nhom_san_pham");
+  if (error) throw new Error(error.message);
   const set = new Set<string>();
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supa
-      .schema("shared").from("dm_vat_tu")
-      .select("nhom_san_pham")
-      .eq("dat_hang", true)
-      .order("ma_bravo", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = data || [];
-    batch.forEach((v: any) => { if (v.nhom_san_pham) set.add(v.nhom_san_pham); });
-    if (batch.length < PAGE) break;
-  }
+  (data || []).forEach((r: any) => { if (r.nhom_san_pham) set.add(r.nhom_san_pham); });
   return Array.from(set).sort();
 }
 
