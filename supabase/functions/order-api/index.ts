@@ -694,8 +694,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async listBU(supa) {
-    const { data, error } = await supa.schema("shared").from("dm_vat_tu")
-      .select("bu, bu_code").neq("bu", "").order("bu");
+    const { data, error } = await supa.schema("shared").from("dm_nhom_san_pham")
+      .select("bu").neq("bu", "").order("bu");
     if (error) throw new Error(error.message);
     const seen = new Set<string>();
     return (data || []).filter((r: any) => {
@@ -703,7 +703,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       if (!k || seen.has(k)) return false;
       seen.add(k);
       return true;
-    }).map((r: any) => ({ bu: r.bu, ten_bu: r.bu, bu_code: r.bu_code || "" }));
+    }).map((r: any) => ({ bu: r.bu, ten_bu: r.bu, bu_code: r.bu }));
   },
 
   // Soi TB KH cho 1 vật tư: nhánh lẻ/bộ, danh sách bộ, Σ từng bộ, và TB cuối.
