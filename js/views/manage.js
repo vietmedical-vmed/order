@@ -108,9 +108,9 @@ async function renderManageList() {
         <tbody>${list.map(s => {
           const st = s.trang_thai;
           // Đợt này người dùng có quyền phê duyệt không?
-          const reviewable = (st === 'SUBMITTED' && canPM) || (st === 'PM_APPROVED' && canMgr);
-          // Từ chối CHỈ còn ở bước Manager (PM_APPROVED). Đã bỏ luồng PM từ chối AM.
-          const canReject = (st === 'PM_APPROVED' && canMgr);
+          const reviewable = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
+          // Từ chối: Manager ở PM_APPROVED, hoặc SUBMITTED (CTTM skip PM).
+          const canReject = ((st === 'PM_APPROVED' || st === 'SUBMITTED') && canMgr);
           // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Đặt hàng
           let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
           if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;

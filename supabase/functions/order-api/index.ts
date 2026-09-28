@@ -296,6 +296,24 @@ function parseScope(scope: string): Set<string> {
 }
 const normGroup = (s: string) => String(s || "").trim().toLowerCase();
 
+// BU CTTM không có PM riêng — Manager phê duyệt gộp 2 cấp (PM+Manager).
+// Tra dm_nhom_san_pham: nếu TẤT CẢ nhóm SP của đợt thuộc BU chứa "cttm" thì skip PM.
+async function isSkipPmSession(supa: SupabaseClient, session: any): Promise<boolean> {
+  const grp = session.nhom_san_pham;
+  if (!grp) return false;
+  const groups = parseScope(grp);
+  if (!groups.size) return false;
+  const { data } = await supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu");
+  if (!data || !data.length) return false;
+  const buMap = new Map<string, string>();
+  data.forEach((r: any) => buMap.set(normGroup(r.nhom_san_pham), normGroup(r.bu || "")));
+  for (const g of groups) {
+    const bu = buMap.get(g) || "";
+    if (!bu.includes("cttm")) return false;
+  }
+  return true;
+}
+
 // Chuẩn hoá lựa chọn nhóm sản phẩm (mảng hoặc chuỗi "A;B") -> "A;B;C" (bỏ trùng/rỗng, giữ tên gốc).
 function normalizeGroups(v: any): string {
   const arr = Array.isArray(v) ? v : String(v || "").split(/[,;]/);
@@ -957,8 +975,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "AM") { q = q.eq("mien", u.mien); if (u.bu) q = q.ilike("bu", u.bu); }
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
     if (filter.bu && filter.bu !== "ALL") q = q.ilike("bu", filter.bu);
-    // Manager chỉ thấy đợt từ PM_APPROVED trở đi.
-    if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
+    // Manager thấy SUBMITTED (CTTM skip PM) + PM_APPROVED + APPROVED.
+    if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
     if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "CLOSED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
@@ -1149,7 +1167,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         po: session.po || "",
       };
     }
-    const ec = session ? editContextForSession(u, session) : { action: null, editFields: [] };
+    const skipPm = session ? await isSkipPmSession(supa, session) : false;
+    const ec = session ? editContextForSession(u, session, skipPm) : { action: null, editFields: [] };
 
     // Rows đã được lọc theo quyền (AM: BU, PM: nhóm SP) nên đều thuộc phạm vi user.
     rows.forEach((r: any) => { r.editable = true; });
@@ -1227,6 +1246,25 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat_hang", "ghi_chu_dat_hang"], "PM_APPROVED", "APPROVED", "MANAGER_APPROVE");
   },
 
+  // CTTM: Manager phê duyệt gộp 2 cấp (PM+Manager) từ SUBMITTED → APPROVED.
+  // Bước 1: lưu sl_duyet từ client (Manager đã chỉnh trên màn hình).
+  // Bước 2: copy sl_duyet → sl_dat_hang rồi đẩy APPROVED.
+  async managerApproveCttm(supa, u, [sessionId, items]) {
+    if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền phê duyệt (Manager)");
+    const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+    if (!session) throw new Error("Không tìm thấy đợt");
+    if (session.trang_thai !== "SUBMITTED") throw new Error("Đợt đang ở trạng thái " + session.trang_thai + " — chỉ phê duyệt gộp khi SUBMITTED");
+    if (!await isSkipPmSession(supa, session)) throw new Error("Đợt này không thuộc BU CTTM — không thể phê duyệt gộp");
+    // Bước 1: lưu sl_duyet (PM duyệt) — SUBMITTED giữ nguyên
+    await saveAndAdvance(supa, u, sessionId, items, ["sl_duyet", "ghi_chu_duyet"], ["SUBMITTED"], null, "PM_CONFIRM_CTTM");
+    // Bước 2: copy sl_duyet → sl_dat_hang, đẩy SUBMITTED → APPROVED
+    const { data: updatedItems } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
+    const step2 = (updatedItems || []).map((r: any) => ({
+      ma_bravo: r.ma_bravo, sl_dat_hang: num(r.sl_duyet), ghi_chu_dat_hang: r.ghi_chu_dat_hang || "",
+    }));
+    return await saveAndAdvance(supa, u, sessionId, step2, ["sl_dat_hang", "ghi_chu_dat_hang"], ["SUBMITTED"], "APPROVED", "MANAGER_APPROVE");
+  },
+
   // Admin ghi đè: sửa BẤT KỲ cột số lượng nào (sl_dat / sl_duyet / sl_dat_hang) + ghi chú,
   // ở BẤT KỲ trạng thái nào (kể cả APPROVED), KHÔNG ràng buộc scope, KHÔNG đổi trạng thái.
   // Chỉ ghi các dòng client gửi lên (đã lọc "có chỉnh" phía client) để không đụng dòng khác.
@@ -1265,6 +1303,13 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const { data: rows } = await supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId);
     const its = rows || [];
     if (s.trang_thai === "SUBMITTED") {
+      // CTTM: Manager phê duyệt gộp 2 cấp
+      if (canActAs(u, "MANAGER") && await isSkipPmSession(supa, s)) {
+        const items1 = its.map((r) => ({ ma_bravo: r.ma_bravo, sl_duyet: num(r.sl_dat), ghi_chu_duyet: r.ghi_chu_duyet || "" }));
+        await saveAndAdvance(supa, u, sessionId, items1, ["sl_duyet", "ghi_chu_duyet"], ["SUBMITTED"], null, "PM_CONFIRM_CTTM");
+        const items2 = its.map((r) => ({ ma_bravo: r.ma_bravo, sl_dat_hang: num(r.sl_dat), ghi_chu_dat_hang: r.ghi_chu_dat_hang || "" }));
+        return await saveAndAdvance(supa, u, sessionId, items2, ["sl_dat_hang", "ghi_chu_dat_hang"], ["SUBMITTED"], "APPROVED", "MANAGER_APPROVE");
+      }
       if (!canActAs(u, "PM")) throw new Error("Không có quyền phê duyệt (PM)");
       const items = its.map((r) => ({ ma_bravo: r.ma_bravo, sl_duyet: num(r.sl_dat), ghi_chu_duyet: r.ghi_chu_duyet || "" }));
       return await saveAndAdvance(supa, u, sessionId, items, ["sl_duyet", "ghi_chu_duyet"], "SUBMITTED", "PM_APPROVED", "PM_APPROVE");
@@ -1284,6 +1329,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (!s) throw new Error("Không tìm thấy đợt");
     let buoc = "";
     if (s.trang_thai === "PM_APPROVED") { if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền từ chối (Manager)"); buoc = "Manager"; }
+    else if (s.trang_thai === "SUBMITTED" && canActAs(u, "MANAGER") && await isSkipPmSession(supa, s)) { buoc = "Manager (CTTM)"; }
     else if (s.trang_thai === "SUBMITTED") throw new Error("Bước PM không còn chức năng từ chối — PM chỉ phê duyệt");
     else throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — không thể từ chối");
     const lyDo = String(reason || "").trim();
@@ -1535,13 +1581,18 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 };
 
 // ---------- workflow helpers ----------
-function actionForSession(u: any, session: any) {
+function actionForSession(u: any, session: any, skipPm = false) {
   const st = session.trang_thai;
   if (st === "APPROVED") return null;
   if (st === "DRAFT" && canActAs(u, "AM")) {
     if (u.role === "AM" && u.mien !== session.mien) return null;
     return { code: "AM_CONFIRM", label: u.role === "ADMIN" ? "Xác nhận (thay AM)" : "Xác nhận",
       editField: "sl_dat", editNoteField: "ghi_chu_dat", endpoint: "amConfirm" };
+  }
+  // CTTM skip PM: Manager phê duyệt gộp từ SUBMITTED → APPROVED
+  if (st === "SUBMITTED" && skipPm && canActAs(u, "MANAGER")) {
+    return { code: "MANAGER_APPROVE_CTTM", label: u.role === "ADMIN" ? "Phê duyệt (thay Manager)" : "Phê duyệt",
+      editField: "sl_duyet", editNoteField: "ghi_chu_duyet", endpoint: "managerApproveCttm" };
   }
   if (st === "SUBMITTED" && canActAs(u, "PM")) {
     return { code: "PM_CONFIRM", label: u.role === "ADMIN" ? "Xác nhận (thay PM)" : "Xác nhận",
@@ -1556,7 +1607,7 @@ function actionForSession(u: any, session: any) {
 
 // Ngữ cảnh SỬA của 1 đợt cho 1 user: action (nút xác nhận/lưu) + editFields (các cột số
 // lượng được sửa trực tiếp trên bảng). Tách khỏi actionForSession vì admin/AM có luật riêng.
-function editContextForSession(u: any, session: any) {
+function editContextForSession(u: any, session: any, skipPm = false) {
   const st = session.trang_thai;
 
   // ADMIN: sửa MỌI cột (SL yêu cầu / PM duyệt / đặt hàng) ở MỌI trạng thái, không ràng buộc
@@ -1608,15 +1659,24 @@ function editContextForSession(u: any, session: any) {
     return { action, editFields: [{ field: "sl_duyet", noteField: "ghi_chu_duyet" }] };
   }
 
+  // CTTM skip PM: Manager sửa SL duyệt ở SUBMITTED rồi phê duyệt gộp.
+  if (u.role === "MANAGER" && st === "SUBMITTED" && skipPm) {
+    return {
+      action: { code: "MANAGER_APPROVE_CTTM", label: "Phê duyệt",
+        editField: "sl_duyet", editNoteField: "ghi_chu_duyet", endpoint: "managerApproveCttm" },
+      editFields: [{ field: "sl_duyet", noteField: "ghi_chu_duyet" }],
+    };
+  }
+
   // Các vai trò/luồng còn lại: giữ mô hình 1 cột theo bước hiện tại.
-  const a = actionForSession(u, session);
+  const a = actionForSession(u, session, skipPm);
   return { action: a, editFields: a ? [{ field: a.editField, noteField: a.editNoteField }] : [] };
 }
 
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.eq("mien", u.mien);
-  else if (u.role === "MANAGER") q = q.in("trang_thai", ["PM_APPROVED", "APPROVED"]);
+  else if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
   else if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
   if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
   const { data } = await q;
@@ -1638,7 +1698,7 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   const priority: Record<string, string[]> = {
     AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
     PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED"],
-    MANAGER: ["PM_APPROVED", "APPROVED"],
+    MANAGER: ["SUBMITTED", "PM_APPROVED", "APPROVED"],
     PURCHASING: ["APPROVED", "CLOSED", "PM_APPROVED", "SUBMITTED"],
     ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
   };
