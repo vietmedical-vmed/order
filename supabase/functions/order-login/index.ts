@@ -87,12 +87,12 @@ async function verifyPasswordV2(password: string, stored: string): Promise<boole
   for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
   return diff === 0;
 }
-// Xác thực mật khẩu: ưu tiên password_hash_v2 nếu đã có (không fallback về scheme cũ khi
-// v2 verify sai — v2 là nguồn xác thực duy nhất một khi đã tồn tại). Chưa có v2 -> verify
-// scheme cũ (SHA-256 [+salt]); trả viaLegacy=true để caller biết mà nâng cấp lên v2.
+// Xác thực mật khẩu: ưu tiên password_hash_v2, fallback về scheme cũ (SHA-256 [+salt])
+// nếu v2 fail — phòng trường hợp hệ thống khác đổi password_hash mà không cập nhật v2.
+// Trả viaLegacy=true khi verify qua scheme cũ → caller nâng cấp v2 cho lần sau.
 async function verifyPassword(user: any, password: string): Promise<{ ok: boolean; viaLegacy: boolean }> {
   if (user.password_hash_v2) {
-    return { ok: await verifyPasswordV2(password, user.password_hash_v2), viaLegacy: false };
+    if (await verifyPasswordV2(password, user.password_hash_v2)) return { ok: true, viaLegacy: false };
   }
   const toHash = user.salt ? (user.salt + ":" + password) : password;
   const ok = (await sha256Hex(toHash)) === user.password_hash;
