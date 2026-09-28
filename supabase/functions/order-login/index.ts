@@ -87,16 +87,21 @@ async function verifyPasswordV2(password: string, stored: string): Promise<boole
   for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
   return diff === 0;
 }
-// Xác thực mật khẩu: ưu tiên password_hash_v2, fallback về scheme cũ (SHA-256 [+salt])
-// nếu v2 fail — phòng trường hợp hệ thống khác đổi password_hash mà không cập nhật v2.
-// Trả viaLegacy=true khi verify qua scheme cũ → caller nâng cấp v2 cho lần sau.
-async function verifyPassword(user: any, password: string): Promise<{ ok: boolean; viaLegacy: boolean }> {
-  if (user.password_hash_v2) {
-    if (await verifyPasswordV2(password, user.password_hash_v2)) return { ok: true, viaLegacy: false };
-  }
+// Xác thực mật khẩu: verify ĐỒNG THỜI cả password_hash_v2 (PBKDF2) và password_hash (SHA-256).
+// Nếu v2 match nhưng legacy fail → hệ thống khác đã đổi password_hash → v2 stale → reject
+// (trả invalidV2=true để caller xóa v2 cũ, lần sau legacy match → lazy-upgrade v2 mới).
+// Nếu v2 fail nhưng legacy match → v2 chưa cập nhật → accept + trả viaLegacy=true để upgrade.
+async function verifyPassword(user: any, password: string): Promise<{ ok: boolean; viaLegacy: boolean; invalidV2: boolean }> {
   const toHash = user.salt ? (user.salt + ":" + password) : password;
-  const ok = (await sha256Hex(toHash)) === user.password_hash;
-  return { ok, viaLegacy: ok };
+  const legacyOk = (await sha256Hex(toHash)) === user.password_hash;
+  if (user.password_hash_v2) {
+    const v2Ok = await verifyPasswordV2(password, user.password_hash_v2);
+    if (v2Ok && legacyOk) return { ok: true, viaLegacy: false, invalidV2: false };
+    if (v2Ok && !legacyOk) return { ok: false, viaLegacy: false, invalidV2: true };
+    if (!v2Ok && legacyOk) return { ok: true, viaLegacy: true, invalidV2: false };
+    return { ok: false, viaLegacy: false, invalidV2: false };
+  }
+  return { ok: legacyOk, viaLegacy: legacyOk, invalidV2: false };
 }
 
 // ---------- 5.2: rate-limit đăng nhập sai theo username+IP ----------
@@ -214,13 +219,18 @@ Deno.serve(async (req) => {
     }
 
     const verify = await verifyPassword(user, password);
+    if (verify.invalidV2) {
+      // v2 match nhưng password_hash đã đổi bên ngoài — xóa v2 cũ, reject login
+      await supa.schema("shared").from("users").update({ password_hash_v2: null }).eq("username", user.username);
+      await recordFailedLogin(supa, uname.toLowerCase(), ip);
+      await new Promise((r) => setTimeout(r, 400));
+      return json({ error: "Tài khoản hoặc mật khẩu không đúng" }, 401, cors);
+    }
     if (!verify.ok) {
       await recordFailedLogin(supa, uname.toLowerCase(), ip);
       await new Promise((r) => setTimeout(r, 400));
       return json({ error: "Tài khoản hoặc mật khẩu không đúng" }, 401, cors);
     }
-    // Nâng cấp lazy lên PBKDF2 (password_hash_v2) — chỉ khi vừa verify qua scheme cũ thành
-    // công; best-effort, không chặn đăng nhập nếu update lỗi. Không đổi password_hash/salt cũ.
     if (verify.viaLegacy) {
       const v2 = await hashPasswordV2(password);
       await supa.schema("shared").from("users").update({ password_hash_v2: v2 }).eq("username", user.username);
