@@ -295,6 +295,7 @@ function parseScope(scope: string): Set<string> {
   );
 }
 const normGroup = (s: string) => String(s || "").trim().toLowerCase();
+const normBU = (s: string) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // BU CTTM không có PM riêng — Manager phê duyệt gộp 2 cấp (PM+Manager).
 // Tra dm_nhom_san_pham: nếu TẤT CẢ nhóm SP của đợt thuộc BU chứa "cttm" thì skip PM.
@@ -344,8 +345,8 @@ async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; sc
 // Trả predicate lọc theo dòng dm_vat_tu ({ bu, nhom_san_pham }); null = xem tất cả.
 function makeVisibleFilter(role: string, grants: { bu: string; scope: string }) {
   if (role === "AM") {
-    const set = grants.bu ? parseScope(grants.bu) : null;        // BU code (có thể nhiều, phân tách phẩy)
-    return set ? (r: any) => set.has(normGroup(r.bu_code || r.bu || "")) : null;
+    const set = grants.bu ? new Set([...parseScope(grants.bu)].map(normBU)) : null;
+    return set ? (r: any) => set.has(normBU(r.bu_code || r.bu || "")) : null;
   }
   if (role === "PM") {
     const set = grants.scope ? parseScope(grants.scope) : null;  // nhóm sản phẩm
@@ -972,9 +973,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async listSessions(supa, u, [filter]) {
     filter = filter || {};
     let q = supa.schema("app_order").from("order_sessions").select("*");
-    if (u.role === "AM") { q = q.eq("mien", u.mien); if (u.bu) q = q.ilike("bu", u.bu); }
+    if (u.role === "AM") q = q.eq("mien", u.mien);
     else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
-    if (filter.bu && filter.bu !== "ALL") q = q.ilike("bu", filter.bu);
     // Manager thấy SUBMITTED (CTTM skip PM) + PM_APPROVED + APPROVED.
     if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
@@ -982,6 +982,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     let list = sessions || [];
+    // BU filter: dùng normBU để so khớp linh hoạt (vd "chcs" match "CH&CS").
+    const buFilter = (u.role === "AM" && u.bu) ? u.bu : (filter.bu && filter.bu !== "ALL" ? filter.bu : "");
+    if (buFilter) {
+      const nb = normBU(buFilter);
+      list = list.filter((s: any) => normBU(s.bu) === nb);
+    }
     // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách (overlap scope ↔ session.nhom_san_pham).
     // Đợt không gắn nhóm (trống) = tất cả nhóm → PM vẫn thấy.
     if (u.role === "PM") {
@@ -1185,7 +1191,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const sessionBu = bu || u.bu || "";
+    const rawBu = bu || u.bu || "";
+    // Chuẩn hoá BU về tên chính thức trong dm_nhom_san_pham (vd "chcs" → "CH&CS").
+    let sessionBu = rawBu;
+    if (rawBu) {
+      const { data: buRows } = await supa.schema("shared").from("dm_nhom_san_pham").select("bu").neq("bu", "");
+      const canonical = (buRows || []).find((r: any) => normBU(r.bu) === normBU(rawBu));
+      if (canonical) sessionBu = canonical.bu;
+    }
     const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username, bu: sessionBu };
     // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
     // vẫn tạo được kể cả khi cột chưa migrate.
