@@ -1506,11 +1506,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const maBravos = filtered.map((p: any) => p.ma_bravo);
     if (!maBravos.length) return { rows: [], months: [] };
 
-    // Lấy sessions APPROVED/CLOSED, lọc miền nếu cần
+    // Lấy sessions APPROVED/CLOSED, lọc miền + BU nếu cần
     let sq = supa.schema("app_order").from("order_sessions")
-      .select("session_id, ten_dot, mien, ngay_mo, trang_thai")
+      .select("session_id, ten_dot, mien, bu, ngay_mo, trang_thai")
       .in("trang_thai", ["APPROVED", "CLOSED"]);
     if (filter.mien && filter.mien !== "ALL") sq = sq.eq("mien", filter.mien);
+    if (filter.bu && filter.bu !== "ALL") sq = sq.eq("bu", filter.bu);
     const { data: sessions } = await sq;
     if (!sessions || !sessions.length) return { rows: [], months: [] };
 

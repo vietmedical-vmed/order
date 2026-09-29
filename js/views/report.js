@@ -11,6 +11,21 @@ let _filterBound = false;
 let _reportData = [];
 let _selectedGroups = new Set();
 let _groupList = [];
+let _rptBULoaded = false;
+
+async function loadRptBUFilter() {
+  if (_rptBULoaded) return;
+  _rptBULoaded = true;
+  const sel = $('#rptBU');
+  if (!sel) return;
+  try {
+    const list = await rpc('listBU');
+    if (Array.isArray(list) && list.length) {
+      sel.innerHTML = '<option value="ALL">Tất cả BU</option>' + list.map(b => `<option value="${esc(b.bu_code || b.bu)}">${esc(b.ten_bu || b.bu)}</option>`).join('');
+    }
+  } catch (e) { console.warn('[loadRptBUFilter]', e); }
+  sel.addEventListener('change', () => loadReport());
+}
 
 export async function initReportView() {
   if (!_filterBound) {
@@ -31,6 +46,7 @@ export async function initReportView() {
     });
     $('#rptExport').addEventListener('click', exportReport);
   }
+  await loadRptBUFilter();
   await loadReport();
 }
 
@@ -41,9 +57,10 @@ async function loadReport() {
 
   try {
     const mien = $$('.rmien-btn').find(b => b.classList.contains('active'))?.dataset.rmien || 'ALL';
+    const bu = $('#rptBU')?.value || 'ALL';
     const groups = _selectedGroups.size ? [..._selectedGroups] : [];
 
-    const result = await rpc('loadOrderReport', { mien, groups });
+    const result = await rpc('loadOrderReport', { mien, bu, groups });
     _reportData = result.rows || [];
 
     if (!_groupList.length) {

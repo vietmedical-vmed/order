@@ -1,8 +1,10 @@
 // ============ MÀN QUẢN LÝ ĐẶT HÀNG (danh sách đợt) ============
-import { $, $$, esc, fmt, fmtDate, splitGroups } from '../utils.js';
+import { $, $$, esc, fmt, fmtDate, splitGroups, viCmp } from '../utils.js';
 import { rpc } from '../api.js';
 import { state, canApprove, isAM, isPurchasing } from '../state.js';
 let _buListLoaded = false;
+let _mGrpListLoaded = false;
+let _mSelectedGroups = new Set();
 import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
@@ -29,6 +31,41 @@ async function loadBUFilter() {
     }
   } catch (e) { console.warn('[loadBUFilter]', e); }
   sel.addEventListener('change', () => { state.manageBU = sel.value; renderManageList(); });
+}
+
+async function loadManageGroupFilter() {
+  if (_mGrpListLoaded) return;
+  _mGrpListLoaded = true;
+  const btn = $('#mGrpBtn');
+  const menu = $('#mGrpMenu');
+  if (!btn || !menu) return;
+  btn.addEventListener('click', () => menu.classList.toggle('hidden'));
+  document.addEventListener('click', e => {
+    if (menu && !menu.classList.contains('hidden') && !e.target.closest('#mGrpWrap')) menu.classList.add('hidden');
+  });
+  try {
+    const list = await rpc('listProductGroups');
+    const groups = (list || []).sort(viCmp);
+    menu.innerHTML = groups.map(g => {
+      return `<label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-[13px]">
+        <input type="checkbox" class="m-grp-cb rounded" value="${esc(g)}"/>${esc(g)}</label>`;
+    }).join('');
+    $$('.m-grp-cb', menu).forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) _mSelectedGroups.add(cb.value);
+        else _mSelectedGroups.delete(cb.value);
+        updateManageGroupLabel();
+        renderManageList();
+      });
+    });
+  } catch (e) { console.warn('[loadManageGroupFilter]', e); }
+}
+
+function updateManageGroupLabel() {
+  const label = $('#mGrpLabel');
+  if (_mSelectedGroups.size === 0) label.textContent = 'Tất cả nhóm SP';
+  else if (_mSelectedGroups.size === 1) label.textContent = [..._mSelectedGroups][0];
+  else label.textContent = _mSelectedGroups.size + ' nhóm SP';
 }
 
 function bindApprovalFilterOnce() {
@@ -62,6 +99,7 @@ export async function initApprovalView() {
   state.manageBU = state.manageBU || 'ALL';
   bindApprovalFilterOnce();
   await loadBUFilter();
+  await loadManageGroupFilter();
   bindManageActions();
   await renderManageList();
 }
@@ -77,8 +115,15 @@ async function renderManageList() {
     const status = $('#mStatus').value;
     const mien = state.manageMien || 'ALL';
     const bu = state.manageBU || 'ALL';
-    const list = await rpc('listSessions', { mien, status, bu });
+    let list = await rpc('listSessions', { mien, status, bu });
     if (!Array.isArray(list)) throw new Error(`Server trả về ${list === null ? 'null' : typeof list} thay vì danh sách đợt.`);
+    if (_mSelectedGroups.size > 0) {
+      list = list.filter(s => {
+        if (!s.nhom_san_pham) return false;
+        const sessGroups = splitGroups(s.nhom_san_pham);
+        return sessGroups.some(g => _mSelectedGroups.has(g));
+      });
+    }
     if (!list.length) {
       host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có đợt nào</div>`;
       return;

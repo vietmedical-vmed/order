@@ -150,6 +150,13 @@
     <div id="approvalFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
       <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
       <select id="mBU" class="ctl-select" aria-label="Lọc theo BU"><option value="ALL">Tất cả BU</option></select>
+      <div id="mGrpWrap" class="relative">
+        <button type="button" id="mGrpBtn" class="ctl-select cursor-pointer flex items-center justify-between gap-2" style="min-width:170px" aria-haspopup="true" aria-expanded="false">
+          <span id="mGrpLabel" class="truncate">Tất cả nhóm SP</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 shrink-0" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="mGrpMenu" role="menu" class="hidden absolute left-0 top-full z-30 mt-1 w-72 max-h-72 overflow-auto bg-white border border-slate-200 rounded-md shadow-lg p-1"></div>
+      </div>
       <select id="mStatus" class="ctl-select" aria-label="Lọc theo trạng thái đợt">
         <option value="ALL">Tất cả trạng thái</option>
         <option value="DRAFT">AM đang nhập</option>
@@ -197,17 +204,18 @@
 
     <div id="reportFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
       <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Lọc</span>
-      <div id="rptMienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
-        <button data-rmien="ALL" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium active" aria-pressed="true">Tất cả</button>
-        <button data-rmien="MB" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Bắc</button>
-        <button data-rmien="MN" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Nam</button>
-      </div>
+      <select id="rptBU" class="ctl-select" aria-label="Lọc theo BU"><option value="ALL">Tất cả BU</option></select>
       <div id="rptGrpWrap" class="relative">
         <button type="button" id="rptGrpBtn" class="ctl-select cursor-pointer flex items-center justify-between gap-2" style="min-width:170px" aria-haspopup="true" aria-expanded="false">
           <span id="rptGrpLabel" class="truncate">Tất cả nhóm SP</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 shrink-0" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div id="rptGrpMenu" role="menu" class="hidden absolute left-0 top-full z-30 mt-1 w-72 max-h-72 overflow-auto bg-white border border-slate-200 rounded-md shadow-lg p-1"></div>
+      </div>
+      <div id="rptMienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+        <button data-rmien="ALL" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium active" aria-pressed="true">Tất cả</button>
+        <button data-rmien="MB" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Bắc</button>
+        <button data-rmien="MN" class="rmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Nam</button>
       </div>
       <div class="flex-1"></div>
       <button id="rptExport" class="ctl-btn" type="button">
