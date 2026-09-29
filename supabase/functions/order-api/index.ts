@@ -332,7 +332,7 @@ function normalizeGroups(v: any): string {
 }
 
 // Quyền xem/đặt/duyệt hàng theo vai trò:
-//  - AM : theo BU  (users.bu  ⋈ dm_vat_tu.bu)            -> toàn bộ nhóm SP của BU đó
+//  - AM : theo BU  (users.bu  ⋈ dm_nhom_san_pham.bu)     -> toàn bộ nhóm SP của BU đó
 //  - PM : theo nhóm SP (users.scope ⋈ dm_vat_tu.nhom_san_pham) -> cả 2 miền
 //  - MANAGER / ADMIN: xem tất cả
 // Đọc bu/scope trực tiếp từ users để không phụ thuộc token cũ & cập nhật tức thì.
@@ -342,14 +342,19 @@ async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; sc
   return { bu: (data && data.bu) || u.bu || "", scope: (data && data.scope) || u.scope || "" };
 }
 
-// Trả predicate lọc theo dòng dm_vat_tu ({ bu, nhom_san_pham }); null = xem tất cả.
-function makeVisibleFilter(role: string, grants: { bu: string; scope: string }) {
+// Trả predicate lọc vật tư theo role. AM: lọc BU (derive từ nhom_san_pham → buMap). PM: lọc nhom_san_pham.
+function makeVisibleFilter(role: string, grants: { bu: string; scope: string }, buMap?: Map<string, string>) {
   if (role === "AM") {
     const set = grants.bu ? new Set([...parseScope(grants.bu)].map(normBU)) : null;
-    return set ? (r: any) => set.has(normBU(r.bu_code || r.bu || "")) : null;
+    if (!set) return null;
+    return (r: any) => {
+      const nhom = normGroup(r.nhom_san_pham || "");
+      const bu = buMap ? (buMap.get(nhom) || "") : (r.bu_code || r.bu || "");
+      return set.has(normBU(bu));
+    };
   }
   if (role === "PM") {
-    const set = grants.scope ? parseScope(grants.scope) : null;  // nhóm sản phẩm
+    const set = grants.scope ? parseScope(grants.scope) : null;
     return set ? (r: any) => set.has(normGroup(r.nhom_san_pham || "")) : null;
   }
   return null;
@@ -357,18 +362,21 @@ function makeVisibleFilter(role: string, grants: { bu: string; scope: string }) 
 
 // Danh mục đặt hàng = các dòng dm_vat_tu được ADMIN tích chọn (dat_hang = true).
 // Không còn bảng order_catalog — cấu hình trực tiếp trên dm_vat_tu.
+// BU lookup: nhom_san_pham → BU chính thức từ dm_nhom_san_pham (nguồn duy nhất).
+async function buLookup(supa: SupabaseClient): Promise<Map<string, string>> {
+  const { data } = await supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu");
+  const map = new Map<string, string>();
+  (data || []).forEach((r: any) => map.set(normGroup(r.nhom_san_pham), r.bu || ""));
+  return map;
+}
+
 async function fetchProducts(supa: SupabaseClient) {
-  // Phân trang để không bị chặn ở Max rows (mặc định 1000) nếu >1000 vật tư dat_hang=true
   const PAGE = 1000;
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supa
       .schema("shared").from("dm_vat_tu")
-      // Chú ý: don_vi / leadtime_ngay / so_thang_dat KHÔNG tồn tại trong bảng dm_vat_tu hiện tại
-      // (mapping bên dưới cố tình đọc undefined -> fallback 0/''/null, phòng khi cột được thêm
-      // sau) — TUYỆT ĐỐI không thêm các tên này vào select() vì PostgREST sẽ lỗi "column does
-      // not exist" (đã từng gây lỗi 500 toàn màn Chi tiết đặt hàng, xem OPTIMIZATION_PLAN).
-      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, bu, bu_code, muc_do_sd, safety_stock, don_gia_thau_moi")
+      .select("ma_bravo, ma_ncc, ten_vat_tu, nhom_san_pham, phan_loai_1, san_pham, phan_loai_2, muc_do_sd, safety_stock, don_gia_thau_moi")
       .eq("dat_hang", true)
       .order("ma_bravo", { ascending: true })
       .range(from, from + PAGE - 1);
@@ -377,23 +385,28 @@ async function fetchProducts(supa: SupabaseClient) {
     rows.push(...batch);
     if (batch.length < PAGE) break;
   }
-  const mapped = rows.map((v: any) => ({
-    ma_bravo: v.ma_bravo,
-    code_ncc: v.ma_ncc || "",
-    ten_hang_hoa: v.ten_vat_tu || "",
-    nhom_hang: v.nhom_san_pham || v.phan_loai_1 || "",   // "nhóm hàng" = nhóm sản phẩm
-    phan_loai: v.san_pham || v.phan_loai_2 || "",   // group bảng chi tiết theo sản phẩm
-    nhom_san_pham: v.nhom_san_pham || "",   // PM lọc theo nhóm sản phẩm
-    bu: v.bu || "",                          // tên hiển thị BU
-    bu_code: v.bu_code || "",                // ID chuẩn để lọc theo users.bu
-    muc_do_sd: v.muc_do_sd || "",
-    safety_stock: num(v.safety_stock),      // tồn kho an toàn (cấu hình danh mục)
-    don_vi: v.don_vi || "",
-    gia: num(v.don_gia_thau_moi),
-    leadtime_ngay: num(v.leadtime_ngay),    // 0 nếu cột chưa có
-    san_pham: v.san_pham || "",             // khoá tra mapping/sale_target
-    so_thang_dat: v.so_thang_dat ?? null,   // fallback config default ở loadOrderScreen
-  }));
+  const buMap = await buLookup(supa);
+  const mapped = rows.map((v: any) => {
+    const nhom = v.nhom_san_pham || "";
+    const bu = buMap.get(normGroup(nhom)) || "";
+    return {
+      ma_bravo: v.ma_bravo,
+      code_ncc: v.ma_ncc || "",
+      ten_hang_hoa: v.ten_vat_tu || "",
+      nhom_hang: nhom || v.phan_loai_1 || "",
+      phan_loai: v.san_pham || v.phan_loai_2 || "",
+      nhom_san_pham: nhom,
+      bu,
+      bu_code: bu,
+      muc_do_sd: v.muc_do_sd || "",
+      safety_stock: num(v.safety_stock),
+      don_vi: v.don_vi || "",
+      gia: num(v.don_gia_thau_moi),
+      leadtime_ngay: num(v.leadtime_ngay),
+      san_pham: v.san_pham || "",
+      so_thang_dat: v.so_thang_dat ?? null,
+    };
+  });
   // Gộp trùng cặp (code_ncc, ma_bravo): giữ bản đầu, bỏ duplicate
   const seen = new Set<string>();
   const deduped = mapped.filter(p => {
@@ -1826,16 +1839,17 @@ async function saveAndAdvance(
   const slField = fields[0], noteField = fields[1];
   const isBaseEdit = slField === "sl_dat";   // chỉ cột gốc (SL yêu cầu) mới thêm/xoá dòng order_items
 
-  // Chặn phía ghi: chỉ ghi những SKU thuộc phạm vi của user (AM: BU, PM: nhóm SP).
+  // Chặn phía ghi: chỉ ghi những SKU thuộc phạm vi của user (AM: BU via dm_nhom_san_pham, PM: nhóm SP).
   let workItems = items || [];
   const grants = await getGrants(supa, u);
-  const visFilter = makeVisibleFilter(u.role, grants);
+  const bMap = u.role === "AM" ? await buLookup(supa) : undefined;
+  const visFilter = makeVisibleFilter(u.role, grants, bMap);
   if (visFilter) {
     const mas = [...new Set(workItems.map((it: any) => it.ma_bravo))];
     const info: Record<string, any> = {};
     for (let i = 0; i < mas.length; i += 500) {
       const { data } = await supa.schema("shared").from("dm_vat_tu")
-        .select("ma_bravo, bu, bu_code, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
+        .select("ma_bravo, nhom_san_pham").in("ma_bravo", mas.slice(i, i + 500));
       (data || []).forEach((r: any) => { info[r.ma_bravo] = r; });
     }
     workItems = workItems.filter((it: any) => info[it.ma_bravo] && visFilter(info[it.ma_bravo]));
