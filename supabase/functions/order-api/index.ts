@@ -1754,7 +1754,7 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["PM", "MANAGER"],            // AM gửi duyệt
   PM_APPROVE:      ["MANAGER", "AM"],            // PM duyệt
-  MANAGER_APPROVE: ["PURCHASING", "AM", "PM"],   // Manager duyệt
+  MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER"],   // Manager duyệt (CTTM: Manager thay PM -> cũng nhận)
   REJECT:          ["AM"],                       // Manager từ chối -> AM
   CANCEL:          ["PM", "MANAGER"],            // AM hủy
   PURCHASE:        ["AM", "PM", "MANAGER"],      // Mua hàng ghi DM/PO
