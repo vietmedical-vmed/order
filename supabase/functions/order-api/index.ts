@@ -1773,7 +1773,16 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
   });
   if (upErr) throw new Error(upErr.message);
-  const { data, error } = await supa.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 30);
+  // Tên file khi tải = "<tên đợt>_<status>.xlsx" (status suy từ sự kiện). Bỏ dấu + ký tự cấm.
+  const statusByEvent: Record<string, string> = {
+    SUBMIT: "SUBMITTED", PM_APPROVE: "PM_APPROVED", MANAGER_APPROVE: "APPROVED",
+    REJECT: "DRAFT", CANCEL: "CANCELED", PURCHASE: "PURCHASED",
+  };
+  const st = statusByEvent[event] || session.trang_thai || "";
+  const safe = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^A-Za-z0-9._ -]/g, "-").trim();
+  const fname = `${safe(session.ten_dot) || "dat-hang"}_${st}.xlsx`;
+  const { data, error } = await supa.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 30, { download: fname });
   if (error) throw new Error(error.message);
   return data?.signedUrl || "";
 }
