@@ -182,10 +182,10 @@ async function listOrderGroups(supa: SupabaseClient, bu?: string) {
     .select("nhom_san_pham, bu").order("nhom_san_pham");
   if (error) throw new Error(error.message);
   const set = new Set<string>();
-  const nbu = bu && bu !== "ALL" ? normBU(bu) : "";
+  const filterBU = bu && bu !== "ALL" ? bu : "";
   (data || []).forEach((r: any) => {
     if (!r.nhom_san_pham) return;
-    if (nbu && normBU(r.bu) !== nbu) return;
+    if (filterBU && !matchBU(filterBU, r.bu || "")) return;
     set.add(r.nhom_san_pham);
   });
   return Array.from(set).sort();
