@@ -1784,9 +1784,9 @@ async function notifyEvent(
   const sessGroups = parseScope(session.nhom_san_pham || "");
   const allGroups = sessGroups.size === 0;
 
-  const { data } = await supa.schema("shared").from("users")
-    .select("username, email, role, mien, scope").eq("active", true);
-  const users = (data || []) as any[];
+  // select("*") + lọc active!==false (cột active có thể NULL -> .eq(active,true) trả rỗng -> mất hết người nhận).
+  const { data } = await supa.schema("shared").from("users").select("*");
+  const users = ((data || []) as any[]).filter((u2) => u2.active !== false);
 
   const pass = (u2: any): boolean => {
     const appRole = ROLE_MAP[String(u2.role || "").toLowerCase()] || "";
