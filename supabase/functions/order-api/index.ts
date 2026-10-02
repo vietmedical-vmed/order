@@ -1786,13 +1786,14 @@ async function notifyEvent(
     const appRole = ROLE_MAP[String(u2.role || "").toLowerCase()] || "";
     if (!roles.includes(appRole)) return false;
     if (appRole === "AM") return !!u2.username && u2.username === session.tao_boi;   // chỉ người TẠO đợt
-    if (appRole === "PM") {
-      if (allGroups) return true;                                     // đợt tất cả nhóm -> mọi PM
+    if (appRole === "PM" || appRole === "PURCHASING") {
+      // PM / Mua hàng: chỉ nhận khi nhóm phụ trách (scope) giao nhóm của đợt.
+      if (allGroups) return true;                                     // đợt tất cả nhóm -> nhận hết
       const sc = parseScope(u2.scope || "");
-      for (const g of sc) if (sessGroups.has(g)) return true;         // scope PM giao nhóm đợt
+      for (const g of sc) if (sessGroups.has(g)) return true;
       return false;
     }
-    return true;                                                      // MANAGER, PURCHASING
+    return true;                                                      // MANAGER
   };
   // 1 user có thể có NHIỀU email (ngăn bằng , hoặc ;) -> tách hết thành danh sách nhận.
   const to = [...new Set(users.filter(pass)

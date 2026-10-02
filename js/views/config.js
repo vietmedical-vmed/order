@@ -83,7 +83,7 @@ async function renderUserEmails() {
           <th>Họ tên</th><th style="width:120px">Username</th>
           <th class="c" style="width:90px">Role</th>
           <th class="c" style="width:60px">Miền</th>
-          <th style="width:150px">Scope (PM)</th>
+          <th style="width:150px">Scope (PM/Mua hàng)</th>
           <th style="width:230px">Email nhận noti</th>
         </tr></thead>
         <tbody>${list.map(r => `<tr>
