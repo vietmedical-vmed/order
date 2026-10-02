@@ -164,6 +164,7 @@ async function showApp() {
   try { bindLogout(); } catch (e) { console.error('bindLogout:', e); }
   try { bindGlobalDraftActions(); } catch (e) { console.error('bindGlobalDraftActions:', e); }
   try { scheduleTokenExpiryWarning(); } catch (e) { console.error('scheduleTokenExpiryWarning:', e); }
+  try { applyDeepLink(); } catch (e) { console.error('applyDeepLink:', e); }
   try {
     // Highlight đúng tab mặc định theo state.view
     $$('.nav-tab').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
@@ -174,6 +175,18 @@ async function showApp() {
     const main = $('#main');
     if (main) main.innerHTML = `<div class="empty-state text-danger-600">Lỗi: ${esc(e.message)}</div>`;
   }
+}
+
+// Mở thẳng đợt từ link trong email: ?session=<id>&mien=MB|MN -> ghim đợt + mở tab Chi tiết.
+function applyDeepLink() {
+  const p = new URLSearchParams(location.search);
+  const sid = p.get('session');
+  if (!sid) return;
+  const m = (p.get('mien') || '').toUpperCase();
+  if (m === 'MB' || m === 'MN') state.mien = m;
+  state.pinnedSessionId = sid;
+  state.view = 'order';
+  try { history.replaceState(null, '', location.pathname); } catch {}   // dọn URL
 }
 
 function setupUserUI() {

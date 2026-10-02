@@ -4,6 +4,7 @@
 //  Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -1424,69 +1425,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async exportOrderData(supa, u, [sessionId]) {
-    const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
-    if (!session) throw new Error("Không tìm thấy đợt");
-
-    const mienExp = session.mien;
-    const ngayMoExp = session.ngay_mo || null;
-    const cfg = await getConfigAt(supa, ngayMoExp);
-    const [items, prods, stockMap, indicatorMap] = await Promise.all([
-      supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
-      fetchProducts(supa),
-      stockMapFor(supa, mienExp, ngayMoExp),
-      loadCachedIndicators(supa, mienExp),
-    ]);
-    const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
-
-    const spGyE: Record<string, any> = {};
-    for (const p of prods) {
-      const spk = normKey(p.san_pham);
-      if (!spk) continue;
-      const ind = indicatorMap[maKey(p.ma_bravo)] || {};
-      const s = stockMap[maKey(p.ma_bravo)] || {};
-      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
-      const a = spGyE[spk] || (spGyE[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.th += num(ind.tb_th);
-      a.ton += num(s.tong_ton);
-      a.safety += num(p.safety_stock);
-      a.kh = num(ind.tb_kh_3_thang);
-      a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
-    }
-    const spGoiYE: Record<string, number> = {};
-    for (const spk of Object.keys(spGyE)) {
-      const a = spGyE[spk];
-      spGoiYE[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.th, a.kh, a.safety, a.sothang, a.ton);
-    }
-
-    const dmVal = session.de_nghi_mua_hang || "", poVal = session.po || "";
-    const rows = (items || []).map((it) => {
-      const p = pMap[maKey(it.ma_bravo)] || {};
-      const s = stockMap[maKey(it.ma_bravo)] || {};
-      const ind = indicatorMap[maKey(it.ma_bravo)] || {};
-      const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
-      const ty_le_sd_pct = num(ind.ty_le_sd_pct);
-      const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
-      const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
-      const leadtime_thang = Number(gcfgRow.leadtime_thang_default);
-      const goi_y_dat = Math.max(0, Math.round((spGoiYE[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
-      return {
-        ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
-        nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", muc_do_sd: p.muc_do_sd || "",
-        don_vi: p.don_vi || "", gia,
-        ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
-        hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
-        sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
-        ty_le_sd_pct, tb_th: num(ind.tb_th),
-        tb_kh_3_thang: Math.round(num(ind.tb_kh_3_thang)),
-        safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay), leadtime_thang,
-        goi_y_dat,
-        sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
-        de_nghi_mua_hang: dmVal, po: poVal,
-        thanh_tien: slDatHang * gia, ghi_chu_dat: it.ghi_chu_dat || "", ghi_chu_duyet: it.ghi_chu_duyet || "",
-      };
-    });
-    await audit(supa, u.username, "EXPORT", sessionId, rows.length + " SKU");
-    return { session, rows };
+    const res = await buildExportData(supa, sessionId);
+    await audit(supa, u.username, "EXPORT", sessionId, res.rows.length + " SKU");
+    return res;
   },
 
   async loadAuditLog(supa, u, [filter]) {
@@ -1744,6 +1685,99 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
 }
 
 // ---------- email thông báo bước duyệt (best-effort, SMTP nội bộ) ----------
+// Dựng dữ liệu xuất Excel cho 1 đợt (session + rows). Dùng cho H.exportOrderData và link Excel.
+async function buildExportData(supa: SupabaseClient, sessionId: string) {
+  const { data: session } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+  if (!session) throw new Error("Không tìm thấy đợt");
+
+  const mienExp = session.mien;
+  const ngayMoExp = session.ngay_mo || null;
+  const cfg = await getConfigAt(supa, ngayMoExp);
+  const [items, prods, stockMap, indicatorMap] = await Promise.all([
+    supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
+    fetchProducts(supa),
+    stockMapFor(supa, mienExp, ngayMoExp),
+    loadCachedIndicators(supa, mienExp),
+  ]);
+  const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
+
+  const spGyE: Record<string, any> = {};
+  for (const p of prods) {
+    const spk = normKey(p.san_pham);
+    if (!spk) continue;
+    const ind = indicatorMap[maKey(p.ma_bravo)] || {};
+    const s = stockMap[maKey(p.ma_bravo)] || {};
+    const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
+    const a = spGyE[spk] || (spGyE[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
+    a.th += num(ind.tb_th);
+    a.ton += num(s.tong_ton);
+    a.safety += num(p.safety_stock);
+    a.kh = num(ind.tb_kh_3_thang);
+    a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
+  }
+  const spGoiYE: Record<string, number> = {};
+  for (const spk of Object.keys(spGyE)) {
+    const a = spGyE[spk];
+    spGoiYE[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.th, a.kh, a.safety, a.sothang, a.ton);
+  }
+
+  const dmVal = session.de_nghi_mua_hang || "", poVal = session.po || "";
+  const rows = (items || []).map((it) => {
+    const p = pMap[maKey(it.ma_bravo)] || {};
+    const s = stockMap[maKey(it.ma_bravo)] || {};
+    const ind = indicatorMap[maKey(it.ma_bravo)] || {};
+    const gia = num(p.gia), slDatHang = num(it.sl_dat_hang);
+    const ty_le_sd_pct = num(ind.ty_le_sd_pct);
+    const gcfgRow = cfgForGroup(cfg, p.nhom_san_pham);
+    const so_thang_dat = Number(p.so_thang_dat || gcfgRow.so_thang_dat_default);
+    const leadtime_thang = Number(gcfgRow.leadtime_thang_default);
+    const goi_y_dat = Math.max(0, Math.round((spGoiYE[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
+    return {
+      ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
+      nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", muc_do_sd: p.muc_do_sd || "",
+      don_vi: p.don_vi || "", gia,
+      ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
+      hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
+      sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
+      ty_le_sd_pct, tb_th: num(ind.tb_th),
+      tb_kh_3_thang: Math.round(num(ind.tb_kh_3_thang)),
+      safety_stock: num(p.safety_stock), so_thang_dat, leadtime_ngay: num(p.leadtime_ngay), leadtime_thang,
+      goi_y_dat,
+      sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
+      de_nghi_mua_hang: dmVal, po: poVal,
+      thanh_tien: slDatHang * gia, ghi_chu_dat: it.ghi_chu_dat || "", ghi_chu_duyet: it.ghi_chu_duyet || "",
+    };
+  });
+  return { session, rows };
+}
+
+// Dựng file Excel của đợt, upload Storage, trả signed URL (hết hạn 30 ngày). Lỗi -> ném để caller bỏ qua.
+const EXPORT_BUCKET = "order-exports";
+async function generateExportLink(supa: SupabaseClient, session: any): Promise<string> {
+  const { rows } = await buildExportData(supa, session.session_id);
+  if (!rows.length) return "";
+  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại", "ĐVT", "Đơn giá",
+    "Tồn kho", "Tổng tồn", "SL yêu cầu", "SL PM duyệt", "SL đặt hàng", "Thành tiền", "DM", "PO", "Ghi chú"];
+  const aoa = [header, ...rows.map((r: any) => [
+    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.don_vi, r.gia,
+    r.ton_kho, r.tong_ton, r.sl_yeu_cau, r.sl_pm_duyet, r.sl_dat_hang, r.thanh_tien,
+    r.de_nghi_mua_hang, r.po, r.ghi_chu_dat,
+  ])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "DatHang");
+  const bytes = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
+  try { await supa.storage.createBucket(EXPORT_BUCKET, { public: false }); } catch (_) { /* bucket đã có */ }
+  const path = `${session.session_id}/${Date.now()}.xlsx`;
+  const { error: upErr } = await supa.storage.from(EXPORT_BUCKET).upload(path, bytes, {
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
+  });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await supa.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 30);
+  if (error) throw new Error(error.message);
+  return data?.signedUrl || "";
+}
+
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["PM", "MANAGER"],            // AM gửi duyệt
@@ -1803,6 +1837,16 @@ async function notifyEvent(
   const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
   const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
   const appUrl = Deno.env.get("APP_URL") || "";
+  // Link mở thẳng đợt trong app (deep-link theo session + miền).
+  const appLink = appUrl
+    ? appUrl + (appUrl.includes("?") ? "&" : "?") + "session=" + session.session_id + "&mien=" + session.mien
+    : "";
+  // Link tải Excel: chỉ ở bước Manager duyệt (APPROVED) khi SL đặt hàng đã chốt.
+  let excelLink = "";
+  if (event === "MANAGER_APPROVE") {
+    try { excelLink = await generateExportLink(supa, session); }
+    catch (e) { console.error("generateExportLink:", e); }
+  }
   const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
   const body = [
     EVENT_TITLE[event] + ".",
@@ -1814,7 +1858,8 @@ async function notifyEvent(
     meta.actor ? "Người thao tác: " + meta.actor : "",
     meta.reason ? "Lý do từ chối: " + meta.reason : "",
     (meta.dm || meta.po) ? "DM/PO: " + (meta.dm || "-") + " / " + (meta.po || "-") : "",
-    appUrl ? "Mở app: " + appUrl : "",
+    appLink ? "Mở app: " + appLink : "",
+    excelLink ? "Tải Excel: " + excelLink : "",
   ].filter((x) => x !== "").join("\n");
 
   await supa.schema("shared").from("notifications").insert({
