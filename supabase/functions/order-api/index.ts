@@ -1753,7 +1753,7 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
 
 // Dựng file Excel của đợt, upload Storage, trả signed URL (hết hạn 30 ngày). Lỗi -> ném để caller bỏ qua.
 const EXPORT_BUCKET = "order-exports";
-async function generateExportLink(supa: SupabaseClient, session: any): Promise<string> {
+async function generateExportLink(supa: SupabaseClient, session: any, event: string): Promise<string> {
   const { rows } = await buildExportData(supa, session.session_id);
   if (!rows.length) return "";
   const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại", "ĐVT", "Đơn giá",
@@ -1768,7 +1768,7 @@ async function generateExportLink(supa: SupabaseClient, session: any): Promise<s
   XLSX.utils.book_append_sheet(wb, ws, "DatHang");
   const bytes = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
   try { await supa.storage.createBucket(EXPORT_BUCKET, { public: false }); } catch (_) { /* bucket đã có */ }
-  const path = `${session.session_id}/${Date.now()}.xlsx`;
+  const path = `${session.session_id}/${event}.xlsx`;   // 1 file/đợt/bước (upsert) -> đỡ rác
   const { error: upErr } = await supa.storage.from(EXPORT_BUCKET).upload(path, bytes, {
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
   });
@@ -1841,12 +1841,10 @@ async function notifyEvent(
   const appLink = appUrl
     ? appUrl + (appUrl.includes("?") ? "&" : "?") + "session=" + session.session_id + "&mien=" + session.mien
     : "";
-  // Link tải Excel: chỉ ở bước Manager duyệt (APPROVED) khi SL đặt hàng đã chốt.
+  // Link tải Excel cho mọi bước (đợt có item). Rỗng -> bỏ qua dòng.
   let excelLink = "";
-  if (event === "MANAGER_APPROVE") {
-    try { excelLink = await generateExportLink(supa, session); }
-    catch (e) { console.error("generateExportLink:", e); }
-  }
+  try { excelLink = await generateExportLink(supa, session, event); }
+  catch (e) { console.error("generateExportLink:", e); }
   const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
   const body = [
     EVENT_TITLE[event] + ".",
