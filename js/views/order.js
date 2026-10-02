@@ -415,7 +415,7 @@ function renderSessionBanner() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Đang xem</span>
             <h2 class="font-semibold text-[14px] text-slate-900 truncate">${esc(sess.ten_dot)}</h2>
-            ${sess.bu ? `<span class="pill">${esc(sess.bu)}</span>` : ''}
+            ${sess.bu ? `<span class="pill">${esc(sess.bu_label || sess.bu)}</span>` : ''}
             <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
             ${splitGroups(sess.nhom_san_pham).map(g => `<span class="pill pill-info" title="Đợt chỉ gồm danh mục các nhóm sản phẩm này">${esc(g)}</span>`).join('')}
           </div>

@@ -178,18 +178,51 @@ async function getConfigAt(supa: SupabaseClient, atTime?: string | null) {
 
 // Danh sách nhóm sản phẩm (nhom_san_pham) của các vật tư đang được đặt hàng.
 async function listOrderGroups(supa: SupabaseClient, bu?: string) {
-  const { data, error } = await supa.schema("shared").from("dm_nhom_san_pham")
-    .select("nhom_san_pham, bu").order("nhom_san_pham");
+  const [{ data, error }, dict] = await Promise.all([
+    supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu, bu_code").order("nhom_san_pham"),
+    loadBuDict(supa),
+  ]);
   if (error) throw new Error(error.message);
   const set = new Set<string>();
-  const filterBU = bu && bu !== "ALL" ? bu : "";
+  const filterBU = toBuCode(dict, bu);
   (data || []).forEach((r: any) => {
     if (!r.nhom_san_pham) return;
-    if (filterBU && !matchBU(filterBU, r.bu || "")) return;
+    if (filterBU && filterBU !== "all" && (r.bu_code || toBuCode(dict, r.bu)) !== filterBU) return;
     set.add(r.nhom_san_pham);
   });
   return Array.from(set).sort();
 }
+
+// ---------- Từ điển BU dùng chung (shared.dm_bu + dm_bu_alias) ----------
+// Mọi bảng lưu bu_code (chcs, cttm, thnk...). Tên dài (CH&CS...) chỉ để hiển thị.
+// Khoá so khớp giống shared.fn_norm_key: NFC + lower + bỏ khoảng trắng.
+const buKey = (s: string) => String(s || "").normalize("NFC").toLowerCase().replace(/\s+/g, "");
+type BuDict = { list: any[]; label: Map<string, string>; alias: Map<string, string> };
+let buDictCache: { at: number; dict: BuDict } | null = null;
+
+async function loadBuDict(supa: SupabaseClient): Promise<BuDict> {
+  if (buDictCache && Date.now() - buDictCache.at < 60_000) return buDictCache.dict;
+  const [bus, aliases] = await Promise.all([
+    supa.schema("shared").from("dm_bu").select("bu_code, ten_bu, thu_tu, is_test, active").order("thu_tu"),
+    supa.schema("shared").from("dm_bu_alias").select("alias_norm, bu_code"),
+  ]);
+  if (bus.error) throw new Error("Đọc dm_bu: " + bus.error.message);
+  if (aliases.error) throw new Error("Đọc dm_bu_alias: " + aliases.error.message);
+  const dict: BuDict = { list: bus.data || [], label: new Map(), alias: new Map() };
+  dict.list.forEach((b: any) => dict.label.set(b.bu_code, b.ten_bu || b.bu_code));
+  (aliases.data || []).forEach((a: any) => dict.alias.set(a.alias_norm, a.bu_code));
+  buDictCache = { at: Date.now(), dict };
+  return dict;
+}
+
+// Mọi cách viết BU -> bu_code. "" = không có; "all" = xem tất cả; không nhận ra -> giữ khoá chuẩn hoá.
+function toBuCode(dict: BuDict, s: string | null | undefined): string {
+  const k = buKey(s || "");
+  if (!k) return "";
+  if (k === "all" || k === "tatca" || k === "tấtcả") return "all";
+  return dict.alias.get(k) || k;
+}
+const buLabel = (dict: BuDict, code: string) => dict.label.get(code) || code;
 
 async function audit(supa: SupabaseClient, username: string, action: string, sid = "", detail = "") {
   try {
@@ -301,7 +334,6 @@ function parseScope(scope: string): Set<string> {
   );
 }
 const normGroup = (s: string) => String(s || "").trim().toLowerCase();
-const normBU = (s: string) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // BU CTTM không có PM riêng — Manager phê duyệt gộp 2 cấp (PM+Manager).
 // Tra dm_nhom_san_pham: nếu TẤT CẢ nhóm SP của đợt thuộc BU chứa "cttm" thì skip PM.
@@ -310,13 +342,10 @@ async function isSkipPmSession(supa: SupabaseClient, session: any): Promise<bool
   if (!grp) return false;
   const groups = parseScope(grp);
   if (!groups.size) return false;
-  const { data } = await supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu");
-  if (!data || !data.length) return false;
-  const buMap = new Map<string, string>();
-  data.forEach((r: any) => buMap.set(normGroup(r.nhom_san_pham), normGroup(r.bu || "")));
+  const buMap = await buLookup(supa);
+  if (!buMap.size) return false;
   for (const g of groups) {
-    const bu = buMap.get(g) || "";
-    if (!bu.includes("cttm")) return false;
+    if (buMap.get(g)?.code !== "cttm") return false;
   }
   return true;
 }
@@ -344,25 +373,28 @@ function normalizeGroups(v: any): string {
 // Đọc bu/scope trực tiếp từ users để không phụ thuộc token cũ & cập nhật tức thì.
 async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; scope: string }> {
   if (u.role === "ADMIN" || u.role === "MANAGER" || u.role === "PURCHASING") return { bu: "", scope: "" };
-  const { data } = await supa.schema("shared").from("users").select("bu, scope").ilike("username", u.username).maybeSingle();
-  return { bu: (data && data.bu) || u.bu || "", scope: (data && data.scope) || u.scope || "" };
+  const [{ data }, dict] = await Promise.all([
+    supa.schema("shared").from("users").select("bu, scope").ilike("username", u.username).maybeSingle(),
+    loadBuDict(supa),
+  ]);
+  const rawBu = (data && data.bu) || u.bu || "";
+  // users.bu có thể nhiều BU "chcs, cttm" -> chuẩn hoá từng cái về bu_code.
+  const bu = [...parseScope(rawBu)].map((b) => toBuCode(dict, b)).filter(Boolean).join(",");
+  return { bu, scope: (data && data.scope) || u.scope || "" };
 }
 
-// Trả predicate lọc vật tư theo role. AM: lọc BU (derive từ nhom_san_pham → buMap). PM: lọc nhom_san_pham.
-// So khớp BU linh hoạt: exact match normBU, hoặc 1 bên chứa bên kia (vd "cttm" ⊂ "cttmctut").
-function matchBU(userBU: string, canonBU: string): boolean {
-  const u = normBU(userBU), c = normBU(canonBU);
-  if (!u || !c) return false;
-  return u === c || c.includes(u) || u.includes(c);
-}
-function makeVisibleFilter(role: string, grants: { bu: string; scope: string }, buMap?: Map<string, string>) {
+// Trả predicate lọc vật tư theo role. AM: lọc theo bu_code (grants.bu đã chuẩn hoá ở getGrants;
+// bu_code của vật tư lấy từ buMap theo nhóm SP nếu có, không thì từ r.bu_code). PM: lọc nhom_san_pham.
+function makeVisibleFilter(
+  role: string, grants: { bu: string; scope: string }, buMap?: Map<string, { code: string; label: string }>,
+) {
   if (role === "AM") {
-    const userBUs = grants.bu ? [...parseScope(grants.bu)].map(normBU).filter(Boolean) : [];
-    if (!userBUs.length) return null;
+    const userBUs = parseScope(grants.bu);
+    if (!userBUs.size || userBUs.has("all")) return null;
     return (r: any) => {
       const nhom = normGroup(r.nhom_san_pham || "");
-      const bu = buMap ? (buMap.get(nhom) || "") : (r.bu_code || r.bu || "");
-      return userBUs.some(ub => matchBU(ub, bu));
+      const bu = buMap ? (buMap.get(nhom)?.code || "") : (r.bu_code || "");
+      return userBUs.has(bu);
     };
   }
   if (role === "PM") {
@@ -374,11 +406,17 @@ function makeVisibleFilter(role: string, grants: { bu: string; scope: string }, 
 
 // Danh mục đặt hàng = các dòng dm_vat_tu được ADMIN tích chọn (dat_hang = true).
 // Không còn bảng order_catalog — cấu hình trực tiếp trên dm_vat_tu.
-// BU lookup: nhom_san_pham → BU chính thức từ dm_nhom_san_pham (nguồn duy nhất).
-async function buLookup(supa: SupabaseClient): Promise<Map<string, string>> {
-  const { data } = await supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu");
-  const map = new Map<string, string>();
-  (data || []).forEach((r: any) => map.set(normGroup(r.nhom_san_pham), r.bu || ""));
+// BU lookup: nhom_san_pham → { bu_code, nhãn } từ dm_nhom_san_pham + dm_bu (nguồn duy nhất).
+async function buLookup(supa: SupabaseClient): Promise<Map<string, { code: string; label: string }>> {
+  const [{ data }, dict] = await Promise.all([
+    supa.schema("shared").from("dm_nhom_san_pham").select("nhom_san_pham, bu, bu_code"),
+    loadBuDict(supa),
+  ]);
+  const map = new Map<string, { code: string; label: string }>();
+  (data || []).forEach((r: any) => {
+    const code = r.bu_code || toBuCode(dict, r.bu);
+    map.set(normGroup(r.nhom_san_pham), { code, label: code ? buLabel(dict, code) : "" });
+  });
   return map;
 }
 
@@ -400,7 +438,7 @@ async function fetchProducts(supa: SupabaseClient) {
   const buMap = await buLookup(supa);
   const mapped = rows.map((v: any) => {
     const nhom = v.nhom_san_pham || "";
-    const bu = buMap.get(normGroup(nhom)) || "";
+    const bu = buMap.get(normGroup(nhom));
     return {
       ma_bravo: v.ma_bravo,
       code_ncc: v.ma_ncc || "",
@@ -408,8 +446,8 @@ async function fetchProducts(supa: SupabaseClient) {
       nhom_hang: nhom || v.phan_loai_1 || "",
       phan_loai: v.san_pham || v.phan_loai_2 || "",
       nhom_san_pham: nhom,
-      bu,
-      bu_code: bu,
+      bu: bu?.label || "",
+      bu_code: bu?.code || "",
       muc_do_sd: v.muc_do_sd || "",
       safety_stock: num(v.safety_stock),
       don_vi: v.don_vi || "",
@@ -729,16 +767,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
 
   async listBU(supa) {
-    const { data, error } = await supa.schema("shared").from("dm_nhom_san_pham")
-      .select("bu").neq("bu", "").order("bu");
-    if (error) throw new Error(error.message);
-    const seen = new Set<string>();
-    return (data || []).filter((r: any) => {
-      const k = r.bu || "";
-      if (!k || seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    }).map((r: any) => ({ bu: r.bu, ten_bu: r.bu, bu_code: r.bu }));
+    const dict = await loadBuDict(supa);
+    return dict.list
+      .filter((b: any) => b.active && !b.is_test)
+      .map((b: any) => ({ bu: b.bu_code, ten_bu: b.ten_bu, bu_code: b.bu_code }));
   },
 
   // Soi TB KH cho 1 vật tư: nhánh lẻ/bộ, danh sách bộ, Σ từng bộ, và TB cuối.
@@ -1007,10 +1039,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     let list = sessions || [];
-    // BU filter: dùng matchBU để so khớp linh hoạt (vd "cttm" match "CTTM & CTUT").
-    const buFilter = (u.role === "AM" && u.bu) ? u.bu : (filter.bu && filter.bu !== "ALL" ? filter.bu : "");
-    if (buFilter) {
-      list = list.filter((s: any) => matchBU(buFilter, s.bu));
+    // BU filter theo bu_code (order_sessions.bu lưu mã; dữ liệu cũ tên dài vẫn quy về mã qua alias).
+    const dict = await loadBuDict(supa);
+    const buFilter = toBuCode(dict, (u.role === "AM" && u.bu) ? u.bu : filter.bu);
+    if (buFilter && buFilter !== "all") {
+      list = list.filter((s: any) => toBuCode(dict, s.bu) === buFilter);
     }
     // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách (overlap scope ↔ session.nhom_san_pham).
     // Đợt không gắn nhóm (trống) = tất cả nhóm → PM vẫn thấy.
@@ -1045,6 +1078,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ten_dot: String(s.ten_dot || ""),
       mien: String(s.mien || ""),
       bu: String(s.bu || ""),
+      bu_label: s.bu ? buLabel(dict, toBuCode(dict, s.bu)) : "",
       ngay_mo: s.ngay_mo ? new Date(s.ngay_mo).toISOString() : "",
       ngay_dong: s.ngay_dong ? new Date(s.ngay_dong).toISOString() : "",
       trang_thai: String(s.trang_thai || ""),
@@ -1182,10 +1216,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     });
 
     let sessionOut: any = null;
+    const sessDict = session?.bu ? await loadBuDict(supa) : null;
     if (session) {
       sessionOut = {
         session_id: session.session_id, ten_dot: session.ten_dot, mien: session.mien,
         bu: session.bu || "",
+        bu_label: session.bu ? buLabel(sessDict!, toBuCode(sessDict!, session.bu)) : "",
         ngay_mo: session.ngay_mo ? new Date(session.ngay_mo).toISOString() : "",
         ngay_dong: session.ngay_dong ? new Date(session.ngay_dong).toISOString() : "",
         trang_thai: session.trang_thai, tao_boi: session.tao_boi,
@@ -1215,14 +1251,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
     else throw new Error("Không có quyền tạo đợt");
-    const rawBu = bu || u.bu || "";
-    // Chuẩn hoá BU về tên chính thức trong dm_nhom_san_pham (vd "chcs" → "CH&CS").
-    let sessionBu = rawBu;
-    if (rawBu) {
-      const { data: buRows } = await supa.schema("shared").from("dm_nhom_san_pham").select("bu").neq("bu", "");
-      const canonical = (buRows || []).find((r: any) => matchBU(rawBu, r.bu));
-      if (canonical) sessionBu = canonical.bu;
-    }
+    // Đợt lưu bu_code chuẩn (vd "CH&CS" → "chcs"). "all" = không gắn BU.
+    const dict = await loadBuDict(supa);
+    let sessionBu = toBuCode(dict, bu || u.bu);
+    if (sessionBu === "all") sessionBu = "";
+    if (sessionBu && !dict.label.has(sessionBu)) throw new Error("BU không có trong danh mục: " + (bu || u.bu));
     const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username, bu: sessionBu };
     // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
     // vẫn tạo được kể cả khi cột chưa migrate.
@@ -1475,7 +1508,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       .select("session_id, ten_dot, mien, bu, ngay_mo, trang_thai")
       .in("trang_thai", ["APPROVED", "CLOSED"]);
     if (filter.mien && filter.mien !== "ALL") sq = sq.eq("mien", filter.mien);
-    if (filter.bu && filter.bu !== "ALL") sq = sq.eq("bu", filter.bu);
+    const reportBu = toBuCode(await loadBuDict(supa), filter.bu);
+    if (reportBu && reportBu !== "all") sq = sq.eq("bu", reportBu);
     const { data: sessions } = await sq;
     if (!sessions || !sessions.length) return { rows: [], months: [] };
 

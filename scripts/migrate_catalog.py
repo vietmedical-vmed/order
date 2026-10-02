@@ -129,13 +129,30 @@ def main():
     supa = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     bk = Book(files)
 
-    # ---- dm_bu (từ sheet 'Ngành hàng') ----
+    # ---- dm_bu (từ sheet 'Ngành hàng') — từ điển BU dùng chung (sql/15) ----
+    # Cột bắt buộc: "Mã BU" (chcs, cttm, thnk...) + "Tên BU" (nhãn hiển thị: CH&CS...).
+    # Tuỳ chọn: "Tên đầy đủ", "Thứ tự". Mã + Tên BU tự thành alias (trigger trong DB),
+    # nên các sheet khác ghi BU bằng mã hay tên đều được quy về bu_code.
     print("dm_bu")
     df = bk.read("ngành hàng")
     if df is not None:
-        rows = [{"bu": cell(r, df, "BU"), "ten_bu": cell(r, df, "Tên BU", "ten_bu")} for _, r in df.iterrows()]
-        rows = dedup([x for x in rows if x["bu"]], ["bu"])
-        push(supa, "dm_bu", rows, on_conflict="bu")
+        if col(df, "Mã BU", "bu_code") is None:
+            print("  ⚠ sheet 'Ngành hàng' thiếu cột 'Mã BU' → bỏ qua dm_bu")
+        else:
+            rows = []
+            for _, r in df.iterrows():
+                code = cell(r, df, "Mã BU", "bu_code")
+                if not code:
+                    continue
+                row = {"bu_code": str(code).strip().lower(),
+                       "ten_bu": cell(r, df, "Tên BU", "ten_bu") or str(code).strip(),
+                       "ten_day_du": cell(r, df, "Tên đầy đủ", "ten_day_du")}
+                tt = numv(cell(r, df, "Thứ tự", "thu_tu"))
+                if tt is not None:
+                    row["thu_tu"] = int(tt)
+                rows.append(row)
+            rows = dedup(rows, ["bu_code"])
+            push(supa, "dm_bu", rows, on_conflict="bu_code")
 
     # ---- dm_nhom_san_pham ----
     print("dm_nhom_san_pham")
@@ -224,15 +241,11 @@ def main():
         rows = dedup([x for x in rows if x["bu"] and x["ps"]], ["bu", "ps"])
         push(supa, "dm_ps", rows, on_conflict="bu,ps")
 
-    # ---- dm_dia_ban (sheet 'Địa bàn') ----
-    print("dm_dia_ban")
-    df = bk.read("địa bàn")
-    if df is not None:
-        rows = [{"bu": cell(r, df, "BU"), "ten_ps": cell(r, df, "Tên PS"),
-                 "ten_ma_pldt": cell(r, df, "Tên mã PLDT"),
-                 "ten_doi_tuong": cell(r, df, "Tên đối tượng")} for _, r in df.iterrows()]
-        rows = [x for x in rows if x["ten_doi_tuong"]]
-        push(supa, "dm_dia_ban", rows, replace=True)
+    # ---- dm_dia_ban: KHÔNG nạp từ đây ----
+    # Chủ của shared.dm_dia_ban là app sale-target (địa bàn có hiệu lực theo tháng,
+    # sửa trên UI). Khối cũ xoá sạch bảng (replace=True) rồi insert theo cột cũ
+    # (ten_ps, ten_ma_pldt, ten_doi_tuong) không còn tồn tại → mất toàn bộ địa bàn.
+    print("dm_dia_ban: bỏ qua (do app sale-target quản lý)")
 
     # ---- dm_khach_hang (sheet 'Khách hàng') ----
     print("dm_khach_hang")
