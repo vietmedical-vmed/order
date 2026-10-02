@@ -1170,12 +1170,12 @@ export function bindGlobalDraftActions() {
 // ============ MODAL TẠO ĐỢT ============
 // Nạp danh sách nhóm sản phẩm thành checkbox (chọn nhiều). Lỗi -> báo nhẹ, vẫn tạo được đợt
 // "tất cả nhóm" (không tick gì).
-async function populateSessionGroupOptions() {
+async function populateSessionGroupOptions(bu) {
   const box = $('#modalSessNhomList');
   if (!box) return;
   box.innerHTML = '<div class="px-2 py-1.5 text-slate-400">Đang tải…</div>';
   try {
-    const groups = await rpc('listProductGroups');
+    const groups = await rpc('listProductGroups', { bu: bu || '' });
     const list = Array.isArray(groups) ? groups : [];
     box.innerHTML = list.length
       ? list.map(g => `
@@ -1219,8 +1219,14 @@ function openCreateSessionModal() {
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
   $('#modalErr').textContent = '';
-  populateSessionGroupOptions();
-  populateSessionBUOptions();
+  populateSessionBUOptions().then(() => {
+    const buSel = $('#modalSessBU');
+    populateSessionGroupOptions(buSel ? buSel.value : '');
+    if (buSel && !buSel._grpBound) {
+      buSel._grpBound = true;
+      buSel.addEventListener('change', () => populateSessionGroupOptions(buSel.value));
+    }
+  });
 
   const role = state.user.role;
   const noteEl = $('#modalNote');
