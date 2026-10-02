@@ -4,6 +4,7 @@
 //  Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TOKEN_SECRET
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -1750,6 +1751,33 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
   return { session, rows };
 }
 
+// Dựng Excel đợt -> upload Storage -> signed URL 30 ngày. Lỗi -> ném; caller bọc try/catch.
+const EXPORT_BUCKET = "order-exports";
+async function generateExportLink(supa: SupabaseClient, session: any, event: string): Promise<string> {
+  const { rows } = await buildExportData(supa, session.session_id);
+  if (!rows.length) return "";
+  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại", "ĐVT", "Đơn giá",
+    "Tồn kho", "Tổng tồn", "SL yêu cầu", "SL PM duyệt", "SL đặt hàng", "Thành tiền", "DM", "PO", "Ghi chú"];
+  const aoa = [header, ...rows.map((r: any) => [
+    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.don_vi, r.gia,
+    r.ton_kho, r.tong_ton, r.sl_yeu_cau, r.sl_pm_duyet, r.sl_dat_hang, r.thanh_tien,
+    r.de_nghi_mua_hang, r.po, r.ghi_chu_dat,
+  ])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "DatHang");
+  const bytes = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
+  try { await supa.storage.createBucket(EXPORT_BUCKET, { public: false }); } catch (_) { /* bucket đã có */ }
+  const path = `${session.session_id}/${event}.xlsx`;   // 1 file/đợt/bước (upsert)
+  const { error: upErr } = await supa.storage.from(EXPORT_BUCKET).upload(path, bytes, {
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
+  });
+  if (upErr) throw new Error(upErr.message);
+  const { data, error } = await supa.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 30);
+  if (error) throw new Error(error.message);
+  return data?.signedUrl || "";
+}
+
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["AM", "PM", "MANAGER"],                 // AM gửi duyệt
@@ -1809,6 +1837,15 @@ async function notifyEvent(
   const mien = session.mien === "MB" ? "Miền Bắc" : session.mien === "MN" ? "Miền Nam" : session.mien;
   const groups = String(session.nhom_san_pham || "").split(/[,;]/).map((s: string) => s.trim()).filter(Boolean).join(", ");
   const appUrl = Deno.env.get("APP_URL") || "";
+  // Deep-link mở thẳng đợt (app.js applyDeepLink đọc ?session&mien).
+  const appLink = appUrl
+    ? appUrl + (appUrl.includes("?") ? "&" : "?") + "session=" + session.session_id + "&mien=" + session.mien
+    : "";
+  // Excel: best-effort, lỗi KHÔNG chặn gửi mail (recipients đã chốt ở trên).
+  let excelLink = "";
+  try { excelLink = await generateExportLink(supa, session, event); }
+  catch (e) { console.error("generateExportLink:", e); }
+
   const subject = `[Đặt hàng] ${EVENT_TITLE[event]}: ${session.ten_dot} (${mien})`;
   const body = [
     EVENT_TITLE[event] + ".",
@@ -1820,7 +1857,8 @@ async function notifyEvent(
     meta.actor ? "Người thao tác: " + meta.actor : "",
     meta.reason ? "Lý do từ chối: " + meta.reason : "",
     (meta.dm || meta.po) ? "DM/PO: " + (meta.dm || "-") + " / " + (meta.po || "-") : "",
-    appUrl ? "Mở app: " + appUrl : "",
+    appLink ? "Mở app: " + appLink : "",
+    excelLink ? "Tải Excel: " + excelLink : "",
   ].filter((x) => x !== "").join("\n");
 
   await supa.schema("shared").from("notifications").insert({
