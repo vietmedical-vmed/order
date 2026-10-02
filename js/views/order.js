@@ -127,7 +127,11 @@ const BASE_COLUMNS = [
     cell: () => `<td class="r num text-slate-300">—</td>`,
     agg: a => `<td class="r num">${dash0(a.tb_kh_3_thang)}</td>`,
   },
-  numCol('safety_stock', 'Safety stock', 90),
+  {
+    key: 'safety_stock', label: 'Safety stock', cls: 'c', width: 90, sort: NUM,
+    cell: r => `<td class="c num text-slate-600 text-[11px]">${r.safety_stock ? `${Math.round(r.safety_stock)} tháng` : '—'}</td>`,
+    agg: a => `<td class="c num">${a.safety_stock ? `${Math.round(a.safety_stock)} tháng` : '—'}</td>`,
+  },
   {
     // MoI (Month of Inventory) = Tồn kho DA / TB tháng TH — tồn hiện có đủ dùng mấy tháng.
     // Dài hơn leadtime = hàng nằm kho lâu hơn thời gian cần để hàng mới về -> tô vàng.
