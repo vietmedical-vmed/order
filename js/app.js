@@ -214,8 +214,8 @@ function setupUserUI() {
 
   // Hiển thị BU trên header (nếu có)
   const titleEl = $('#appTitle');
-  if (titleEl) titleEl.textContent = u.bu ? `Đặt hàng ${u.bu}` : 'Đặt hàng';
-  document.title = u.bu ? `Đặt hàng ${u.bu}` : 'Đặt hàng';
+  if (titleEl) titleEl.textContent = 'Đặt hàng';
+  document.title = 'Đặt hàng';
 }
 
 function bindLogout() {
