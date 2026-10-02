@@ -751,6 +751,8 @@ function groupCardHtml(grp, plMap, gIdx) {
   const totalSku = allItems.length;
   const totalStock = allItems.reduce((s, r) => s + Number(r.ton_kho || 0) + Number(r.hang_ktv_bv || 0) + Number(r.hang_di_duong || 0) - Number(r.hang_vet_thau || 0), 0);
   const totalOrdered = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat'), 0);
+  const totalApproved = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_duyet'), 0);
+  const totalFinal = allItems.reduce((s, r) => s + qtyEffective(r, 'sl_dat_hang'), 0);
   const open = false;
   const cols = columns();
 
@@ -764,7 +766,9 @@ function groupCardHtml(grp, plMap, gIdx) {
       <div class="hidden md:flex items-center gap-0">
         <div class="group-stat" style="min-width:60px"><div class="group-stat-label">SKU</div><div class="group-stat-value text-slate-700">${totalSku}</div></div>
         <div class="group-stat" style="min-width:90px"><div class="group-stat-label">Tồn</div><div class="group-stat-value text-slate-700">${fmt(Math.round(totalStock))}</div></div>
-        <div class="group-stat" style="min-width:70px"><div class="group-stat-label">SL đã đặt</div><div class="group-stat-value text-primary-700">${fmt(Math.round(totalOrdered))}</div></div>
+        <div class="group-stat" style="min-width:80px"><div class="group-stat-label">SL yêu cầu</div><div class="group-stat-value text-warning-700">${fmt(Math.round(totalOrdered))}</div></div>
+        <div class="group-stat" style="min-width:80px"><div class="group-stat-label">SL PM duyệt</div><div class="group-stat-value text-primary-700">${fmt(Math.round(totalApproved))}</div></div>
+        <div class="group-stat" style="min-width:80px"><div class="group-stat-label">SL đặt hàng</div><div class="group-stat-value text-primary-800 font-bold">${fmt(Math.round(totalFinal))}</div></div>
       </div>
     </button>
     <div class="scroll-top-bar ${open ? '' : 'hidden'}" data-scroll-top>
