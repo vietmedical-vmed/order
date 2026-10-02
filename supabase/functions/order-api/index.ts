@@ -1752,12 +1752,12 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
 
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
 const EVENT_ROLES: Record<string, string[]> = {
-  SUBMIT:          ["PM", "MANAGER"],            // AM gửi duyệt
-  PM_APPROVE:      ["MANAGER", "AM"],            // PM duyệt
-  MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER"],   // Manager duyệt (CTTM: Manager thay PM -> cũng nhận)
-  REJECT:          ["AM"],                       // Manager từ chối -> AM
-  CANCEL:          ["PM", "MANAGER"],            // AM hủy
-  PURCHASE:        ["AM", "PM", "MANAGER"],      // Mua hàng ghi DM/PO
+  SUBMIT:          ["AM", "PM", "MANAGER"],                 // AM gửi duyệt
+  PM_APPROVE:      ["MANAGER", "AM", "PM", "PURCHASING"],   // PM duyệt
+  MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER"],   // Manager duyệt
+  REJECT:          ["AM", "PM"],                            // Từ chối -> AM, PM
+  CANCEL:          ["PM", "MANAGER", "AM"],                 // AM hủy
+  PURCHASE:        ["AM", "PM", "MANAGER"],                 // Mua hàng ghi DM/PO
   CLOSE:           ["AM", "PM"],                 // chốt đợt
 };
 const EVENT_TITLE: Record<string, string> = {
