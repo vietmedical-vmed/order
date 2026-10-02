@@ -159,8 +159,10 @@ def main():
     df = bk.read("nhóm sản phẩm")
     if df is not None:
         rows = [{"bu": cell(r, df, "BU"), "nhom_san_pham": cell(r, df, "Nhóm sản phẩm")} for _, r in df.iterrows()]
-        rows = dedup([x for x in rows if x["bu"] and x["nhom_san_pham"]], ["bu", "nhom_san_pham"])
-        push(supa, "dm_nhom_san_pham", rows, on_conflict="bu,nhom_san_pham")
+        # Tên nhóm là duy nhất (sql/16) → upsert theo tên; Excel đổi cách ghi BU
+        # (CHCS ↔ CH&CS) chỉ cập nhật nhãn, không sinh dòng trùng.
+        rows = dedup([x for x in rows if x["bu"] and x["nhom_san_pham"]], ["nhom_san_pham"])
+        push(supa, "dm_nhom_san_pham", rows, on_conflict="nhom_san_pham")
 
     # ---- dm_san_pham (sheet 'Sản phẩm tổng') ----
     print("dm_san_pham")
