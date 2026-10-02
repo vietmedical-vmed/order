@@ -1790,7 +1790,7 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["AM", "PM", "MANAGER"],                 // AM gửi duyệt
-  PM_APPROVE:      ["MANAGER", "AM", "PM", "PURCHASING"],   // PM duyệt
+  PM_APPROVE:      ["MANAGER", "AM", "PM"],                 // PM duyệt
   MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER"],   // Manager duyệt
   REJECT:          ["AM", "PM"],                            // Từ chối -> AM, PM
   CANCEL:          ["PM", "MANAGER", "AM"],                 // AM hủy
