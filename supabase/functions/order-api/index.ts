@@ -343,14 +343,20 @@ async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; sc
 }
 
 // Trả predicate lọc vật tư theo role. AM: lọc BU (derive từ nhom_san_pham → buMap). PM: lọc nhom_san_pham.
+// So khớp BU linh hoạt: exact match normBU, hoặc 1 bên chứa bên kia (vd "cttm" ⊂ "cttmctut").
+function matchBU(userBU: string, canonBU: string): boolean {
+  const u = normBU(userBU), c = normBU(canonBU);
+  if (!u || !c) return false;
+  return u === c || c.includes(u) || u.includes(c);
+}
 function makeVisibleFilter(role: string, grants: { bu: string; scope: string }, buMap?: Map<string, string>) {
   if (role === "AM") {
-    const set = grants.bu ? new Set([...parseScope(grants.bu)].map(normBU)) : null;
-    if (!set) return null;
+    const userBUs = grants.bu ? [...parseScope(grants.bu)].map(normBU).filter(Boolean) : [];
+    if (!userBUs.length) return null;
     return (r: any) => {
       const nhom = normGroup(r.nhom_san_pham || "");
       const bu = buMap ? (buMap.get(nhom) || "") : (r.bu_code || r.bu || "");
-      return set.has(normBU(bu));
+      return userBUs.some(ub => matchBU(ub, bu));
     };
   }
   if (role === "PM") {
@@ -995,11 +1001,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     let list = sessions || [];
-    // BU filter: dùng normBU để so khớp linh hoạt (vd "chcs" match "CH&CS").
+    // BU filter: dùng matchBU để so khớp linh hoạt (vd "cttm" match "CTTM & CTUT").
     const buFilter = (u.role === "AM" && u.bu) ? u.bu : (filter.bu && filter.bu !== "ALL" ? filter.bu : "");
     if (buFilter) {
-      const nb = normBU(buFilter);
-      list = list.filter((s: any) => normBU(s.bu) === nb);
+      list = list.filter((s: any) => matchBU(buFilter, s.bu));
     }
     // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách (overlap scope ↔ session.nhom_san_pham).
     // Đợt không gắn nhóm (trống) = tất cả nhóm → PM vẫn thấy.
@@ -1209,7 +1214,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     let sessionBu = rawBu;
     if (rawBu) {
       const { data: buRows } = await supa.schema("shared").from("dm_nhom_san_pham").select("bu").neq("bu", "");
-      const canonical = (buRows || []).find((r: any) => normBU(r.bu) === normBU(rawBu));
+      const canonical = (buRows || []).find((r: any) => matchBU(rawBu, r.bu));
       if (canonical) sessionBu = canonical.bu;
     }
     const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username, bu: sessionBu };
