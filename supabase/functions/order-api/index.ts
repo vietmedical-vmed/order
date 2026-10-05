@@ -1830,7 +1830,7 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
 const EVENT_ROLES: Record<string, string[]> = {
   SUBMIT:          ["AM", "PM", "MANAGER"],                 // AM gửi duyệt
   PM_APPROVE:      ["MANAGER", "AM", "PM"],                 // PM duyệt
-  MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER"],   // Manager duyệt
+  MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER", "ADMIN"],   // Manager duyệt (đợt được duyệt)
   REJECT:          ["AM", "PM"],                            // Từ chối -> AM, PM
   CANCEL:          ["PM", "MANAGER", "AM"],                 // AM hủy
   PURCHASE:        ["AM", "PM", "MANAGER"],                 // Mua hàng ghi DM/PO
