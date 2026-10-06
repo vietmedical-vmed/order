@@ -2013,6 +2013,11 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+    // Token còn hạn chưa đủ: tài khoản bị khoá (shared.users.active = false) phải mất quyền ngay.
+    const { data: dbUser, error: userErr } = await supa.schema("shared").from("users")
+      .select("active").eq("username", user.username).maybeSingle();
+    if (userErr) throw new Error("Lỗi kiểm tra tài khoản");
+    if (!dbUser || dbUser.active === false) throw new Error("AUTH_REQUIRED");
     const result = await H[action](supa, user, Array.isArray(args) ? args : []);
     return json({ ok: true, data: result }, 200, cors);
   } catch (e) {
