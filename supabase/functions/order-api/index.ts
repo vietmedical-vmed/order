@@ -1399,8 +1399,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (!s) throw new Error("Không tìm thấy đợt");
     let buoc = "";
     if (s.trang_thai === "PM_APPROVED") { if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền từ chối (Manager)"); buoc = "Manager"; }
+    else if (s.trang_thai === "SUBMITTED" && canActAs(u, "PM")) { buoc = "PM"; }
     else if (s.trang_thai === "SUBMITTED" && canActAs(u, "MANAGER") && await isSkipPmSession(supa, s)) { buoc = "Manager (CTTM)"; }
-    else if (s.trang_thai === "SUBMITTED") throw new Error("Bước PM không còn chức năng từ chối — PM chỉ phê duyệt");
     else throw new Error("Đợt đang ở trạng thái " + s.trang_thai + " — không thể từ chối");
     const lyDo = String(reason || "").trim();
     if (!lyDo) throw new Error("Vui lòng nhập lý do từ chối");

@@ -129,7 +129,7 @@ async function renderManageList() {
       return;
     }
     const role = state.user.role;
-    const canPM = (role === 'PM' || role === 'ADMIN');           // duyệt đợt SUBMITTED (PM không còn từ chối)
+    const canPM = (role === 'PM' || role === 'ADMIN');           // duyệt/từ chối đợt SUBMITTED
     const canMgr = (role === 'MANAGER' || role === 'ADMIN');     // duyệt/từ chối đợt PM_APPROVED
     const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // đặt hàng (ghi DM/PO) đợt APPROVED
     const canCancel = (role === 'AM' || role === 'ADMIN');            // AM hủy đợt khi PM chưa duyệt
@@ -154,8 +154,8 @@ async function renderManageList() {
           const st = s.trang_thai;
           // Đợt này người dùng có quyền phê duyệt không?
           const reviewable = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
-          // Từ chối: Manager ở PM_APPROVED, hoặc SUBMITTED (CTTM skip PM).
-          const canReject = ((st === 'PM_APPROVED' || st === 'SUBMITTED') && canMgr);
+          // Từ chối: PM ở SUBMITTED, Manager ở PM_APPROVED (hoặc SUBMITTED nếu CTTM skip PM).
+          const canReject = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
           // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Đặt hàng
           let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
           if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
