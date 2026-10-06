@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
 
     return json({
       token,
-      user: { username: user.username, ho_ten, role, mien: user.mien || "MB", initials },
+      user: { username: user.username, ho_ten, role, mien: user.mien || "MB", bu: user.bu || "", scope: user.scope || "", initials },
     }, 200, cors);
   } catch (e) {
     return json({ error: String(e?.message || e) }, 500, corsHeadersFor(req));
