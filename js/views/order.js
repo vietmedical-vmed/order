@@ -1176,7 +1176,11 @@ async function populateSessionGroupOptions(bu) {
   box.innerHTML = '<div class="px-2 py-1.5 text-slate-400">Đang tải…</div>';
   try {
     const groups = await rpc('listProductGroups', { bu: bu || '' });
-    const list = Array.isArray(groups) ? groups : [];
+    let list = Array.isArray(groups) ? groups : [];
+    if (state.user.role === 'PM' && state.user.scope) {
+      const pmScope = new Set(state.user.scope.split(/[;,]/).map(s => s.trim().toLowerCase()).filter(Boolean));
+      list = list.filter(g => pmScope.has(g.trim().toLowerCase()));
+    }
     box.innerHTML = list.length
       ? list.map(g => `
         <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
@@ -1233,6 +1237,8 @@ function openCreateSessionModal() {
   if (noteEl) {
     noteEl.innerHTML = role === 'AM'
       ? `Đợt sẽ được tạo riêng cho miền <strong>${state.user.mien}</strong> (miền của bạn).`
+      : role === 'PM'
+      ? `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> ở trạng thái <strong>Chờ PM duyệt</strong>. Bạn điền cột SL PM duyệt.`
       : `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.`;
   }
   setTimeout(() => $('#modalSessName').focus(), 50);

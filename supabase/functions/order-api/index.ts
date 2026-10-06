@@ -1256,10 +1256,22 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     let sessionBu = toBuCode(dict, bu || u.bu);
     if (sessionBu === "all") sessionBu = "";
     if (sessionBu && !dict.label.has(sessionBu)) throw new Error("BU không có trong danh mục: " + (bu || u.bu));
-    const row: any = { ten_dot: name, mien, trang_thai: "DRAFT", tao_boi: u.username, bu: sessionBu };
-    // Có thể chọn NHIỀU nhóm -> lưu dạng "A;B;C". Chỉ set khi có chọn -> đợt "tất cả nhóm"
-    // vẫn tạo được kể cả khi cột chưa migrate.
+
+    const isPmCreator = u.role === "PM";
+    const row: any = { ten_dot: name, mien, trang_thai: isPmCreator ? "SUBMITTED" : "DRAFT", tao_boi: u.username, bu: sessionBu };
+    if (isPmCreator) row.ngay_yeu_cau = new Date().toISOString();
+
     const grp = normalizeGroups(nhomSanPham);
+    if (isPmCreator && grp) {
+      const grants = await getGrants(supa, u);
+      if (grants.scope) {
+        const pmScope = parseScope(grants.scope);
+        const requested = parseScope(grp);
+        for (const g of requested) {
+          if (!pmScope.has(g)) throw new Error("Nhóm sản phẩm \"" + g + "\" ngoài phạm vi phụ trách");
+        }
+      }
+    }
     if (grp) row.nhom_san_pham = grp;
     const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
     if (error) throw new Error(error.message);
