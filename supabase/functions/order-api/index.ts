@@ -1827,8 +1827,10 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "DatHang");
   const bytes = new Uint8Array(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
-  try { await supa.storage.createBucket(EXPORT_BUCKET, { public: false }); } catch (_) { /* bucket đã có */ }
-  const path = `${session.session_id}/${event}.xlsx`;   // 1 file/đợt/bước (upsert)
+  // Bucket PUBLIC -> URL ngắn, không token JWT (signed URL dài bị email ngắt dòng -> InvalidJWT).
+  try { await supa.storage.createBucket(EXPORT_BUCKET, { public: true }); } catch (_) { /* đã có */ }
+  try { await supa.storage.updateBucket(EXPORT_BUCKET, { public: true }); } catch (_) { /* ép public nếu trước đó private */ }
+  const path = `${session.session_id}/${event}.xlsx`;   // uuid khó đoán; 1 file/đợt/bước (upsert)
   const { error: upErr } = await supa.storage.from(EXPORT_BUCKET).upload(path, bytes, {
     contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
   });
@@ -1842,9 +1844,8 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
   const safe = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^A-Za-z0-9._ -]/g, "-").trim();
   const fname = `${safe(session.ten_dot) || "dat-hang"}_${st}.xlsx`;
-  const { data, error } = await supa.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 30, { download: fname });
-  if (error) throw new Error(error.message);
-  return data?.signedUrl || "";
+  const { data } = supa.storage.from(EXPORT_BUCKET).getPublicUrl(path, { download: fname });
+  return data?.publicUrl || "";
 }
 
 // Bước sự kiện -> các ROLE cần nhận thông báo (cấp liên quan).
