@@ -371,37 +371,48 @@ function normalizeGroups(v: any): string {
 //  - PM : theo nhóm SP (users.scope ⋈ dm_vat_tu.nhom_san_pham) -> cả 2 miền
 //  - MANAGER / ADMIN: xem tất cả
 // Đọc bu/scope trực tiếp từ users để không phụ thuộc token cũ & cập nhật tức thì.
-async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; scope: string }> {
-  if (u.role === "ADMIN" || u.role === "MANAGER" || u.role === "PURCHASING") return { bu: "", scope: "" };
+async function getGrants(supa: SupabaseClient, u: any): Promise<{ bu: string; scope: string; nhom_san_pham: string }> {
   const [{ data }, dict] = await Promise.all([
-    supa.schema("shared").from("users").select("bu, scope").ilike("username", u.username).maybeSingle(),
+    supa.schema("shared").from("users").select("bu, scope, nhom_san_pham").ilike("username", u.username).maybeSingle(),
     loadBuDict(supa),
   ]);
+  // ADMIN/MANAGER/PURCHASING: không giới hạn BU/scope, nhưng VẪN giới hạn nhom_san_pham nếu có.
+  const nsp = (data && data.nhom_san_pham) || "";
+  if (u.role === "ADMIN" || u.role === "MANAGER" || u.role === "PURCHASING") return { bu: "", scope: "", nhom_san_pham: nsp };
   const rawBu = (data && data.bu) || u.bu || "";
-  // users.bu có thể nhiều BU "chcs, cttm" -> chuẩn hoá từng cái về bu_code.
   const bu = [...parseScope(rawBu)].map((b) => toBuCode(dict, b)).filter(Boolean).join(",");
-  return { bu, scope: (data && data.scope) || u.scope || "" };
+  return { bu, scope: (data && data.scope) || u.scope || "", nhom_san_pham: nsp };
 }
 
-// Trả predicate lọc vật tư theo role. AM: lọc theo bu_code (grants.bu đã chuẩn hoá ở getGrants;
-// bu_code của vật tư lấy từ buMap theo nhóm SP nếu có, không thì từ r.bu_code). PM: lọc nhom_san_pham.
+// Trả predicate lọc vật tư theo role + nhom_san_pham.
+// AM: BU filter. PM: scope filter. Mọi role: nhom_san_pham filter nếu users.nhom_san_pham có giá trị.
 function makeVisibleFilter(
-  role: string, grants: { bu: string; scope: string }, buMap?: Map<string, { code: string; label: string }>,
+  role: string, grants: { bu: string; scope: string; nhom_san_pham: string }, buMap?: Map<string, { code: string; label: string }>,
 ) {
+  const filters: Array<(r: any) => boolean> = [];
+  // AM: filter theo BU
   if (role === "AM") {
     const userBUs = parseScope(grants.bu);
-    if (!userBUs.size || userBUs.has("all")) return null;
-    return (r: any) => {
-      const nhom = normGroup(r.nhom_san_pham || "");
-      const bu = buMap ? (buMap.get(nhom)?.code || "") : (r.bu_code || "");
-      return userBUs.has(bu);
-    };
+    if (userBUs.size && !userBUs.has("all")) {
+      filters.push((r: any) => {
+        const nhom = normGroup(r.nhom_san_pham || "");
+        const bu = buMap ? (buMap.get(nhom)?.code || "") : (r.bu_code || "");
+        return userBUs.has(bu);
+      });
+    }
   }
-  if (role === "PM") {
-    const set = grants.scope ? parseScope(grants.scope) : null;
-    return set ? (r: any) => set.has(normGroup(r.nhom_san_pham || "")) : null;
+  // PM: filter theo scope
+  if (role === "PM" && grants.scope) {
+    const set = parseScope(grants.scope);
+    filters.push((r: any) => set.has(normGroup(r.nhom_san_pham || "")));
   }
-  return null;
+  // Mọi role: filter theo users.nhom_san_pham nếu có
+  if (grants.nhom_san_pham) {
+    const nspSet = parseScope(grants.nhom_san_pham);
+    if (nspSet.size) filters.push((r: any) => nspSet.has(normGroup(r.nhom_san_pham || "")));
+  }
+  if (!filters.length) return null;
+  return (r: any) => filters.every(f => f(r));
 }
 
 // Danh mục đặt hàng = các dòng dm_vat_tu được ADMIN tích chọn (dat_hang = true).
@@ -1045,19 +1056,18 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (buFilter && buFilter !== "all") {
       list = list.filter((s: any) => toBuCode(dict, s.bu) === buFilter);
     }
-    // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách (overlap scope ↔ session.nhom_san_pham).
-    // Đợt không gắn nhóm (trống) = tất cả nhóm → PM vẫn thấy.
-    if (u.role === "PM") {
-      const grants = await getGrants(supa, u);
-      if (grants.scope) {
-        const pmScope = parseScope(grants.scope);
-        list = list.filter((s: any) => {
-          if (!s.nhom_san_pham) return true;
-          const sessGroups = parseScope(s.nhom_san_pham);
-          for (const g of sessGroups) { if (pmScope.has(g)) return true; }
-          return false;
-        });
-      }
+    // Lọc nhóm sản phẩm: áp cho MỌI role có users.nhom_san_pham hoặc PM có scope.
+    const grants = await getGrants(supa, u);
+    // Gộp scope (PM) + nhom_san_pham (mọi role) thành 1 set lọc.
+    const nspRaw = [grants.nhom_san_pham, u.role === "PM" ? grants.scope : ""].filter(Boolean).join(";");
+    if (nspRaw) {
+      const nspSet = parseScope(nspRaw);
+      list = list.filter((s: any) => {
+        if (!s.nhom_san_pham) return true;
+        const sessGroups = parseScope(s.nhom_san_pham);
+        for (const g of sessGroups) { if (nspSet.has(g)) return true; }
+        return false;
+      });
     }
 
     // Thống kê SKU/SL theo đợt: group ngay trong DB (RPC session_stats) thay vì
@@ -1705,18 +1715,17 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
   const { data } = await q;
   let cands = data || [];
-  // PM chỉ thấy đợt thuộc nhóm sản phẩm mình phụ trách.
-  if (u.role === "PM") {
-    const grants = await getGrants(supa, u);
-    if (grants.scope) {
-      const pmScope = parseScope(grants.scope);
-      cands = cands.filter((s: any) => {
-        if (!s.nhom_san_pham) return true;
-        const sessGroups = parseScope(s.nhom_san_pham);
-        for (const g of sessGroups) { if (pmScope.has(g)) return true; }
-        return false;
-      });
-    }
+  // Lọc nhóm SP: PM theo scope, mọi role theo users.nhom_san_pham nếu có.
+  const grants = await getGrants(supa, u);
+  const nspRaw = [grants.nhom_san_pham, u.role === "PM" ? grants.scope : ""].filter(Boolean).join(";");
+  if (nspRaw) {
+    const nspSet = parseScope(nspRaw);
+    cands = cands.filter((s: any) => {
+      if (!s.nhom_san_pham) return true;
+      const sessGroups = parseScope(s.nhom_san_pham);
+      for (const g of sessGroups) { if (nspSet.has(g)) return true; }
+      return false;
+    });
   }
   if (!cands.length) return null;
   const priority: Record<string, string[]> = {
