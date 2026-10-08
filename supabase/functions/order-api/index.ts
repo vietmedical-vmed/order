@@ -1795,7 +1795,6 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
     return {
       ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
       nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", muc_do_sd: p.muc_do_sd || "",
-      don_vi: p.don_vi || "", gia,
       ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
       hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
       sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
@@ -1805,7 +1804,8 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
       goi_y_dat,
       sl_yeu_cau: num(it.sl_dat), sl_pm_duyet: num(it.sl_duyet), sl_dat_hang: slDatHang,
       de_nghi_mua_hang: dmVal, po: poVal,
-      thanh_tien: slDatHang * gia, ghi_chu_dat: it.ghi_chu_dat || "", ghi_chu_duyet: it.ghi_chu_duyet || "",
+      ghi_chu_dat: it.ghi_chu_dat || "", ghi_chu_duyet: it.ghi_chu_duyet || "",
+      ghi_chu_dat_hang: it.ghi_chu_dat_hang || "",
     };
   });
   return { session, rows };
@@ -1816,12 +1816,14 @@ const EXPORT_BUCKET = "order-exports";
 async function generateExportLink(supa: SupabaseClient, session: any, event: string): Promise<string> {
   const { rows } = await buildExportData(supa, session.session_id);
   if (!rows.length) return "";
-  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại", "ĐVT", "Đơn giá",
-    "Tồn kho", "Tổng tồn", "SL yêu cầu", "SL PM duyệt", "SL đặt hàng", "Thành tiền", "DM", "PO", "Ghi chú"];
+  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại",
+    "Tồn kho", "Tổng tồn", "SL yêu cầu", "SL PM duyệt", "SL đặt hàng", "DM", "PO",
+    "Ghi chú yêu cầu", "Ghi chú PM duyệt", "Ghi chú đặt hàng"];
   const aoa = [header, ...rows.map((r: any) => [
-    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.don_vi, r.gia,
-    r.ton_kho, r.tong_ton, r.sl_yeu_cau, r.sl_pm_duyet, r.sl_dat_hang, r.thanh_tien,
-    r.de_nghi_mua_hang, r.po, r.ghi_chu_dat,
+    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai,
+    r.ton_kho, r.tong_ton, r.sl_yeu_cau, r.sl_pm_duyet, r.sl_dat_hang,
+    r.de_nghi_mua_hang, r.po,
+    r.ghi_chu_dat, r.ghi_chu_duyet, r.ghi_chu_dat_hang,
   ])];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
