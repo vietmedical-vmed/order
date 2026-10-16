@@ -1,7 +1,7 @@
 // ============ MÀN QUẢN LÝ ĐẶT HÀNG (danh sách đợt) ============
 import { $, $$, esc, fmt, fmtDate, splitGroups, viCmp } from '../utils.js';
 import { rpc } from '../api.js';
-import { state, canApprove, isAM, isPurchasing } from '../state.js';
+import { state, canApprove, isAM, isPurchasing, userMiens } from '../state.js';
 let _buListLoaded = false;
 let _mGrpListLoaded = false;
 let _mSelectedGroups = new Set();
@@ -72,11 +72,14 @@ function bindApprovalFilterOnce() {
   if (_approvalFilterBound) return;
   _approvalFilterBound = true;
   $('#mStatus').addEventListener('change', renderManageList);
-  if (isAM()) {
-    state.manageMien = state.user.mien;
+  const miens = userMiens();
+  if (isAM() && miens.length === 1) {
+    state.manageMien = miens[0];
     const seg = $('#mMienSeg'); if (seg) seg.style.display = 'none';
   } else {
     $$('.mmien-btn').forEach(b => {
+      // AM nhiều miền: chỉ hiện "Tất cả" + các miền mình phụ trách.
+      if (isAM() && b.dataset.mmien !== 'ALL' && !miens.includes(b.dataset.mmien)) { b.style.display = 'none'; return; }
       b.addEventListener('click', () => {
         $$('.mmien-btn').forEach(x => {
           x.classList.toggle('active', x === b);

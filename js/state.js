@@ -25,6 +25,11 @@ export function roleLabel(r) {
 }
 export function isPurchasing() { return state.user.role === 'PURCHASING'; }
 export function isAM() { return state.user.role === 'AM' || state.user.role === 'SALE_MANAGER'; }
+// Miền AM phụ trách: users.mien có thể là "MB, MN"; BOTH/ALL/rỗng = cả 2 miền.
+export function userMiens() {
+  const list = String(state.user.mien || '').split(/[,;]/).map(x => x.trim().toUpperCase()).filter(Boolean);
+  return !list.length || list.includes('BOTH') || list.includes('ALL') ? ['MB', 'MN'] : list;
+}
 export function canApprove() {
   return ['PM', 'MANAGER', 'ADMIN', 'PRODUCT_MANAGER'].indexOf(state.user.role) >= 0;
 }

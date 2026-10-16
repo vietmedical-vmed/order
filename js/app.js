@@ -4,7 +4,7 @@
 import { $, $$, esc } from './utils.js';
 import { TOKEN_KEY } from './config.js';
 import { API_BASE, rpc, rpcRaw, fetchWithTimeout, headers, setAuthLostHandler } from './api.js';
-import { state, roleLabel, canApprove, canCreateSession, canEditCatalog, isAM, isPurchasing } from './state.js';
+import { state, roleLabel, canApprove, canCreateSession, canEditCatalog, isAM, isPurchasing, userMiens } from './state.js';
 import { toast } from './toast.js';
 import { askConfirm } from './modal.js';
 import { scheduleTokenExpiryWarning, clearTokenExpiryWarning } from './auth.js';
@@ -210,7 +210,7 @@ function setupUserUI() {
   document.body.classList.toggle('is-purchasing', isPurchasing());
 
   // Default mien theo role: AM khoá theo miền của mình; ADMIN/PM/MANAGER → 'ALL'
-  state.mien = isAM() ? (u.mien || 'MB') : 'ALL';
+  state.mien = isAM() ? (userMiens()[0] || 'MB') : 'ALL';
 
   // Hiển thị BU trên header (nếu có)
   const titleEl = $('#appTitle');

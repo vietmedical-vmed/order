@@ -84,6 +84,13 @@ async function verifyToken(token: string, secret: string): Promise<any> {
 
 // ---------- role helpers ----------
 const canActAs = (u: any, role: string) => u.role === "ADMIN" || u.role === role;
+// AM có thể phụ trách nhiều miền: users.mien = "MB, MN" (BOTH/ALL/rỗng = mọi miền).
+const ALL_MIEN = ["MB", "MN", "MT"];
+function amMiens(u: any): string[] {
+  const list = String(u.mien || "").split(/[,;]/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+  return !list.length || list.includes("BOTH") || list.includes("ALL") ? ALL_MIEN : list;
+}
+const amCovers = (u: any, mien: string) => amMiens(u).includes(String(mien || "").toUpperCase());
 const canApprove = (u: any) => ["PM", "MANAGER", "ADMIN"].includes(u.role);
 const initials = (name: string) =>
   String(name || "").split(" ").filter(Boolean).map((s) => s[0]).slice(-2).join("").toUpperCase();
@@ -1041,8 +1048,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   async listSessions(supa, u, [filter]) {
     filter = filter || {};
     let q = supa.schema("app_order").from("order_sessions").select("*");
-    if (u.role === "AM") q = q.eq("mien", u.mien);
-    else if (filter.mien && filter.mien !== "ALL") q = q.eq("mien", filter.mien);
+    if (u.role === "AM") q = q.in("mien", amMiens(u));
+    if (filter.mien && filter.mien !== "ALL" && (u.role !== "AM" || amCovers(u, filter.mien))) q = q.eq("mien", filter.mien);
     // Manager thấy SUBMITTED (CTTM skip PM) + PM_APPROVED + APPROVED.
     if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
     // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
@@ -1120,7 +1127,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     ]);
 
     let session: any = sessionRaw;
-    if (session && u.role === "AM" && u.mien !== session.mien) session = null;
+    if (session && u.role === "AM" && !amCovers(u, session.mien)) session = null;
 
     // Cấu hình công thức: nếu đang xem 1 đợt -> dùng cấu hình CÓ HIỆU LỰC tại thời điểm mở đợt
     // (theo log), để xem lại đợt cũ đúng công thức. Bảng thông tin (không đợt) -> cấu hình hiện hành.
@@ -1259,7 +1266,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham, bu]) {
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
-    else if (u.role === "AM") { if (u.mien !== mien) throw new Error("AM chỉ tạo được đợt cho miền " + u.mien); }
+    else if (u.role === "AM") { if (!amCovers(u, mien)) throw new Error("AM chỉ tạo được đợt cho miền " + amMiens(u).join(", ")); }
     else throw new Error("Không có quyền tạo đợt");
     // Đợt lưu bu_code chuẩn (vd "CH&CS" → "chcs"). "all" = không gắn BU.
     const dict = await loadBuDict(supa);
@@ -1300,7 +1307,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (!canActAs(u, "AM")) throw new Error("Không có quyền xác nhận (AM)");
     const { data: s } = await supa.schema("app_order").from("order_sessions").select("mien, trang_thai").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
-    if (u.role === "AM" && s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
+    if (u.role === "AM" && !amCovers(u, s.mien)) throw new Error("Bạn không phụ trách miền " + s.mien);
     // AM được sửa SL yêu cầu tới KHI PM DUYỆT: DRAFT -> xác nhận (đẩy lên SUBMITTED);
     // SUBMITTED (PM chưa duyệt) -> chỉ cập nhật SL yêu cầu, GIỮ NGUYÊN trạng thái.
     if (s.trang_thai === "DRAFT")
@@ -1441,7 +1448,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     if (!canActAs(u, "AM")) throw new Error("Không có quyền hủy đợt (AM)");
     const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
-    if (u.role === "AM" && s.mien !== u.mien) throw new Error("Bạn không phụ trách miền " + s.mien);
+    if (u.role === "AM" && !amCovers(u, s.mien)) throw new Error("Bạn không phụ trách miền " + s.mien);
     if (s.trang_thai !== "DRAFT" && s.trang_thai !== "SUBMITTED")
       throw new Error("Chỉ hủy được khi đợt chưa được PM duyệt");
     await supa.schema("app_order").from("order_sessions").update({
@@ -1619,7 +1626,7 @@ function actionForSession(u: any, session: any, skipPm = false) {
   const st = session.trang_thai;
   if (st === "APPROVED") return null;
   if (st === "DRAFT" && canActAs(u, "AM")) {
-    if (u.role === "AM" && u.mien !== session.mien) return null;
+    if (u.role === "AM" && !amCovers(u, session.mien)) return null;
     return { code: "AM_CONFIRM", label: u.role === "ADMIN" ? "Xác nhận (thay AM)" : "Xác nhận",
       editField: "sl_dat", editNoteField: "ghi_chu_dat", endpoint: "amConfirm" };
   }
@@ -1668,7 +1675,7 @@ function editContextForSession(u: any, session: any, skipPm = false) {
 
   // AM: sửa SL yêu cầu tới KHI PM DUYỆT — tức khi đợt còn DRAFT hoặc SUBMITTED.
   if (u.role === "AM" && (st === "DRAFT" || st === "SUBMITTED")) {
-    if (u.mien !== session.mien) return { action: null, editFields: [] };
+    if (!amCovers(u, session.mien)) return { action: null, editFields: [] };
     const advancing = st === "DRAFT";
     // DRAFT: điền sẵn gợi ý + xác nhận cả đợt (đẩy SUBMITTED). SUBMITTED: chỉ sửa ô đã chỉnh
     // (không điền sẵn để không vô tình thêm hàng loạt dòng gợi ý), giữ nguyên trạng thái.
@@ -1709,10 +1716,10 @@ function editContextForSession(u: any, session: any, skipPm = false) {
 
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
-  if (u.role === "AM") q = q.eq("mien", u.mien);
+  if (u.role === "AM") q = q.in("mien", amMiens(u));
   else if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
   else if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
-  if (mienHint && mienHint !== "ALL" && u.role !== "AM") q = q.eq("mien", mienHint);
+  if (mienHint && mienHint !== "ALL" && (u.role !== "AM" || amCovers(u, mienHint))) q = q.eq("mien", mienHint);
   const { data } = await q;
   let cands = data || [];
   // Lọc nhóm SP: PM theo scope, mọi role theo users.nhom_san_pham nếu có.

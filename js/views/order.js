@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, dash0, fmtVND, debounce, viCmp, splitGroups } from '../utils.js';
 import { DRAFT_KEY } from '../config.js';
 import { rpc } from '../api.js';
-import { state, canCreateSession, canApprove } from '../state.js';
+import { state, canCreateSession, canApprove, userMiens } from '../state.js';
 import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
 import { loadSessions } from '../session.js';
@@ -228,7 +228,7 @@ function bindFilterBarOnce() {
   const role = state.user.role;
   $$('.mien-btn').forEach(b => {
     if (role === 'AM') {
-      if (b.dataset.mien !== state.user.mien) {
+      if (!userMiens().includes(b.dataset.mien)) {
         b.style.display = 'none';
         return;
       }
@@ -1236,7 +1236,7 @@ function openCreateSessionModal() {
   const noteEl = $('#modalNote');
   if (noteEl) {
     noteEl.innerHTML = role === 'AM'
-      ? `Đợt sẽ được tạo riêng cho miền <strong>${state.user.mien}</strong> (miền của bạn).`
+      ? `Đợt sẽ được tạo riêng cho miền <strong>${state.mien}</strong> (miền đang chọn).`
       : role === 'PM'
       ? `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> ở trạng thái <strong>Chờ PM duyệt</strong>. Bạn điền cột SL PM duyệt.`
       : `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.`;
@@ -1262,9 +1262,9 @@ function openCreateSessionModal() {
       const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
       const buLabel = ` · ${bu}`;
       if (role === 'AM') {
-        const s = await rpc('createSession', name, state.user.mien, '', nhom, bu);
+        const s = await rpc('createSession', name, state.mien, '', nhom, bu);
         state.pinnedSessionId = (s && s.session_id) || null;
-        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.user.mien}${buLabel}${nhomLabel}`;
+        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.mien}${buLabel}${nhomLabel}`;
       } else {
         const r = await rpc('createSessionBoth', name, '', nhom, bu);
         toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${buLabel}${nhomLabel}`;
