@@ -1,3 +1,4 @@
+-- 2026-10-16: các bảng bak_* đã chuyển sang schema backup (Data/Supabase/sql/20261016_db_cleanup_backup_schema.sql).
 -- ════════════════════════════════════════════════════════════════════════
 -- ROLLBACK cho 15_master_data_dictionary.sql
 -- Trả DB về trạng thái trước: bỏ trigger/hàm/bảng từ điển, bỏ cột bu_code mới
@@ -13,9 +14,9 @@ begin;
 -- order_sessions.bu: giá trị cũ
 update app_order.order_sessions s
    set bu = b.bu_cu
-  from app_order.bak_20261002_session_bu b
+  from backup.bak_20261002_session_bu b
  where s.session_id::text = b.session_id;
-drop table if exists app_order.bak_20261002_session_bu;
+drop table if exists backup.bak_20261002_session_bu;
 
 -- Trigger + hàm điền bu_code
 do $$

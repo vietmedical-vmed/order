@@ -1,3 +1,6 @@
+-- 2026-10-16: các bảng bak_* đã chuyển sang schema backup (Data/Supabase/sql/20261016_db_cleanup_backup_schema.sql).
+-- backup.bak_20261002_dm_dia_ban đã bị XOÁ khi dọn DB: chạy trước
+-- Data/Supabase/sql/20261016_db_cleanup_backup_schema_ROLLBACK_DATA.sql để dựng lại.
 -- ════════════════════════════════════════════════════════════════════════
 -- ROLLBACK cho 17_master_data_fix_and_fk.sql
 -- Gỡ FK + trigger + cột sinh nhom_ref, trả lại dòng đã xoá/sửa từ bak_20261002_*.
@@ -20,7 +23,7 @@ drop function if exists shared.trg_sale_target_bu_code();
 -- contract: 'Miền Trung' → 'DN' đúng các hợp đồng đã đổi
 update public.contract_contracts c
    set mien = b.mien_cu
-  from public.bak_20261002_contract_mien b
+  from backup.bak_20261002_contract_mien b
  where c.ma_hd = b.ma_hd;
 
 -- Trả dòng đã xoá (cùng id). Chỉ chèn cột thường có ở cả 2 bảng (bỏ cột sinh
@@ -32,8 +35,8 @@ declare
 begin
   for r in
     select * from (values
-      ('shared.sale_target'::regclass, 'shared.bak_20261002_sale_target'::regclass),
-      ('shared.dm_dia_ban'::regclass,  'shared.bak_20261002_dm_dia_ban'::regclass)
+      ('shared.sale_target'::regclass, 'backup.bak_20261002_sale_target'::regclass),
+      ('shared.dm_dia_ban'::regclass,  'backup.bak_20261002_dm_dia_ban'::regclass)
     ) as t (dst, bak)
   loop
     select string_agg(quote_ident(a.attname), ', ' order by a.attnum) into cols
