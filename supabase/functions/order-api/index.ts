@@ -563,6 +563,59 @@ async function cshStockMapFor(supa: SupabaseClient, mien: string, ngayMo?: strin
   return map;
 }
 
+// Các lô của 1 mã theo CSH; mã không có lô nào -> thuộc "" (Không có thông tin).
+type CshMap = Record<string, Record<string, { ton_kho: number; hang_vet_thau: number }>>;
+function cshBucketsOf(cshMap: CshMap | null, ma: string) {
+  const m = (cshMap && cshMap[maKey(ma)]) || {};
+  return Object.keys(m).length ? m : { "": { ton_kho: 0, hang_vet_thau: 0 } };
+}
+// Tổng tồn theo CSH: DA/GU của CSH + ký gửi + đi đường (2 cột này không có CSH -> giữ nguyên).
+function cshTongTonOf(stockMap: any, cshMap: CshMap | null, ma: string, c: string) {
+  const s = stockMap[maKey(ma)] || {};
+  const x = cshBucketsOf(cshMap, ma)[c] || { ton_kho: 0, hang_vet_thau: 0 };
+  return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
+}
+
+// Đợt gắn chủ sở hữu (order_sessions.csh_dklh): giá trị lưu là tên CSH hoặc CSH_NONE_LABEL.
+const CSH_NONE_LABEL = "Không có thông tin";
+const cshKeyOf = (label: string) => (label === CSH_NONE_LABEL ? "" : label);
+
+// Áp CSH của đợt lên các mã thuộc nhóm bật CSH: bỏ mã không có lô của CSH đó và thay
+// Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Trả stockMap mới + hàm giữ/bỏ mã.
+function applySessionCsh(products: any[], stockMap: any, cshMap: CshMap, mien: string, label: string) {
+  const c = cshKeyOf(label);
+  const out: any = { ...stockMap };
+  const drop = new Set<string>();
+  for (const p of products) {
+    if (!usesCsh(mien, p.nhom_san_pham)) continue;
+    const k = maKey(p.ma_bravo);
+    const x = cshBucketsOf(cshMap, p.ma_bravo)[c];
+    if (!x) { drop.add(k); continue; }
+    out[k] = { ...(stockMap[k] || {}), ton_kho: x.ton_kho, hang_vet_thau: x.hang_vet_thau,
+      tong_ton: cshTongTonOf(stockMap, cshMap, p.ma_bravo, c) };
+  }
+  return { stockMap: out, keep: (p: any) => !drop.has(maKey(p.ma_bravo)) };
+}
+
+// Đợt có cần chọn CSH không: miền bật CSH và phạm vi nhóm (trống = mọi nhóm của BU) có nhóm bật CSH.
+async function sessionNeedsCsh(supa: SupabaseClient, mien: string, grp: string, bu: string) {
+  if (!CSH_MIENS.has(mien)) return false;
+  const groups = grp ? [...parseScope(grp)] : (await listOrderGroups(supa, bu)).map(normGroup);
+  return groups.some((g) => CSH_GROUPS.has(g));
+}
+
+// Danh sách CSH chọn được khi tạo đợt: CSH có lô ở các mã thuộc nhóm bật CSH + "Không có thông tin".
+async function cshOwnerOptions(supa: SupabaseClient, mien: string) {
+  if (!CSH_MIENS.has(mien)) return [];
+  const [prods, cshMap] = await Promise.all([fetchProducts(supa), cshStockMapFor(supa, mien)]);
+  const owners = new Set<string>();
+  for (const p of prods) {
+    if (!usesCsh(mien, p.nhom_san_pham)) continue;
+    Object.keys(cshBucketsOf(cshMap, p.ma_bravo)).forEach((c) => { if (c) owners.add(c); });
+  }
+  return [...owners].sort((a, b) => a.localeCompare(b, "vi")).concat([CSH_NONE_LABEL]);
+}
+
 // Ngày cycledate mới nhất trong bảng stock (dùng cho chú thích "tồn kho cập nhật đến…").
 async function latestCycledate(supa: SupabaseClient): Promise<string> {
   const { data } = await supa
@@ -805,6 +858,14 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // Danh sách nhóm sản phẩm (nhom_san_pham) trong danh mục đặt hàng — cho combobox tạo đợt.
   async listProductGroups(supa, _u, [filter]) {
     return await listOrderGroups(supa, filter?.bu);
+  },
+
+  // CSH chọn được khi tạo đợt + các nhóm/miền đang bật (để modal biết khi nào bắt chọn).
+  async listCshOptions(supa, _u, [mien]) {
+    return {
+      miens: [...CSH_MIENS], groups: [...CSH_GROUPS], none_label: CSH_NONE_LABEL,
+      owners: await cshOwnerOptions(supa, mien || "MN"),
+    };
   },
 
   async listBU(supa) {
@@ -1124,6 +1185,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       trang_thai: String(s.trang_thai || ""),
       tao_boi: String(s.tao_boi || ""),
       nhom_san_pham: s.nhom_san_pham || "",
+      csh_dklh: s.csh_dklh || "",
       ly_do_tu_choi: s.ly_do_tu_choi || "",
       nguoi_tu_choi: s.nguoi_tu_choi || "",
       tu_choi_o_buoc: s.tu_choi_o_buoc || "",
@@ -1174,7 +1236,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Phase 2: stock + cached indicators + items — parallel
     const itemMap: Record<string, any> = {};
     let stockMap: any = {}, indicatorMap: any = {}, stockAsof = "";
-    let cshMap: Record<string, Record<string, { ton_kho: number; hang_vet_thau: number }>> | null = null;
+    let cshMap: CshMap | null = null;
 
     if (effMien === "MB" || effMien === "MN") {
       const needCsh = CSH_MIENS.has(effMien) && products.some((p: any) => usesCsh(effMien, p.nhom_san_pham));
@@ -1186,6 +1248,13 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         needCsh ? cshStockMapFor(supa, effMien, ngayMo) : Promise.resolve(null),
       ]);
       stockMap = sm; indicatorMap = ind; stockAsof = sa; cshMap = cm;
+      // Đợt gắn CSH: khoá màn hình vào CSH đó (bỏ mã ngoài CSH, tồn = tồn của CSH).
+      if (cm && session && session.csh_dklh) {
+        const v = applySessionCsh(products, stockMap, cm, effMien, session.csh_dklh);
+        stockMap = v.stockMap;
+        products = products.filter(v.keep);
+        cshMap = null;   // không trả r.csh -> ẩn filter CSH trên màn (đợt đã cố định CSH)
+      }
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     } else if (effMien === "ALL") {
       const [sm, ind, sa, its] = await Promise.all([
@@ -1230,15 +1299,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     //     Hàng ký gửi / đi đường không có CSH -> giữ nguyên. Gợi ý tính lại ở mức sản phẩm với
     //     tổng tồn theo CSH (nhu cầu giữ nguyên). Mã không có lô nào -> thuộc "" (Không có thông tin).
     const cshProducts = cshMap ? products.filter((p: any) => usesCsh(effMien, p.nhom_san_pham)) : [];
-    const cshBuckets = (p: any) => {
-      const m = (cshMap && cshMap[maKey(p.ma_bravo)]) || {};
-      return Object.keys(m).length ? m : { "": { ton_kho: 0, hang_vet_thau: 0 } };
-    };
-    const cshTongTon = (p: any, c: string) => {
-      const s = stockMap[maKey(p.ma_bravo)] || {};
-      const x = (cshMap && cshMap[maKey(p.ma_bravo)] || {})[c] || { ton_kho: 0, hang_vet_thau: 0 };
-      return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
-    };
+    const cshBuckets = (p: any) => cshBucketsOf(cshMap, p.ma_bravo);
+    const cshTongTon = (p: any, c: string) => cshTongTonOf(stockMap, cshMap, p.ma_bravo, c);
     const cshKeys = new Set<string>();
     cshProducts.forEach((p: any) => Object.keys(cshBuckets(p)).forEach((c) => cshKeys.add(c)));
     const spGoiYByCsh: Record<string, Record<string, number>> = {};
@@ -1301,6 +1363,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         ngay_dong: session.ngay_dong ? new Date(session.ngay_dong).toISOString() : "",
         trang_thai: session.trang_thai, tao_boi: session.tao_boi,
         nhom_san_pham: session.nhom_san_pham || "",
+        csh_dklh: session.csh_dklh || "",
         ly_do_tu_choi: session.ly_do_tu_choi || "",
         nguoi_tu_choi: session.nguoi_tu_choi || "",
         tu_choi_o_buoc: session.tu_choi_o_buoc || "",
@@ -1322,7 +1385,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham, bu]) {
+  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham, bu, cshDklh]) {
     if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
     else if (u.role === "AM") { if (!amCovers(u, mien)) throw new Error("AM chỉ tạo được đợt cho miền " + amMiens(u).join(", ")); }
     else throw new Error("Không có quyền tạo đợt");
@@ -1348,16 +1411,24 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       }
     }
     if (grp) row.nhom_san_pham = grp;
+    // Miền/nhóm bật CSH: bắt buộc chọn chủ sở hữu ĐKLH (xuất xứ); ngoài phạm vi -> bỏ qua.
+    if (await sessionNeedsCsh(supa, mien, grp, sessionBu)) {
+      const csh = String(cshDklh || "").trim();
+      if (!csh) throw new Error("Vui lòng chọn chủ sở hữu ĐKLH (xuất xứ) cho miền " + mien);
+      if (!(await cshOwnerOptions(supa, mien)).includes(csh)) throw new Error("Chủ sở hữu ĐKLH không hợp lệ: " + csh);
+      row.csh_dklh = csh;
+    }
     const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
     if (error) throw new Error(error.message);
-    await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien + (grp ? " · " + grp : ""));
+    await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien + (grp ? " · " + grp : "") + (row.csh_dklh ? " · CSH " + row.csh_dklh : ""));
     return data;
   },
 
-  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham, bu]) {
+  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham, bu, cshDklh]) {
     if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được tạo đợt cho cả 2 miền");
-    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham, bu]);
-    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham, bu]);
+    // Tạo MN trước: MN có thể bị từ chối vì thiếu CSH -> không để lại đợt MB lẻ.
+    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham, bu, cshDklh]);
+    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham, bu, cshDklh]);
     return { mb, mn };
   },
 
@@ -1818,13 +1889,21 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
   const mienExp = session.mien;
   const ngayMoExp = session.ngay_mo || null;
   const cfg = await getConfigAt(supa, ngayMoExp);
-  const [items, prods, stockMap, indicatorMap] = await Promise.all([
+  const [items, prods, stockMap0, indicatorMap] = await Promise.all([
     supa.schema("app_order").from("order_items").select("*").eq("session_id", sessionId).then((r) => r.data || []),
     fetchProducts(supa),
     stockMapFor(supa, mienExp, ngayMoExp),
     loadCachedIndicators(supa, mienExp),
   ]);
   const pMap: Record<string, any> = {}; prods.forEach((p) => pMap[maKey(p.ma_bravo)] = p);
+
+  // Đợt gắn CSH: tồn / vét thầu / tổng tồn / gợi ý theo lô của CSH đó (giống màn hình).
+  const sessCsh = String(session.csh_dklh || "");
+  let stockMap = stockMap0;
+  if (sessCsh && CSH_MIENS.has(mienExp)) {
+    const cm = await cshStockMapFor(supa, mienExp, ngayMoExp);
+    stockMap = applySessionCsh(prods, stockMap0, cm, mienExp, sessCsh).stockMap;
+  }
 
   const spGyE: Record<string, any> = {};
   for (const p of prods) {
@@ -1860,6 +1939,7 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
     return {
       ma_bravo: it.ma_bravo, code_ncc: p.code_ncc || "", ten_hang: p.ten_hang_hoa || "",
       nhom_hang: p.nhom_hang || "", phan_loai: p.phan_loai || "", muc_do_sd: p.muc_do_sd || "",
+      chu_so_huu: sessCsh && usesCsh(mienExp, p.nhom_san_pham) ? sessCsh : "",
       ton_kho: num(s.ton_kho), hang_ktv_bv: num(s.hang_ktv_bv), hang_vet_thau: num(s.hang_vet_thau),
       hang_di_duong: num(s.hang_di_duong), tong_ton: num(s.tong_ton),
       sl_th_fy24: num(ind.sl_th_fy24), sl_th_fy25: num(ind.sl_th_fy25), sl_th_fy26_ytd: num(ind.sl_th_fy26_ytd),
@@ -1881,11 +1961,11 @@ const EXPORT_BUCKET = "order-exports";
 async function generateExportLink(supa: SupabaseClient, session: any, event: string): Promise<string> {
   const { rows } = await buildExportData(supa, session.session_id);
   if (!rows.length) return "";
-  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại",
+  const header = ["Mã Bravo", "Mã NCC", "Tên hàng", "Nhóm hàng", "Phân loại", "Chủ sở hữu ĐKLH",
     "Tồn kho", "Tổng tồn", "SL yêu cầu", "SL PM duyệt", "SL đặt hàng", "DM", "PO",
     "Ghi chú yêu cầu", "Ghi chú PM duyệt", "Ghi chú đặt hàng"];
   const aoa = [header, ...rows.map((r: any) => [
-    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai,
+    r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.chu_so_huu,
     r.ton_kho, r.tong_ton, r.sl_yeu_cau, r.sl_pm_duyet, r.sl_dat_hang,
     r.de_nghi_mua_hang, r.po,
     r.ghi_chu_dat, r.ghi_chu_duyet, r.ghi_chu_dat_hang,

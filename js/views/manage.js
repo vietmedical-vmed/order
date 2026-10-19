@@ -175,7 +175,7 @@ async function renderManageList() {
             ? `<div class="text-[10.5px] text-primary-700 mt-1">🛒 DM: ${esc(s.de_nghi_mua_hang || '—')} · PO: ${esc(s.po || '—')}</div>`
             : '';
           return `<tr>
-            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}${s.nhom_san_pham ? ` · nhóm <span class="text-slate-600 font-medium">${esc(splitGroups(s.nhom_san_pham).join(', '))}</span>` : ''}</div></td>
+            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}${s.nhom_san_pham ? ` · nhóm <span class="text-slate-600 font-medium">${esc(splitGroups(s.nhom_san_pham).join(', '))}</span>` : ''}${s.csh_dklh ? ` · CSH <span class="text-slate-600 font-medium">${esc(s.csh_dklh)}</span>` : ''}</div></td>
             <td class="c"><span class="pill">${esc(s.bu_label || s.bu || '—')}</span></td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="text-slate-600">${fmtDate(s.ngay_mo)}</td>

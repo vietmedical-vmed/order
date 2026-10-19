@@ -419,6 +419,7 @@ function renderSessionBanner() {
             ${sess.bu ? `<span class="pill">${esc(sess.bu_label || sess.bu)}</span>` : ''}
             <span class="pill ${mienCls}">${sess.mien === 'MB' ? 'Miền Bắc' : 'Miền Nam'}</span>
             ${splitGroups(sess.nhom_san_pham).map(g => `<span class="pill pill-info" title="Đợt chỉ gồm danh mục các nhóm sản phẩm này">${esc(g)}</span>`).join('')}
+            ${sess.csh_dklh ? `<span class="pill pill-hot" title="Tồn kho / Vét thầu / Tổng tồn / Gợi ý chỉ tính lô của chủ sở hữu này">CSH: ${esc(sess.csh_dklh)}</span>` : ''}
           </div>
           <div class="text-[11px] text-slate-500 mt-0.5">Tạo bởi <span class="font-medium">${esc(sess.tao_boi || '—')}</span> · ${created}</div>
         </div>
@@ -1245,17 +1246,65 @@ async function populateSessionBUOptions() {
   }
 }
 
+// Chủ sở hữu ĐKLH (xuất xứ): bắt buộc khi đợt có miền + nhóm đang bật CSH (server trả về
+// miens/groups). Không tick nhóm nào = mọi nhóm của BU -> xét toàn bộ danh sách nhóm.
+let _cshOpts = null;
+async function loadCshOptions() {
+  if (_cshOpts) return _cshOpts;
+  try { _cshOpts = await rpc('listCshOptions', 'MN'); }
+  catch (e) { console.warn('[listCshOptions]', e); _cshOpts = { miens: [], groups: [], owners: [] }; }
+  return _cshOpts;
+}
+
+function sessionCshNeeded() {
+  const o = _cshOpts;
+  if (!o || !o.groups || !o.groups.length) return false;
+  const targetMiens = state.user.role === 'AM' ? [state.mien] : ['MB', 'MN'];
+  if (!targetMiens.some(m => o.miens.includes(m))) return false;
+  const all = $$('#modalSessNhomList .msn-opt');
+  const ticked = all.filter(x => x.checked);
+  const groups = (ticked.length ? ticked : all).map(x => x.value.trim().toLowerCase());
+  return groups.some(g => o.groups.includes(g));
+}
+
+function syncSessionCshField() {
+  const wrap = $('#modalSessCshWrap');
+  if (!wrap) return;
+  const need = sessionCshNeeded();
+  wrap.classList.toggle('hidden', !need);
+  const note = $('#modalSessCshNote');
+  if (note) note.textContent = need
+    ? `Áp dụng cho miền ${(_cshOpts.miens || []).join(', ')} · nhóm ${(_cshOpts.groups || []).join(', ')}: màn hình và Excel chỉ tính tồn kho của chủ sở hữu này.`
+    : '';
+}
+
+async function populateSessionCshOptions() {
+  const sel = $('#modalSessCsh');
+  if (!sel) return;
+  const o = await loadCshOptions();
+  sel.innerHTML = '<option value="">— Chọn chủ sở hữu —</option>'
+    + (o.owners || []).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  syncSessionCshField();
+}
+
 function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
   $('#modalErr').textContent = '';
-  populateSessionBUOptions().then(() => {
+  $('#modalSessCshWrap').classList.add('hidden');
+  const nhomBox = $('#modalSessNhomList');
+  if (nhomBox && !nhomBox._cshBound) {
+    nhomBox._cshBound = true;
+    nhomBox.addEventListener('change', syncSessionCshField);
+  }
+  populateSessionBUOptions().then(async () => {
     const buSel = $('#modalSessBU');
-    populateSessionGroupOptions(buSel ? buSel.value : '');
+    await populateSessionGroupOptions(buSel ? buSel.value : '');
+    await populateSessionCshOptions();
     if (buSel && !buSel._grpBound) {
       buSel._grpBound = true;
-      buSel.addEventListener('change', () => populateSessionGroupOptions(buSel.value));
+      buSel.addEventListener('change', () => populateSessionGroupOptions(buSel.value).then(syncSessionCshField));
     }
   });
 
@@ -1281,19 +1330,21 @@ function openCreateSessionModal() {
     const buSel = $('#modalSessBU');
     const bu = buSel ? buSel.value : '';
     if (!bu) { $('#modalErr').textContent = 'Vui lòng chọn BU'; return; }
+    const csh = sessionCshNeeded() ? $('#modalSessCsh').value : '';
+    if (sessionCshNeeded() && !csh) { $('#modalErr').textContent = 'Vui lòng chọn chủ sở hữu ĐKLH (xuất xứ)'; return; }
     const btn = $('#modalSubmit');
     btn.disabled = true; btn.textContent = 'Đang tạo…';
     try {
       let toastMsg;
       const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value);
       const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
-      const buLabel = ` · ${bu}`;
+      const buLabel = ` · ${bu}${csh ? ` · CSH ${csh}` : ''}`;
       if (role === 'AM') {
-        const s = await rpc('createSession', name, state.mien, '', nhom, bu);
+        const s = await rpc('createSession', name, state.mien, '', nhom, bu, csh);
         state.pinnedSessionId = (s && s.session_id) || null;
         toastMsg = `Đã tạo đợt "${name}" cho miền ${state.mien}${buLabel}${nhomLabel}`;
       } else {
-        const r = await rpc('createSessionBoth', name, '', nhom, bu);
+        const r = await rpc('createSessionBoth', name, '', nhom, bu, csh);
         toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${buLabel}${nhomLabel}`;
         // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
         const targetMien = state.mien === 'MN' ? 'MN' : 'MB';

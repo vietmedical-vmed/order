@@ -24,22 +24,33 @@ const moi = r => {
   return th > 0 ? Math.floor(Number(r.ton_kho || 0) / th) : '';
 };
 
+// Chủ sở hữu ĐKLH (bảng thông tin): r.csh = { csh: số theo CSH }, key '' = Không có thông tin.
+// Đang lọc 1 CSH trên màn -> chỉ xuất mã của CSH đó với số tồn/gợi ý của riêng CSH.
+const CSH_NONE = '__none__';
+const cshLabel = k => (k ? k : 'Không có thông tin');
+function catalogRowsForExport() {
+  const f = state.filters.csh;
+  if (!f) return state.rows.map(r => ({ ...r, chu_so_huu: r.csh ? Object.keys(r.csh).map(cshLabel).join(', ') : '' }));
+  const k = f === CSH_NONE ? '' : f;
+  return state.rows.filter(r => r.csh && r.csh[k]).map(r => ({ ...r, ...r.csh[k], chu_so_huu: cshLabel(k) }));
+}
+
 // Xuất bảng thông tin (danh mục, không có đợt) từ state.rows đang hiển thị.
 async function exportCatalogToExcel() {
   const btn = $('#btnExport');
   if (btn) btn.disabled = true;
   try {
-    const rows = state.rows;
+    const rows = catalogRowsForExport();
     if (!rows || !rows.length) { toast('Chưa có dữ liệu để xuất', 'error'); return; }
     const XLSX = await loadSheetJS();
-    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD',
+    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Chủ sở hữu ĐKLH','Mức độ SD',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
       'SL TH FY24','SL TH FY25','SL TH FY26 YTD',
       '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý'];
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
-        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '',
+        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.chu_so_huu || '', r.muc_do_sd || '',
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
         num0(r.sl_th_fy24), num0(r.sl_th_fy25), num0(r.sl_th_fy26_ytd),
         pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
@@ -48,7 +59,7 @@ async function exportCatalogToExcel() {
     });
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
+      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
       { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
       { wch: 12 }, { wch: 12 }, { wch: 14 },
       { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
@@ -78,7 +89,7 @@ async function exportSessionToExcel(session) {
     ]);
     const rows = data.rows || [];
     if (!rows.length) { toast('Đợt này chưa có SKU nào', 'error'); return; }
-    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Mức độ SD',
+    const header = ['STT','Mã Bravo','Mã NCC','Tên hàng','Nhóm hàng','Phân loại','Chủ sở hữu ĐKLH','Mức độ SD',
       'Tồn kho (DA)','Hàng ký gửi','Vét thầu (GU)','Hàng đi đường','Tổng tồn',
       'SL TH FY24','SL TH FY25','SL TH FY26 YTD',
       '% SD','TB tháng TH','TB KH','Safety stock','MoI (tháng)','Số tháng đặt','Leadtime (tháng)','Gợi ý',
@@ -87,7 +98,7 @@ async function exportSessionToExcel(session) {
     const aoa = [header];
     rows.forEach((r, i) => {
       aoa.push([
-        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.muc_do_sd || '',
+        i + 1, r.ma_bravo, r.code_ncc, r.ten_hang, r.nhom_hang, r.phan_loai, r.chu_so_huu || '', r.muc_do_sd || '',
         num0(r.ton_kho), num0(r.hang_ktv_bv), num0(r.hang_vet_thau), num0(r.hang_di_duong), num0(r.tong_ton),
         num0(r.sl_th_fy24), num0(r.sl_th_fy25), num0(r.sl_th_fy26_ytd),
         pctInt(r.ty_le_sd_pct), num0(r.tb_th), num0(r.tb_kh_3_thang), num0(r.safety_stock), moi(r),
@@ -98,7 +109,7 @@ async function exportSessionToExcel(session) {
     });
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
+      { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 },
       { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
       { wch: 12 }, { wch: 12 }, { wch: 14 },
       { wch: 8 }, { wch: 13 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 9 },
