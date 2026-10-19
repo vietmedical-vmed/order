@@ -540,6 +540,29 @@ async function stockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string |
   return buildOne(data || []);
 }
 
+// Filter "Chủ sở hữu ĐKLH" (stock.csh_dklh): bật cho Miền Nam, các nhóm sản phẩm dưới đây.
+// Mở rộng = thêm miền / nhóm vào 2 hằng số này (dữ liệu csh_dklh phải có trong stock).
+const CSH_MIENS = new Set(["MN"]);
+const CSH_GROUPS = new Set(["khớp uoc", "nsk arthrex"]);
+const usesCsh = (mien: string, nhom: string) => CSH_MIENS.has(mien) && CSH_GROUPS.has(normGroup(nhom));
+
+// Tồn kho (DA) / vét thầu (GU) theo chủ sở hữu: { maKey: { csh: { ton_kho, hang_vet_thau } } }.
+// csh = "" là lô chưa có thông tin chủ sở hữu.
+async function cshStockMapFor(supa: SupabaseClient, mien: string, ngayMo?: string | null) {
+  const data = await rpcAll(supa, "stock_csh_agg",
+    { p_mien: mien, p_ngaymo: ngayMo ?? null }, ["ma_bravo", "csh"]);
+  const map: Record<string, Record<string, { ton_kho: number; hang_vet_thau: number }>> = {};
+  for (const r of data) {
+    const k = maKey(r.ma_bravo);
+    const m = map[k] || (map[k] = {});
+    const c = String(r.csh || "");
+    const x = m[c] || (m[c] = { ton_kho: 0, hang_vet_thau: 0 });
+    x.ton_kho += num(r.ton_kho);
+    x.hang_vet_thau += num(r.hang_vet_thau);
+  }
+  return map;
+}
+
 // Ngày cycledate mới nhất trong bảng stock (dùng cho chú thích "tồn kho cập nhật đến…").
 async function latestCycledate(supa: SupabaseClient): Promise<string> {
   const { data } = await supa
@@ -1151,15 +1174,18 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // Phase 2: stock + cached indicators + items — parallel
     const itemMap: Record<string, any> = {};
     let stockMap: any = {}, indicatorMap: any = {}, stockAsof = "";
+    let cshMap: Record<string, Record<string, { ton_kho: number; hang_vet_thau: number }>> | null = null;
 
     if (effMien === "MB" || effMien === "MN") {
-      const [sm, ind, sa, its] = await Promise.all([
+      const needCsh = CSH_MIENS.has(effMien) && products.some((p: any) => usesCsh(effMien, p.nhom_san_pham));
+      const [sm, ind, sa, its, cm] = await Promise.all([
         stockMapFor(supa, effMien, ngayMo),
         loadCachedIndicators(supa, effMien),
         resolveStockCycledate(supa, effMien, ngayMo),
         session ? supa.schema("app_order").from("order_items").select("*").eq("session_id", session.session_id).then(r => r.data || []) : Promise.resolve([]),
+        needCsh ? cshStockMapFor(supa, effMien, ngayMo) : Promise.resolve(null),
       ]);
-      stockMap = sm; indicatorMap = ind; stockAsof = sa;
+      stockMap = sm; indicatorMap = ind; stockAsof = sa; cshMap = cm;
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
     } else if (effMien === "ALL") {
       const [sm, ind, sa, its] = await Promise.all([
@@ -1176,26 +1202,47 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
     // 5a. Gợi ý tính ở mức SẢN PHẨM (công thức hệ số k), sau đó phân bổ cho từng mã bravo theo %SD.
     //     Gom theo san_pham: Σ tb_th, Σ tong_ton; tb_kh là số của sản phẩm (chung).
-    const spGy: Record<string, { th: number; ton: number; kh: number; safety: number; sothang: number; grp: string }> = {};
-    for (const p of products) {
-      const spk = normKey(p.san_pham);
-      if (!spk) continue;
-      const ind = indicatorMap[maKey(p.ma_bravo)] || {};
+    //     tongTonOf(p) = tổng tồn dùng để trừ (mặc định: tổng tồn của mã; filter chủ sở hữu: tồn của CSH đó).
+    const spGoiYFor = (list: any[], tongTonOf: (p: any) => number) => {
+      const spGy: Record<string, { th: number; ton: number; kh: number; safety: number; sothang: number; grp: string }> = {};
+      for (const p of list) {
+        const spk = normKey(p.san_pham);
+        if (!spk) continue;
+        const ind = indicatorMap[maKey(p.ma_bravo)] || {};
+        const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
+        const a = spGy[spk] || (spGy[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
+        a.th += num(ind.tb_th);
+        a.ton += tongTonOf(p);
+        a.safety += num(p.safety_stock);
+        a.kh = num(ind.tb_kh_3_thang);
+        a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
+      }
+      const out: Record<string, number> = {};
+      for (const spk of Object.keys(spGy)) {
+        const a = spGy[spk];
+        out[spk] = buildGoiY(cfgForGroup(cfg, a.grp), a.th, a.kh, a.safety, a.sothang, a.ton);
+      }
+      return out;
+    };
+    const spGoiY = spGoiYFor(products, (p) => num((stockMap[maKey(p.ma_bravo)] || {}).tong_ton));
+
+    // 5b. Filter "Chủ sở hữu ĐKLH": với mỗi CSH, Tồn kho (DA) / Vét thầu (GU) chỉ cộng lô của CSH đó;
+    //     Hàng ký gửi / đi đường không có CSH -> giữ nguyên. Gợi ý tính lại ở mức sản phẩm với
+    //     tổng tồn theo CSH (nhu cầu giữ nguyên). Mã không có lô nào -> thuộc "" (Không có thông tin).
+    const cshProducts = cshMap ? products.filter((p: any) => usesCsh(effMien, p.nhom_san_pham)) : [];
+    const cshBuckets = (p: any) => {
+      const m = (cshMap && cshMap[maKey(p.ma_bravo)]) || {};
+      return Object.keys(m).length ? m : { "": { ton_kho: 0, hang_vet_thau: 0 } };
+    };
+    const cshTongTon = (p: any, c: string) => {
       const s = stockMap[maKey(p.ma_bravo)] || {};
-      const gcfg = cfgForGroup(cfg, p.nhom_san_pham);
-      const a = spGy[spk] || (spGy[spk] = { th: 0, ton: 0, kh: 0, safety: 0, sothang: 0, grp: p.nhom_san_pham });
-      a.th += num(ind.tb_th);
-      a.ton += num(s.tong_ton);
-      a.safety += num(p.safety_stock);
-      a.kh = num(ind.tb_kh_3_thang);
-      a.sothang = Math.max(a.sothang, Number(p.so_thang_dat || gcfg.so_thang_dat_default));
-    }
-    const spGoiY: Record<string, number> = {};
-    for (const spk of Object.keys(spGy)) {
-      const a = spGy[spk];
-      const gcfg = cfgForGroup(cfg, a.grp);
-      spGoiY[spk] = buildGoiY(gcfg, a.th, a.kh, a.safety, a.sothang, a.ton);
-    }
+      const x = (cshMap && cshMap[maKey(p.ma_bravo)] || {})[c] || { ton_kho: 0, hang_vet_thau: 0 };
+      return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
+    };
+    const cshKeys = new Set<string>();
+    cshProducts.forEach((p: any) => Object.keys(cshBuckets(p)).forEach((c) => cshKeys.add(c)));
+    const spGoiYByCsh: Record<string, Record<string, number>> = {};
+    for (const c of cshKeys) spGoiYByCsh[c] = spGoiYFor(cshProducts, (p) => cshTongTon(p, c));
 
     const rows = products.map((p) => {
       const s = stockMap[maKey(p.ma_bravo)] || {};
@@ -1209,7 +1256,18 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       const tong_ton = num(s.tong_ton);
       const ty_le_sd_pct = num(ind.ty_le_sd_pct);
       const goi_y_dat = Math.max(0, Math.round((spGoiY[normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100));
+      let csh: Record<string, any> | null = null;
+      if (cshMap && usesCsh(effMien, p.nhom_san_pham)) {
+        csh = {};
+        for (const [c, x] of Object.entries(cshBuckets(p))) {
+          csh[c] = {
+            ton_kho: x.ton_kho, hang_vet_thau: x.hang_vet_thau, tong_ton: cshTongTon(p, c),
+            goi_y_dat: Math.max(0, Math.round((spGoiYByCsh[c][normKey(p.san_pham)] || 0) * ty_le_sd_pct / 100)),
+          };
+        }
+      }
       return {
+        csh,
         ma_bravo: p.ma_bravo, code_ncc: p.code_ncc, ten_hang: p.ten_hang_hoa,
         nhom_hang: p.nhom_hang, phan_loai: p.phan_loai, nhom_san_pham: p.nhom_san_pham, bu: p.bu || "", bu_code: p.bu_code || "",
         muc_do_sd: p.muc_do_sd,

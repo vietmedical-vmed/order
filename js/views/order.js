@@ -216,6 +216,7 @@ function bindFilterBarOnce() {
   const btnExport = $('#btnExport');
   if (btnExport) btnExport.onclick = () => exportToExcel();
   $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); updateOrderStats(); });
+  $('#fCsh').addEventListener('change', e => { state.filters.csh = e.target.value; renderOrderBody(); updateOrderStats(); });
   initPLFilter();
   $('#fOnlyQty').addEventListener('click', () => {
     state.filters.onlyWithQty = !state.filters.onlyWithQty;
@@ -467,6 +468,25 @@ function populateGrpAndPLOptions() {
   const grps = [...new Set(state.rows.map(r => r.nhom_hang).filter(Boolean))].sort(viCmp);
   $('#fGrp').innerHTML = '<option value="">Tất cả nhóm hàng</option>' + grps.map(g => `<option ${state.filters.grp === g ? 'selected' : ''}>${esc(g)}</option>`).join('');
   renderPLOptions();
+  populateCshOptions();
+}
+
+// Filter "Chủ sở hữu ĐKLH": chỉ hiện khi server trả r.csh (Miền Nam, nhóm được bật).
+// Giá trị: '' = tất cả, CSH_NONE = lô/mã chưa có thông tin chủ sở hữu (key '' trong r.csh).
+const CSH_NONE = '__none__';
+const cshKey = v => (v === CSH_NONE ? '' : v);
+
+function populateCshOptions() {
+  const sel = $('#fCsh');
+  if (!sel) return;
+  const keys = new Set();
+  state.rows.forEach(r => { if (r.csh) Object.keys(r.csh).forEach(k => keys.add(k)); });
+  const owners = [...keys].filter(Boolean).sort(viCmp);
+  const opts = owners.concat(keys.has('') ? [CSH_NONE] : []);
+  if (state.filters.csh && !opts.includes(state.filters.csh)) state.filters.csh = '';
+  sel.classList.toggle('hidden', !keys.size);
+  sel.innerHTML = '<option value="">Tất cả chủ sở hữu</option>'
+    + opts.map(v => `<option value="${esc(v)}" ${state.filters.csh === v ? 'selected' : ''}>${v === CSH_NONE ? 'Không có thông tin' : esc(v)}</option>`).join('');
 }
 
 // Danh sách sản phẩm (phân loại) trong menu — link theo nhóm hàng đang chọn, sắp ABC, chọn nhiều.
@@ -559,7 +579,14 @@ function syncOnlyQtyButton() {
 
 function filteredOrderRows() {
   const f = state.filters;
-  return state.rows.filter(r => {
+  const csh = f.csh ? cshKey(f.csh) : null;
+  const rows = csh == null ? state.rows
+    // Chọn 1 chủ sở hữu: chỉ giữ mã có lô của CSH đó, thay Tồn kho / Vét thầu / Tổng tồn / Gợi ý
+    // bằng số của riêng CSH (bản sao — state.rows giữ số tổng cho "Tất cả").
+    : state.rows.filter(r => r.csh && r.csh[csh]).map(r => ({ ...r, ...r.csh[csh] }));
+  const sel = $('#fCsh');
+  if (sel) sel.classList.toggle('ctl-active', !!f.csh);
+  return rows.filter(r => {
     if (f.grp && r.nhom_hang !== f.grp) return false;
     if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
     // "Chỉ mã có số lượng": chỉ khi đang xem 1 đợt, lọc theo giá trị ĐÃ LƯU (không tính điền

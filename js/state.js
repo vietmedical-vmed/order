@@ -11,7 +11,7 @@ export const state = {
   currentAction: null,
   editFields: [],   // [{field, noteField}] các cột số lượng được sửa trực tiếp trên bảng
   changes: new Map(),
-  filters: { grp: '', pl: [], search: '', onlyWithQty: false },
+  filters: { grp: '', pl: [], csh: '', search: '', onlyWithQty: false },
   sort: { key: null, dir: 1 },   // 3.7: sắp xếp cột trong từng phân loại (dir 1 tăng, -1 giảm)
 };
 
