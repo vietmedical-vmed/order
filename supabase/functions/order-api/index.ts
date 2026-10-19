@@ -576,14 +576,10 @@ function cshTongTonOf(stockMap: any, cshMap: CshMap | null, ma: string, c: strin
   return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
 }
 
-// Đợt gắn chủ sở hữu (order_sessions.csh_dklh): giá trị lưu là tên CSH hoặc CSH_NONE_LABEL.
-const CSH_NONE_LABEL = "Không có thông tin";
-const cshKeyOf = (label: string) => (label === CSH_NONE_LABEL ? "" : label);
-
-// Áp CSH của đợt lên các mã thuộc nhóm bật CSH: bỏ mã không có lô của CSH đó và thay
+// Áp CSH của đợt (order_sessions.csh_dklh = tên CSH) lên các mã thuộc nhóm bật CSH: bỏ mã
+// không có lô của CSH đó — gồm cả mã không có tồn và mã chỉ có lô chưa điền CSH — và thay
 // Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Trả stockMap mới + hàm giữ/bỏ mã.
-function applySessionCsh(products: any[], stockMap: any, cshMap: CshMap, mien: string, label: string) {
-  const c = cshKeyOf(label);
+function applySessionCsh(products: any[], stockMap: any, cshMap: CshMap, mien: string, c: string) {
   const out: any = { ...stockMap };
   const drop = new Set<string>();
   for (const p of products) {
@@ -604,7 +600,8 @@ async function sessionNeedsCsh(supa: SupabaseClient, mien: string, grp: string, 
   return groups.some((g) => CSH_GROUPS.has(g));
 }
 
-// Danh sách CSH chọn được khi tạo đợt: CSH có lô ở các mã thuộc nhóm bật CSH + "Không có thông tin".
+// Danh sách CSH chọn được khi tạo đợt: CSH có lô ở các mã thuộc nhóm bật CSH
+// (không có lựa chọn "Không có thông tin" — lô thiếu CSH phải được kho điền).
 async function cshOwnerOptions(supa: SupabaseClient, mien: string) {
   if (!CSH_MIENS.has(mien)) return [];
   const [prods, cshMap] = await Promise.all([fetchProducts(supa), cshStockMapFor(supa, mien)]);
@@ -613,7 +610,7 @@ async function cshOwnerOptions(supa: SupabaseClient, mien: string) {
     if (!usesCsh(mien, p.nhom_san_pham)) continue;
     Object.keys(cshBucketsOf(cshMap, p.ma_bravo)).forEach((c) => { if (c) owners.add(c); });
   }
-  return [...owners].sort((a, b) => a.localeCompare(b, "vi")).concat([CSH_NONE_LABEL]);
+  return [...owners].sort((a, b) => a.localeCompare(b, "vi"));
 }
 
 // Ngày cycledate mới nhất trong bảng stock (dùng cho chú thích "tồn kho cập nhật đến…").
@@ -863,7 +860,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // CSH chọn được khi tạo đợt + các nhóm/miền đang bật (để modal biết khi nào bắt chọn).
   async listCshOptions(supa, _u, [mien]) {
     return {
-      miens: [...CSH_MIENS], groups: [...CSH_GROUPS], none_label: CSH_NONE_LABEL,
+      miens: [...CSH_MIENS], groups: [...CSH_GROUPS],
       owners: await cshOwnerOptions(supa, mien || "MN"),
     };
   },
