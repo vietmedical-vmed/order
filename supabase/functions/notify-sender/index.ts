@@ -20,11 +20,14 @@ function noDiacritics(s: string): string {
 }
 
 function smtpClient() {
+  // 465 = TLS ngay từ đầu; cổng khác = kết nối thường rồi denomailer tự STARTTLS.
+  // Lưu ý: Supabase Edge chặn outbound 25 và 587 -> chỉ dùng được 465 (hoặc 2525).
+  const port = Number(Deno.env.get("SMTP_PORT") || "465");
   return new SMTPClient({
     connection: {
       hostname: Deno.env.get("SMTP_HOST") || "",
-      port: Number(Deno.env.get("SMTP_PORT") || "465"),
-      tls: true,
+      port,
+      tls: port === 465,
       auth: {
         username: Deno.env.get("SMTP_USER") || "",
         password: Deno.env.get("SMTP_PASS") || "",
@@ -43,7 +46,8 @@ async function sendEmail(to: string[], subject: string, body: string) {
       content: noDiacritics(body),
     });
   } finally {
-    await client.close();
+    // Kết nối hỏng thì close() cũng ném lỗi -> nuốt để giữ lỗi gốc của send().
+    try { await client.close(); } catch { /* ignore */ }
   }
 }
 
