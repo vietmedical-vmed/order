@@ -1468,6 +1468,11 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   },
   async managerApprove(supa, u, [sessionId, items]) {
     if (!canActAs(u, "MANAGER")) throw new Error("Không có quyền phê duyệt (Manager)");
+    const { data: s } = await supa.schema("app_order").from("order_sessions").select("trang_thai").eq("session_id", sessionId).maybeSingle();
+    if (!s) throw new Error("Không tìm thấy đợt");
+    if (s.trang_thai === "APPROVED") {
+      return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat_hang", "ghi_chu_dat_hang"], "APPROVED", null, "MANAGER_EDIT_APPROVED");
+    }
     return await saveAndAdvance(supa, u, sessionId, items, ["sl_dat_hang", "ghi_chu_dat_hang"], "PM_APPROVED", "APPROVED", "MANAGER_APPROVE");
   },
 
@@ -1832,6 +1837,16 @@ function editContextForSession(u: any, session: any, skipPm = false) {
       action: { code: "MANAGER_APPROVE_CTTM", label: "Phê duyệt",
         editField: "sl_duyet", editNoteField: "ghi_chu_duyet", endpoint: "managerApproveCttm" },
       editFields: [{ field: "sl_duyet", noteField: "ghi_chu_duyet" }],
+    };
+  }
+
+  // Manager: sửa SL đặt hàng ở đợt đã duyệt (APPROVED) — chỉ cập nhật, không đổi trạng thái.
+  if (u.role === "MANAGER" && st === "APPROVED") {
+    return {
+      action: { code: "MANAGER_EDIT_APPROVED", label: "Cập nhật SL đặt hàng", changesOnly: true, prefill: false,
+        hint: "Sửa SL đặt hàng rồi bấm Cập nhật (đợt vẫn giữ trạng thái Đã duyệt)",
+        editField: "sl_dat_hang", editNoteField: "ghi_chu_dat_hang", endpoint: "managerApprove" },
+      editFields: [{ field: "sl_dat_hang", noteField: "ghi_chu_dat_hang" }],
     };
   }
 
