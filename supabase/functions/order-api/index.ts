@@ -576,23 +576,20 @@ function cshTongTonOf(stockMap: any, cshMap: CshMap | null, ma: string, c: strin
   return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
 }
 
-// Áp CSH của đợt (order_sessions.csh_dklh = tên CSH) lên các mã thuộc nhóm bật CSH và thay
-// Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Mã chưa có lô của CSH này nhưng có lô của
-// CSH khác vẫn giữ (tồn kho / vét thầu = 0) để đặt hàng được; bỏ mã không có tồn và mã chỉ
-// có lô chưa điền CSH. Trả stockMap mới + hàm giữ/bỏ mã.
+// Áp CSH của đợt (order_sessions.csh_dklh = tên CSH) lên các mã thuộc nhóm bật CSH: thay
+// Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Giữ mọi mã của nhóm để đặt hàng được —
+// mã không có lô của CSH này (lô CSH khác, lô chưa điền CSH, hoặc không có lô) -> tồn kho /
+// vét thầu = 0. Trả stockMap mới.
 function applySessionCsh(products: any[], stockMap: any, cshMap: CshMap, mien: string, c: string) {
   const out: any = { ...stockMap };
-  const drop = new Set<string>();
   for (const p of products) {
     if (!usesCsh(mien, p.nhom_san_pham)) continue;
     const k = maKey(p.ma_bravo);
-    const buckets = cshBucketsOf(cshMap, p.ma_bravo);
-    const x = buckets[c] || (Object.keys(buckets).some((o) => o) ? { ton_kho: 0, hang_vet_thau: 0 } : null);
-    if (!x) { drop.add(k); continue; }
+    const x = (cshMap[k] || {})[c] || { ton_kho: 0, hang_vet_thau: 0 };
     out[k] = { ...(stockMap[k] || {}), ton_kho: x.ton_kho, hang_vet_thau: x.hang_vet_thau,
       tong_ton: cshTongTonOf(stockMap, cshMap, p.ma_bravo, c) };
   }
-  return { stockMap: out, keep: (p: any) => !drop.has(maKey(p.ma_bravo)) };
+  return out;
 }
 
 // Đợt có cần chọn CSH không: miền bật CSH và phạm vi nhóm (trống = mọi nhóm của BU) có nhóm bật CSH.
@@ -1247,11 +1244,9 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         needCsh ? cshStockMapFor(supa, effMien, ngayMo) : Promise.resolve(null),
       ]);
       stockMap = sm; indicatorMap = ind; stockAsof = sa; cshMap = cm;
-      // Đợt gắn CSH: khoá màn hình vào CSH đó (bỏ mã ngoài CSH, tồn = tồn của CSH).
+      // Đợt gắn CSH: khoá màn hình vào CSH đó (tồn = tồn của CSH, mã chưa có lô của CSH -> 0).
       if (cm && session && session.csh_dklh) {
-        const v = applySessionCsh(products, stockMap, cm, effMien, session.csh_dklh);
-        stockMap = v.stockMap;
-        products = products.filter(v.keep);
+        stockMap = applySessionCsh(products, stockMap, cm, effMien, session.csh_dklh);
         cshMap = null;   // không trả r.csh -> ẩn filter CSH trên màn (đợt đã cố định CSH)
       }
       (its as any[]).forEach((r) => { itemMap[maKey(r.ma_bravo)] = r; });
@@ -1916,7 +1911,7 @@ async function buildExportData(supa: SupabaseClient, sessionId: string) {
   let stockMap = stockMap0;
   if (sessCsh && CSH_MIENS.has(mienExp)) {
     const cm = await cshStockMapFor(supa, mienExp, ngayMoExp);
-    stockMap = applySessionCsh(prods, stockMap0, cm, mienExp, sessCsh).stockMap;
+    stockMap = applySessionCsh(prods, stockMap0, cm, mienExp, sessCsh);
   }
 
   const spGyE: Record<string, any> = {};
