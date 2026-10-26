@@ -576,16 +576,18 @@ function cshTongTonOf(stockMap: any, cshMap: CshMap | null, ma: string, c: strin
   return x.ton_kho + num(s.hang_ktv_bv) + num(s.hang_di_duong) - x.hang_vet_thau;
 }
 
-// Áp CSH của đợt (order_sessions.csh_dklh = tên CSH) lên các mã thuộc nhóm bật CSH: bỏ mã
-// không có lô của CSH đó — gồm cả mã không có tồn và mã chỉ có lô chưa điền CSH — và thay
-// Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Trả stockMap mới + hàm giữ/bỏ mã.
+// Áp CSH của đợt (order_sessions.csh_dklh = tên CSH) lên các mã thuộc nhóm bật CSH và thay
+// Tồn kho / Vét thầu / Tổng tồn bằng số của CSH. Mã chưa có lô của CSH này nhưng có lô của
+// CSH khác vẫn giữ (tồn kho / vét thầu = 0) để đặt hàng được; bỏ mã không có tồn và mã chỉ
+// có lô chưa điền CSH. Trả stockMap mới + hàm giữ/bỏ mã.
 function applySessionCsh(products: any[], stockMap: any, cshMap: CshMap, mien: string, c: string) {
   const out: any = { ...stockMap };
   const drop = new Set<string>();
   for (const p of products) {
     if (!usesCsh(mien, p.nhom_san_pham)) continue;
     const k = maKey(p.ma_bravo);
-    const x = cshBucketsOf(cshMap, p.ma_bravo)[c];
+    const buckets = cshBucketsOf(cshMap, p.ma_bravo);
+    const x = buckets[c] || (Object.keys(buckets).some((o) => o) ? { ton_kho: 0, hang_vet_thau: 0 } : null);
     if (!x) { drop.add(k); continue; }
     out[k] = { ...(stockMap[k] || {}), ton_kho: x.ton_kho, hang_vet_thau: x.hang_vet_thau,
       tong_ton: cshTongTonOf(stockMap, cshMap, p.ma_bravo, c) };
