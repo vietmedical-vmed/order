@@ -1,6 +1,6 @@
 // ============ MÀN CẤU HÌNH CÔNG THỨC (chỉ Admin) ============
 import { $, $$, esc, fmtDate } from '../utils.js';
-import { rpc } from '../api.js';
+import { rpc, rpcOpts } from '../api.js';
 import { state } from '../state.js';
 import { toast } from '../toast.js';
 
@@ -24,6 +24,8 @@ export async function initConfigView() {
   renderConfigLog();
   renderUserEmails();
   $('#emailSave').addEventListener('click', saveUserEmails);
+  renderIndicatorsInfo();
+  $('#indRefresh').addEventListener('click', refreshIndicators);
 
   ['cfgK1', 'cfgK2'].forEach(id => {
     $('#' + id).addEventListener('input', updateCfgSumNote);
@@ -64,6 +66,41 @@ export async function initConfigView() {
     updateCfgSumNote();
     updateCfgGroupPlaceholders();
   });
+}
+
+// Cache chỉ số sử dụng (app_order.usage_indicators): hiện lần tính gần nhất, Admin bấm để tính lại.
+const indInfoText = (r) => r.updated_at
+  ? `Lần tính gần nhất: ${fmtDate(r.updated_at)} — ${r.rows.toLocaleString('vi-VN')} dòng`
+  : 'Chưa tính lần nào';
+
+async function renderIndicatorsInfo() {
+  const msg = $('#indMsg');
+  if (!msg) return;
+  try {
+    msg.textContent = indInfoText(await rpc('indicatorsInfo'));
+    msg.className = 'text-[12px] text-slate-600';
+  } catch (e) {
+    msg.textContent = 'Lỗi tải thông tin: ' + e.message;
+    msg.className = 'text-[12px] text-danger-600';
+  }
+}
+
+async function refreshIndicators() {
+  const btn = $('#indRefresh'), msg = $('#indMsg');
+  btn.disabled = true;
+  btn.textContent = 'Đang tính…';
+  try {
+    const r = await rpcOpts({ timeoutMs: 120000 }, 'refreshIndicators');   // tính lại toàn bộ mã: lâu hơn timeout mặc định 15s
+    msg.textContent = '✓ ' + indInfoText(r);
+    msg.className = 'text-[12px] text-primary-600';
+    toast('Đã tính lại chỉ số sử dụng. Mở lại tab Chi tiết để thấy số mới.');
+  } catch (e) {
+    msg.textContent = 'Lỗi: ' + e.message;
+    msg.className = 'text-[12px] text-danger-600';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Tính lại chỉ số';
+  }
 }
 
 // Quản lý email nhận thông báo — đọc/sửa shared.users.email (Admin).

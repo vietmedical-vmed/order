@@ -7,7 +7,7 @@ const ACTION_LABELS = {
   LOGIN: 'Đăng nhập', LOGOUT: 'Đăng xuất', CHANGE_PASSWORD: 'Đổi mật khẩu',
   PLACE_ORDER: 'Đặt hàng', PLACE_ORDER_BUSY: 'Bị khoá',
   APPROVE: 'Duyệt SKU', CLOSE_SESSION: 'Chốt đợt', CREATE_SESSION: 'Tạo đợt',
-  CONFIG_CATALOG: 'Cấu hình danh mục', SAVE_CONFIG: 'Cấu hình công thức',
+  CONFIG_CATALOG: 'Cấu hình danh mục', SAVE_CONFIG: 'Cấu hình công thức', REFRESH_INDICATORS: 'Tính lại chỉ số',
   AM_CONFIRM: 'AM xác nhận', PM_CONFIRM: 'PM xác nhận', PM_APPROVE: 'PM phê duyệt',
   MANAGER_APPROVE: 'Manager phê duyệt', REJECT: 'Từ chối', EXPORT: 'Xuất Excel', PURCHASE: 'Đặt hàng (DM/PO)',
 };

@@ -691,6 +691,15 @@ async function usageFyMapFor(supa: SupabaseClient, mien: string) {
   return buildOne(data || []);
 }
 
+// ---------- cache: thời điểm refresh gần nhất + số dòng ----------
+async function indicatorsInfoOf(supa: SupabaseClient) {
+  const { data, error, count } = await supa.schema("app_order").from("usage_indicators")
+    .select("updated_at", { count: "exact" })
+    .order("updated_at", { ascending: false }).limit(1);
+  if (error) throw new Error("Đọc cache: " + error.message);
+  return { updated_at: data?.[0]?.updated_at || null, rows: count || 0 };
+}
+
 // ---------- cache: đọc bảng usage_indicators (pre-computed) ----------
 async function loadCachedIndicators(supa: SupabaseClient, mien: string) {
   const PAGE = 1000;
@@ -904,8 +913,16 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 
   async refreshIndicators(supa, u) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được refresh cache chỉ số");
-    await supa.rpc("refresh_usage_indicators");
-    return { ok: true };
+    const { error } = await supa.rpc("refresh_usage_indicators");
+    if (error) throw new Error("Refresh chỉ số: " + error.message);
+    await audit(supa, u.username, "REFRESH_INDICATORS");
+    return await indicatorsInfoOf(supa);
+  },
+
+  // Lần refresh cache usage_indicators gần nhất + số dòng (hiển thị ở tab Cấu hình).
+  async indicatorsInfo(supa, u) {
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem thông tin cache chỉ số");
+    return await indicatorsInfoOf(supa);
   },
 
   async getConfig(supa) {
