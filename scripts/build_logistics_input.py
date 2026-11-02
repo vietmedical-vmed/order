@@ -2,7 +2,7 @@
 """
 build_logistics_input.py — Sinh "Hàng đi đường" từ các file theo dõi mua hàng
 hằng tuần (Mua hàng_<NCC>_dd.mm.yyyy.xlsx) thay cho việc copy tay vào template,
-và (tuỳ chọn) ghi thẳng cột hang_di_duong của app_order.logistics_input.
+và (tuỳ chọn) ghi thành snapshot của app_order.logistics_input.
 
 File đầu vào GIỮ NGUYÊN như bộ phận mua hàng gửi. Script đọc theo TIÊU ĐỀ CỘT
 (không theo tên sheet / vị trí cột), bỏ sheet ẩn, chỉ lấy các file có cùng ngày
@@ -15,16 +15,22 @@ Quy tắc "đang đi đường":
     Arrived vẫn tính đi đường (đã về nhưng chưa nhập kho).
   - Miền: HN/KHOHN/DN/KHODN -> MB; HCM/SG/KHOSG/KHOHCM -> MN.
 
-Ký gửi chưa có nguồn: sheet "ký gửi" của file output copy từ template gần nhất;
-khi --upload thì hang_ktv_bv trong DB giữ nguyên, chỉ thay hang_di_duong.
+Ký gửi chưa có nguồn: sheet "ký gửi" của file output copy từ template gần nhất.
+
+--upload ghi ĐÚNG nội dung file output (đi đường + ký gửi) thành snapshot
+snapshot_date = ngày dữ liệu (sql/23_logistics_snapshot_date.sql). Snapshot cũ
+giữ nguyên: mỗi đợt đặt hàng đọc snapshot mới nhất <= ngày mở đợt. Upload lại
+cùng ngày thì thay snapshot ngày đó. --load-template nạp 1 file template có sẵn
+(vd sau khi sửa tay) thành snapshot theo ngày trong tên file.
 
 Chạy:
   pip install pandas openpyxl
   python scripts/build_logistics_input.py --dir "D:/.../Hàng đi đường"
   python scripts/build_logistics_input.py --dir "..." --date 2026-11-02 --upload
+  python scripts/build_logistics_input.py --load-template ".../Hàng đi đường + ký gửi_2026-10-26.xlsx"
 
---upload ghi DB qua Supabase CLI đã link (`supabase db query --linked`), chạy
-trong 1 transaction: lỗi giữa chừng thì không đổi gì.
+Ghi DB qua Supabase CLI đã link (`supabase db query --linked`), chạy trong 1
+transaction: lỗi giữa chừng thì không đổi gì.
 """
 import argparse, glob, json, math, os, re, subprocess, sys, tempfile
 from collections import defaultdict
@@ -42,6 +48,7 @@ MIEN_OF_KHO = {
     "HCM": "MN", "SG": "MN", "KHOSG": "MN", "KHOHCM": "MN",
 }
 MIEN_LABEL = {"MB": "Miền Bắc", "MN": "Miền Nam"}
+MIEN_ALIAS = {"MIỀN BẮC": "MB", "MB": "MB", "MIỀN NAM": "MN", "MN": "MN"}
 KHO_LABEL = {"MB": "HN", "MN": "HCM"}
 BALANCE_NCC = ("ulrich", "uoc", "biopsybell")   # CTCH1: chỉ lấy các NCC này
 
@@ -305,28 +312,47 @@ def write_excel(out_path, run_date, lines, agg, warnings, tpl_dir):
 # ------------------------------------------------------------------ upload ---
 UPLOAD_SQL = """
 begin;
-create temp table _dd (ma_bravo text, mien text, sl numeric) on commit drop;
-insert into _dd select x.ma_bravo, x.mien, x.sl
-  from jsonb_to_recordset($json${payload}$json$::jsonb) as x(ma_bravo text, mien text, sl numeric);
--- mã không còn đi đường -> về 0 (giữ hang_ktv_bv)
-update app_order.logistics_input l set hang_di_duong = 0, updated_at = now()
- where l.hang_di_duong <> 0
-   and not exists (select 1 from _dd d where d.ma_bravo = l.ma_bravo and d.mien = l.mien);
-insert into app_order.logistics_input (ma_bravo, mien, hang_di_duong)
-select ma_bravo, mien, sl from _dd
-on conflict (ma_bravo, mien) do update
-  set hang_di_duong = excluded.hang_di_duong, updated_at = now();
-delete from app_order.logistics_input where hang_di_duong = 0 and hang_ktv_bv = 0;
+create temp table _s on commit drop as
+  select x.ma_bravo, x.mien, x.dd, x.kg
+    from jsonb_to_recordset($json${payload}$json$::jsonb) as x(ma_bravo text, mien text, dd numeric, kg numeric);
+-- snapshot = đúng nội dung file; upload lại cùng ngày thì thay snapshot đó
+delete from app_order.logistics_input where snapshot_date = date '{snap}';
+insert into app_order.logistics_input (snapshot_date, ma_bravo, mien, hang_di_duong, hang_ktv_bv)
+select date '{snap}', ma_bravo, mien, dd, kg from _s;
 -- trạng thái sau khi ghi (dry-run: trước khi rollback)
-select mien, count(*) as so_ma, sum(hang_di_duong) as di_duong, sum(hang_ktv_bv) as ky_gui
-  from app_order.logistics_input group by mien order by mien;
+select snapshot_date::text as snapshot, mien, count(*) as so_ma,
+       sum(hang_di_duong) as di_duong, sum(hang_ktv_bv) as ky_gui
+  from app_order.logistics_input
+ where snapshot_date >= (select coalesce(max(snapshot_date), date '{snap}') from app_order.logistics_input
+                          where snapshot_date < date '{snap}')
+ group by 1, 2 order by 1, 2;
 {finish};
 """
 
-def upload(agg, dry_run=False):
-    payload = json.dumps([{"ma_bravo": ma, "mien": m, "sl": q} for (m, ma), q in agg.items()],
-                         ensure_ascii=False)
-    sql = UPLOAD_SQL.format(payload=payload, finish="rollback" if dry_run else "commit")
+def snapshot_rows(xlsx_path):
+    """Đọc file 'Hàng đi đường + ký gửi' (output hoặc template tay) -> {(mien, ma): [dd, kg]}."""
+    sheets = pd.read_excel(xlsx_path, sheet_name=None)
+    rows = defaultdict(lambda: [0.0, 0.0])
+    for sheet, qcol, k in (("đi đường", "SL DM", 0), ("ký gửi", "SL ký gửi", 1)):
+        df = sheets.get(sheet)
+        if df is None or df.empty:
+            continue
+        for _, r in df.iterrows():
+            mien = MIEN_ALIAS.get(txt(r.get("Miền")).upper())
+            ma, q = txt(r.get("MÃ BRAVO")), num(r.get(qcol))
+            if not mien or not ma or not q:
+                if ma or q:
+                    print(f"  ! {sheet}: bỏ dòng {ma!r} miền {r.get('Miền')!r} SL {r.get(qcol)!r}")
+                continue
+            rows[(mien, ma)][k] += q
+    return rows
+
+def upload(xlsx_path, snap, dry_run=False):
+    rows = snapshot_rows(xlsx_path)
+    payload = json.dumps([{"ma_bravo": ma, "mien": m, "dd": v[0], "kg": v[1]}
+                          for (m, ma), v in rows.items()], ensure_ascii=False)
+    sql = UPLOAD_SQL.format(payload=payload, snap=snap.isoformat(),
+                            finish="rollback" if dry_run else "commit")
     with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False, encoding="utf-8") as f:
         f.write(sql)
         tmp = f.name
@@ -344,12 +370,26 @@ def upload(agg, dry_run=False):
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dir", required=True, help="thư mục chứa các file 'Mua hàng_<NCC>_dd.mm.yyyy.xlsx'")
+    ap.add_argument("--dir", help="thư mục chứa các file 'Mua hàng_<NCC>_dd.mm.yyyy.xlsx'")
     ap.add_argument("--date", help="ngày trong tên file, YYYY-MM-DD (mặc định: mới nhất)")
     ap.add_argument("--out-dir", help="nơi ghi file output (mặc định: <dir>/Đi đường + Ký gửi)")
-    ap.add_argument("--upload", action="store_true", help="ghi hang_di_duong vào app_order.logistics_input")
-    ap.add_argument("--dry-run", action="store_true", help="với --upload: chạy SQL rồi rollback")
+    ap.add_argument("--upload", action="store_true",
+                    help="ghi file output thành snapshot <ngày> trong app_order.logistics_input")
+    ap.add_argument("--load-template", metavar="XLSX",
+                    help="chỉ upload 1 file 'Hàng đi đường + ký gửi_YYYY-MM-DD.xlsx' có sẵn (ngày lấy từ tên)")
+    ap.add_argument("--dry-run", action="store_true", help="với --upload/--load-template: chạy SQL rồi rollback")
     args = ap.parse_args()
+    tag = " (dry-run, rollback)" if args.dry_run else ""
+
+    if args.load_template:
+        m = TPL_RE.search(os.path.basename(args.load_template))
+        if not m:
+            raise SystemExit("Tên file phải dạng 'Hàng đi đường + ký gửi_YYYY-MM-DD.xlsx'")
+        print(f"Ghi snapshot {m[1]} từ {os.path.basename(args.load_template)}{tag}...")
+        upload(args.load_template, date.fromisoformat(m[1]), dry_run=args.dry_run)
+        return
+    if not args.dir:
+        ap.error("cần --dir (hoặc --load-template)")
 
     run_date = date.fromisoformat(args.date) if args.date else None
     run_date, lines, agg, warnings = build(args.dir, run_date)
@@ -366,8 +406,8 @@ def main():
     print(f"  Cảnh báo: {len(warnings)} (xem sheet 'cảnh báo')")
 
     if args.upload:
-        print("\nGhi app_order.logistics_input" + (" (dry-run, rollback)" if args.dry_run else "") + "...")
-        upload(agg, dry_run=args.dry_run)
+        print(f"\nGhi snapshot {run_date.isoformat()} vào app_order.logistics_input{tag}...")
+        upload(out_path, run_date, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
