@@ -4,7 +4,8 @@
 --  Trước: 1 dòng / (ma_bravo, mien), mỗi lần upload ghi đè -> mọi đợt (cũ lẫn
 --  mới) đọc chung 1 bộ số, và mã không còn trong file mới bị đọng lại.
 --  Sau:  1 dòng / (snapshot_date, mien, ma_bravo). Mỗi lần upload = 1 snapshot
---  (scripts/build_logistics_input.py). stock_agg chốt snapshot hiệu lực theo
+--  (D:. GIANG\Data\Script\import supabase: build_logistics_input.py +
+--  hang_di_duong_hang_ky_gui_pipeline.py). stock_agg chốt snapshot hiệu lực theo
 --  từng miền giống cycledate của stock: mới nhất có ngày <= ngày mở đợt; đợt
 --  mở trước snapshot đầu tiên dùng snapshot sớm nhất; p_ngaymo null -> mới nhất.
 --
