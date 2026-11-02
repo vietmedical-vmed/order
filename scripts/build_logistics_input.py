@@ -337,14 +337,25 @@ def snapshot_rows(xlsx_path):
         df = sheets.get(sheet)
         if df is None or df.empty:
             continue
+        df.columns = [norm_header(c) for c in df.columns]
+        c_ma = next((c for c in ("MÃ BRAVO", "MÃ VẬT TƯ") if c in df.columns), None)
+        # Template cũ (trước 31.08.2026): "đi đường" là chi tiết dòng PO -> phần
+        # chưa về = -B'LANCE (B'LANCE = SL thực tế - SL DM), dòng B'LANCE >= 0 bỏ.
+        balance = k == 0 and "B'LANCE" in df.columns
+        qc = "B'LANCE" if balance else qcol.upper()
+        n_skip = 0
         for _, r in df.iterrows():
-            mien = MIEN_ALIAS.get(txt(r.get("Miền")).upper())
-            ma, q = txt(r.get("MÃ BRAVO")), num(r.get(qcol))
+            mien = MIEN_ALIAS.get(txt(r.get("MIỀN")).upper())
+            ma, q = txt(r.get(c_ma)) if c_ma else "", num(r.get(qc))
+            if balance and q is not None:
+                q = -q if q < 0 else 0
             if not mien or not ma or not q:
-                if ma or q:
-                    print(f"  ! {sheet}: bỏ dòng {ma!r} miền {r.get('Miền')!r} SL {r.get(qcol)!r}")
+                if ma and q:
+                    print(f"  ! {sheet}: bỏ dòng {ma!r} miền {r.get('MIỀN')!r} SL {q:g}")
+                n_skip += 1
                 continue
             rows[(mien, ma)][k] += q
+        print(f"  {sheet}: cột SL = {qc}{' (đảo dấu)' if balance else ''}, bỏ {n_skip} dòng trống/0")
     return rows
 
 def upload(xlsx_path, snap, dry_run=False):
