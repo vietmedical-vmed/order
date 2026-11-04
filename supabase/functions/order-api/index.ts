@@ -924,7 +924,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // hệ số k1/k2 và cửa sổ leadtime / số tháng đặt áp ở client. Trả kèm cấu hình hiện hành
   // (cả override theo nhóm) để client tính đúng "công thức đang dùng".
   async backtestGoiY(supa, u, [args]) {
-    if (!["ADMIN", "MANAGER", "PM"].includes(u.role)) throw new Error("Không có quyền xem kiểm chứng gợi ý");
+    if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem kiểm chứng gợi ý");
     const asof = String((args && args.asof) || "");
     if (!/^\d{4}-\d{2}$/.test(asof)) throw new Error("Mốc phải có dạng YYYY-MM");
     const [{ data, error }, cfg, grants] = await Promise.all([
