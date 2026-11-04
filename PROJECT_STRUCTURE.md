@@ -34,6 +34,7 @@ order/
 │       ├── manage.js               # Màn Quản lý đợt (duyệt/từ chối/chốt/DM-PO)
 │       ├── catalog.js              # Màn Cấu hình danh mục
 │       ├── config.js               # Màn Cấu hình công thức Gợi ý
+│       ├── backtest.js             # Màn Kiểm chứng gợi ý (backtest công thức với SL thực tế)
 │       └── audit.js                # Màn Nhật ký
 │
 ├── src/tailwind.css                # Nguồn CSS (Tailwind + component tự viết)

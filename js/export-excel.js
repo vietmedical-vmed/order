@@ -5,7 +5,7 @@ import { state } from './state.js';
 import { toast } from './toast.js';
 
 let _xlsxLoading = null;
-function loadSheetJS() {
+export function loadSheetJS() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   if (_xlsxLoading) return _xlsxLoading;
   _xlsxLoading = new Promise((resolve, reject) => {

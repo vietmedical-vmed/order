@@ -243,6 +243,7 @@
       <button class="nav-tab" data-view="approval" data-need="approver">Quản lý đặt hàng</button>
       <button class="nav-tab" data-view="catalog" data-need="catalog">Danh mục đặt hàng</button>
       <button class="nav-tab" data-view="report">Báo cáo đặt hàng</button>
+      <button class="nav-tab" data-view="backtest" data-need="approver">Kiểm chứng gợi ý</button>
       <button class="nav-tab" data-view="config" data-need="admin">Cấu hình hệ thống</button>
       <button class="nav-tab" data-view="audit" data-need="admin">Nhật ký</button>
     </nav>
@@ -436,6 +437,44 @@
 <template id="tpl-audit">
   <div class="px-3 sm:px-6 pt-4">
     <div id="auditHost"></div>
+  </div>
+</template>
+
+<template id="tpl-backtest">
+  <div class="px-3 sm:px-6 pt-4 pb-8">
+    <div class="bg-white rounded-lg border border-slate-200 p-3 mb-3 flex flex-wrap items-end gap-3 text-[12px]">
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Từ mốc T</span>
+        <input id="btFrom" type="month" class="ctl-select"/></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Đến mốc T</span>
+        <input id="btTo" type="month" class="ctl-select"/></label>
+      <button id="btRun" type="button" class="ctl-btn ctl-btn-primary">Chạy</button>
+      <span class="hidden sm:block w-px self-stretch bg-slate-200"></span>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Miền</span>
+        <select id="btMien" class="ctl-select"><option value="ALL">Cả 2 miền (gộp)</option><option value="MB">Miền Bắc</option><option value="MN">Miền Nam</option></select></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">BU</span>
+        <select id="btBU" class="ctl-select"><option value="ALL">Tất cả BU</option></select></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Nhóm SP</span>
+        <select id="btGrp" class="ctl-select" style="max-width:200px"><option value="">Tất cả nhóm SP</option></select></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Hệ số</span>
+        <select id="btMode" class="ctl-select"><option value="cfg">Cấu hình hiện hành (theo nhóm)</option><option value="custom">Tự nhập cho mọi nhóm</option></select></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">k1 (TB TH)</span>
+        <input id="btK1" type="number" step="0.1" min="0" class="ctl-select w-20"/></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">k2 (TB KH)</span>
+        <input id="btK2" type="number" step="0.1" min="0" class="ctl-select w-20"/></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500" title="Số tháng từ lúc đặt đến khi hàng về — cửa sổ so sánh bắt đầu sau mốc T bấy nhiêu tháng">Leadtime</span>
+        <input id="btLt" type="number" min="0" max="12" class="ctl-select w-16"/></label>
+      <label class="flex flex-col gap-1"><span class="text-slate-500">Số tháng đặt</span>
+        <input id="btN" type="number" min="1" max="12" class="ctl-select w-16"/></label>
+      <div class="flex flex-col gap-1">
+        <label class="flex items-center gap-1.5"><input id="btThB" type="checkbox" class="rounded"/>TB TH chia đủ số tháng cửa sổ</label>
+        <label class="flex items-center gap-1.5"><input id="btKhDn" type="checkbox" class="rounded"/>TB KH chỉ dùng KH đầu năm</label>
+        <label class="flex items-center gap-1.5"><input id="btKhGrp" type="checkbox" class="rounded"/>TB KH theo cửa sổ của nhóm</label>
+      </div>
+      <div class="flex-1"></div>
+      <button id="btExport" type="button" class="ctl-btn">Xuất Excel</button>
+    </div>
+    <p class="text-[12px] text-slate-500 mb-3">Tại mỗi mốc T: tính lại TB TH và tồn chỉ bằng dữ liệu có trước T. Dự báo = (k1·TB TH + k2·TB KH) × số tháng đặt, so với SL thực tế các tháng T+leadtime … (lúc hàng về và được dùng). Tính ở mức sản phẩm, giống chỗ tính Gợi ý. "Cấu hình hiện hành" dùng k1/k2, leadtime, số tháng đặt theo override từng nhóm; TB KH lấy cửa sổ mặc định như production (bật "TB KH theo cửa sổ của nhóm" để thử cách sửa).</p>
+    <div id="btHost"></div>
   </div>
 </template>
 

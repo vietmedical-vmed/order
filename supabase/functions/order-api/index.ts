@@ -919,6 +919,27 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return await indicatorsInfoOf(supa);
   },
 
+  // Tab "Kiểm chứng gợi ý": tính lại chỉ số Gợi ý tại mốc quá khứ `asof` (YYYY-MM) bằng
+  // RPC backtest_goi_y (sql/26): chỉ số + KH + SL thực tế 18 tháng từ mốc. Mức sản phẩm × miền;
+  // hệ số k1/k2 và cửa sổ leadtime / số tháng đặt áp ở client. Trả kèm cấu hình hiện hành
+  // (cả override theo nhóm) để client tính đúng "công thức đang dùng".
+  async backtestGoiY(supa, u, [args]) {
+    if (!["ADMIN", "MANAGER", "PM"].includes(u.role)) throw new Error("Không có quyền xem kiểm chứng gợi ý");
+    const asof = String((args && args.asof) || "");
+    if (!/^\d{4}-\d{2}$/.test(asof)) throw new Error("Mốc phải có dạng YYYY-MM");
+    const [{ data, error }, cfg, grants] = await Promise.all([
+      supa.rpc("backtest_goi_y", { p_asof: asof }),
+      getKConfig(supa),
+      getGrants(supa, u),
+    ]);
+    if (error) throw new Error("Backtest: " + error.message);
+    const out: any = data || {};
+    const vis = makeVisibleFilter(u.role, grants);
+    if (vis) out.rows = (out.rows || []).filter((r: any) => vis({ nhom_san_pham: r.nhom, bu_code: r.bu }));
+    out.cfg = cfg;
+    return out;
+  },
+
   // Lần refresh cache usage_indicators gần nhất + số dòng (hiển thị ở tab Cấu hình).
   async indicatorsInfo(supa, u) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem thông tin cache chỉ số");

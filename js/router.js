@@ -8,6 +8,7 @@ import { initAuditView } from './views/audit.js';
 import { initConfigView } from './views/config.js';
 import { initCatalogView } from './views/catalog.js';
 import { initReportView } from './views/report.js';
+import { initBacktestView } from './views/backtest.js';
 
 const VIEWS = {
   order: initOrderView,
@@ -16,6 +17,7 @@ const VIEWS = {
   config: initConfigView,
   catalog: initCatalogView,
   report: initReportView,
+  backtest: initBacktestView,
 };
 
 export function renderView() {
