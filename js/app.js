@@ -15,7 +15,9 @@ setAuthLostHandler(() => showLogin());
 
 // 3.1: chặn mất dữ liệu khi đóng tab/refresh lúc đang có thay đổi chưa lưu.
 window.addEventListener('beforeunload', e => {
-  if (state.changes.size || state.catalogDirty?.size) { e.preventDefault(); e.returnValue = ''; }
+  // Màn Cấu hình: thanh lưu đang hiện = còn thay đổi chưa lưu
+  const cfgDirty = !!document.querySelector('.cfg-savebar:not(.hidden)');
+  if (state.changes.size || state.catalogDirty?.size || cfgDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
 window.addEventListener('DOMContentLoaded', async () => {

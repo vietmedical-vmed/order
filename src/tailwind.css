@@ -18,6 +18,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .mien-btn:hover, .mmien-btn:hover, .rmien-btn:hover { background: #fff; }
 .mien-btn.active, .mmien-btn.active, .rmien-btn.active { background: #fff; color: #0c5dc7; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
+/* Tab con trong màn Cấu hình */
+.cfg-tab { padding: 6px 14px; font-size: 13px; font-weight: 500; color: #4b4f56; border-radius: 4px; background: none; border: none; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.cfg-tab:hover { background: #f0f2f5; }
+.cfg-tab.active { background: #e7f3ff; color: #0c5dc7; }
+.cfg-tab .cfg-dot { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: #f59e0b; vertical-align: middle; }
+/* Thanh lưu dính đáy — chỉ hiện khi có thay đổi chưa lưu */
+.cfg-savebar { position: sticky; bottom: 12px; z-index: 20; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: #fff; border: 1px solid #fcd34d; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+.cfg-savebar.hidden { display: none; }
+.cfg-changed { background: #fffbeb !important; border-color: #f59e0b !important; }
+.cfg-invalid { border-color: #e41e3f !important; background: #fdecee !important; }
+
 /* Nav tabs */
 /* 4.2: không cho tiêu đề tab xuống dòng — màn hẹp thì thanh tab cuộn ngang thay vì cao 3 dòng */
 .nav-tab { padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; color: #65676b; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
