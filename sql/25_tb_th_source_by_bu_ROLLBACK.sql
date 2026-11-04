@@ -48,7 +48,7 @@ begin
     if v_base_m > 11 then v_base_m := 0; v_base_y := v_base_y + 1; end if;
   end loop;
 
-  delete from app_order.usage_indicators;
+  delete from app_order.usage_indicators where true;   -- pg-safeupdate (RPC) chặn DELETE không WHERE
 
   insert into app_order.usage_indicators
     (mien, ma_bravo, tb_th, ty_le_sd_pct, th_raw, th_product_raw,
