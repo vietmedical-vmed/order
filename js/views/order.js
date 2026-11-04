@@ -215,9 +215,9 @@ function bindFilterBarOnce() {
   $('#btnNewSession').addEventListener('click', openCreateSessionModal);
   const btnExport = $('#btnExport');
   if (btnExport) btnExport.onclick = () => exportToExcel();
-  $('#fGrp').addEventListener('change', e => { state.filters.grp = e.target.value; renderPLOptions(); renderOrderBody(); updateOrderStats(); });
   $('#fCsh').addEventListener('change', e => { state.filters.csh = e.target.value; renderOrderBody(); updateOrderStats(); });
-  initPLFilter();
+  initDropdown('fGrpWrap', 'fGrpBtn', 'fGrpMenu');
+  initDropdown('fPLWrap', 'fPLBtn', 'fPLMenu');
   $('#fOnlyQty').addEventListener('click', () => {
     state.filters.onlyWithQty = !state.filters.onlyWithQty;
     syncOnlyQtyButton();
@@ -465,11 +465,23 @@ function bindMenuKeyboard(btn, menu, openMenu, closeMenu) {
 }
 
 
+// Bộ lọc nhiều tầng: Nhóm sản phẩm -> Sản phẩm -> Chủ sở hữu ĐKLH (chọn nhiều nhóm / sản phẩm).
+// Tick nhóm thì danh sách Sản phẩm và Chủ sở hữu chỉ còn giá trị thuộc các nhóm đã chọn;
+// tick sản phẩm thì danh sách Chủ sở hữu thu hẹp tiếp theo sản phẩm.
+const inSel = (sel, v) => !sel || !sel.length || sel.includes(v);
+const uniqSorted = vals => [...new Set(vals.filter(Boolean))].sort(viCmp);
+const rowsInGrp = () => state.rows.filter(r => inSel(state.filters.grp, r.nhom_hang));
+const refreshOrderView = () => { renderOrderBody(); updateOrderStats(); };
+
 function populateGrpAndPLOptions() {
-  const grps = [...new Set(state.rows.map(r => r.nhom_hang).filter(Boolean))].sort(viCmp);
-  $('#fGrp').innerHTML = '<option value="">Tất cả nhóm hàng</option>' + grps.map(g => `<option ${state.filters.grp === g ? 'selected' : ''}>${esc(g)}</option>`).join('');
+  const grps = uniqSorted(state.rows.map(r => r.nhom_hang));
+  state.filters.grp = (state.filters.grp || []).filter(g => grps.includes(g));
+  renderMultiMenu({
+    key: 'grp', values: grps, menu: $('#fGrpMenu'), label: $('#fGrpLabel'), btn: $('#fGrpBtn'),
+    allText: 'Tất cả nhóm sản phẩm', unit: 'nhóm sản phẩm', emptyText: 'Không có nhóm sản phẩm',
+    onChange: () => { renderPLOptions(); refreshOrderView(); },
+  });
   renderPLOptions();
-  populateCshOptions();
 }
 
 // Filter "Chủ sở hữu ĐKLH": chỉ hiện khi server trả r.csh (Miền Nam, nhóm được bật).
@@ -480,77 +492,80 @@ const cshKey = v => (v === CSH_NONE ? '' : v);
 function populateCshOptions() {
   const sel = $('#fCsh');
   if (!sel) return;
+  const hasCsh = state.rows.some(r => r.csh);
+  // Chỉ liệt kê chủ sở hữu có lô thuộc nhóm sản phẩm / sản phẩm đang chọn
   const keys = new Set();
-  state.rows.forEach(r => { if (r.csh) Object.keys(r.csh).forEach(k => keys.add(k)); });
+  rowsInGrp().filter(r => inSel(state.filters.pl, r.phan_loai))
+    .forEach(r => { if (r.csh) Object.keys(r.csh).forEach(k => keys.add(k)); });
   const owners = [...keys].filter(Boolean).sort(viCmp);
   const opts = owners.concat(keys.has('') ? [CSH_NONE] : []);
   if (state.filters.csh && !opts.includes(state.filters.csh)) state.filters.csh = '';
-  sel.classList.toggle('hidden', !keys.size);
+  sel.classList.toggle('hidden', !hasCsh);
   sel.innerHTML = '<option value="">Tất cả chủ sở hữu</option>'
     + opts.map(v => `<option value="${esc(v)}" ${state.filters.csh === v ? 'selected' : ''}>${v === CSH_NONE ? 'Không có thông tin' : esc(v)}</option>`).join('');
 }
 
-// Danh sách sản phẩm (phân loại) trong menu — link theo nhóm hàng đang chọn, sắp ABC, chọn nhiều.
+// Danh sách sản phẩm (phân loại) — chỉ gồm sản phẩm thuộc các nhóm đang chọn, sắp ABC, chọn nhiều.
 function renderPLOptions() {
-  const menu = $('#fPLMenu');
-  if (!menu) return;
-  const grp = state.filters.grp;
-  const pls = [...new Set(
-    state.rows.filter(r => !grp || r.nhom_hang === grp).map(r => r.phan_loai).filter(Boolean)
-  )].sort(viCmp);
+  const pls = uniqSorted(rowsInGrp().map(r => r.phan_loai));
   // Bỏ các sản phẩm đã chọn nhưng không còn thuộc nhóm hiện tại
   state.filters.pl = (state.filters.pl || []).filter(p => pls.includes(p));
-  const sel = state.filters.pl;
+  renderMultiMenu({
+    key: 'pl', values: pls, menu: $('#fPLMenu'), label: $('#fPLLabel'), btn: $('#fPLBtn'),
+    allText: 'Tất cả sản phẩm', unit: 'sản phẩm', emptyText: 'Không có sản phẩm',
+    onChange: () => { populateCshOptions(); refreshOrderView(); },
+  });
+  populateCshOptions();
+}
 
-  menu.innerHTML = pls.length ? (
-    pls.map(p => `
+// Menu checkbox chọn nhiều, ghi vào state.filters[key] (mảng; rỗng = tất cả).
+function renderMultiMenu({ key, values, menu, label, btn, allText, unit, emptyText, onChange }) {
+  if (!menu) return;
+  const updateLabel = () => {
+    const sel = state.filters[key];
+    if (label) label.textContent = !sel.length ? allText : (sel.length === 1 ? sel[0] : sel.length + ' ' + unit);
+    if (btn) btn.classList.toggle('ctl-active', sel.length > 0);
+  };
+  const sel = state.filters[key];
+  menu.innerHTML = values.length ? (
+    values.map(v => `
       <label class="flex items-center gap-2 px-2 py-1.5 text-[13px] rounded hover:bg-slate-50 cursor-pointer">
-        <input type="checkbox" class="rounded fpl-opt shrink-0" value="${esc(p)}" ${sel.includes(p) ? 'checked' : ''}/>
-        <span class="truncate">${esc(p)}</span>
+        <input type="checkbox" class="rounded mm-opt shrink-0" value="${esc(v)}" ${sel.includes(v) ? 'checked' : ''}/>
+        <span class="truncate">${esc(v)}</span>
       </label>`).join('') +
     `<div class="border-t border-slate-100 mt-1 pt-1 sticky bottom-0 bg-white">
-       <button type="button" id="fPLClear" class="w-full text-left px-2 py-1.5 text-[12px] text-slate-500 rounded hover:bg-slate-50">Bỏ chọn tất cả</button>
+       <button type="button" class="mm-clear w-full text-left px-2 py-1.5 text-[12px] text-slate-500 rounded hover:bg-slate-50">Bỏ chọn tất cả</button>
      </div>`
-  ) : `<div class="px-2 py-3 text-[12px] text-slate-500 text-center">Không có sản phẩm</div>`;
+  ) : `<div class="px-2 py-3 text-[12px] text-slate-500 text-center">${esc(emptyText)}</div>`;
 
-  $$('.fpl-opt', menu).forEach(o => {
+  const opts = $$('.mm-opt', menu);
+  opts.forEach(o => {
     o.onchange = () => {
-      state.filters.pl = $$('.fpl-opt', menu).filter(x => x.checked).map(x => x.value);
-      updatePLLabel();
-      renderOrderBody();
-      updateOrderStats();
+      state.filters[key] = opts.filter(x => x.checked).map(x => x.value);
+      updateLabel();
+      onChange();
     };
   });
-  const clr = $('#fPLClear');
+  const clr = $('.mm-clear', menu);
   if (clr) clr.onclick = (e) => {
     e.stopPropagation();
-    state.filters.pl = [];
-    renderPLOptions();
-    updatePLLabel();
-    renderOrderBody();
-    updateOrderStats();
+    state.filters[key] = [];
+    opts.forEach(x => { x.checked = false; });
+    updateLabel();
+    onChange();
   };
-  updatePLLabel();
+  updateLabel();
 }
 
-function updatePLLabel() {
-  const label = $('#fPLLabel'); const btn = $('#fPLBtn');
-  if (!label) return;
-  const sel = state.filters.pl || [];
-  label.textContent = !sel.length ? 'Tất cả sản phẩm' : (sel.length === 1 ? sel[0] : sel.length + ' sản phẩm');
-  if (btn) btn.classList.toggle('ctl-active', sel.length > 0);
-}
-
-function initPLFilter() {
-  const btn = $('#fPLBtn'); const menu = $('#fPLMenu');
+// Mở/đóng dropdown lọc; click ra ngoài thì đóng; hỗ trợ bàn phím.
+function initDropdown(wrapId, btnId, menuId) {
+  const btn = $('#' + btnId); const menu = $('#' + menuId);
   if (!btn || !menu) return;
   const openMenu = () => { menu.classList.remove('hidden'); btn.setAttribute('aria-expanded', 'true'); };
   const closeMenu = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
   btn.onclick = (e) => { e.stopPropagation(); menu.classList.contains('hidden') ? openMenu() : closeMenu(); };
   bindMenuKeyboard(btn, menu, openMenu, closeMenu);
-  if (window.__plOutside) document.removeEventListener('click', window.__plOutside);
-  window.__plOutside = (e) => { const w = $('#fPLWrap'); if (w && !w.contains(e.target)) closeMenu(); };
-  document.addEventListener('click', window.__plOutside);
+  document.addEventListener('click', (e) => { const w = $('#' + wrapId); if (w && !w.contains(e.target)) closeMenu(); });
 }
 
 // Mã đã thực sự có trong đợt: ít nhất 1 cột SL đã lưu > 0 (bỏ null/0/điền sẵn gợi ý).
@@ -588,8 +603,8 @@ function filteredOrderRows() {
   const sel = $('#fCsh');
   if (sel) sel.classList.toggle('ctl-active', !!f.csh);
   return rows.filter(r => {
-    if (f.grp && r.nhom_hang !== f.grp) return false;
-    if (f.pl && f.pl.length && !f.pl.includes(r.phan_loai)) return false;
+    if (!inSel(f.grp, r.nhom_hang)) return false;
+    if (!inSel(f.pl, r.phan_loai)) return false;
     // "Chỉ mã có số lượng": chỉ khi đang xem 1 đợt, lọc theo giá trị ĐÃ LƯU (không tính điền
     // sẵn gợi ý) — mã có ít nhất 1 trong SL yêu cầu / PM duyệt / đặt hàng > 0.
     if (f.onlyWithQty && state.currentSession && !hasSavedQty(r)) return false;
