@@ -403,17 +403,22 @@ async function renderUserEmails() {
           ${esc(l)} <span class="email-grp-count font-normal text-slate-500"></span>
         </summary>
         <div class="overflow-x-auto scroll-area">
-          <table class="dt">
+          <!-- table-layout:fixed + colgroup chung: mọi bảng role có cùng độ rộng cột -->
+          <table class="dt" style="table-layout:fixed;min-width:900px">
+            <colgroup>
+              <col style="width:220px"/><col style="width:140px"/><col style="width:64px"/>
+              <col style="width:180px"/><col/>
+            </colgroup>
             <thead><tr>
-              <th>Họ tên</th><th style="width:130px">Username</th>
-              <th class="c" style="width:60px">Miền</th>
-              <th style="width:170px">Scope (PM/Mua hàng)</th>
-              <th style="width:260px">Email nhận thông báo</th>
+              <th>Họ tên</th><th>Username</th>
+              <th class="c">Miền</th>
+              <th>Scope (PM/Mua hàng)</th>
+              <th>Email nhận thông báo</th>
             </tr></thead>
             <tbody>${byRole.get(l).map(r => `<tr data-mien="${esc(r.mien || '-')}"
                 data-search="${esc([r.ho_ten, r.username, r.scope, r.email].filter(Boolean).join(' ').toLowerCase())}">
-              <td class="text-slate-700 text-[12px]">${esc(r.ho_ten)}</td>
-              <td class="font-mono text-[11px] text-slate-500">${esc(r.username)}</td>
+              <td class="text-slate-700 text-[12px] truncate" title="${esc(r.ho_ten)}">${esc(r.ho_ten)}</td>
+              <td class="font-mono text-[11px] text-slate-500 truncate" title="${esc(r.username)}">${esc(r.username)}</td>
               <td class="c text-slate-600 text-[11px]">${esc(r.mien || '—')}</td>
               <td class="text-slate-500 text-[11px] truncate" title="${esc(r.scope || '')}">${esc(r.scope || '—')}</td>
               <td><input type="text" class="email-inp px-2 py-1 border border-slate-200 rounded text-[12px] w-full outline-none focus:border-primary-500"
