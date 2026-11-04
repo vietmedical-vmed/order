@@ -23,7 +23,7 @@ function bindCatalogFilterOnce() {
 
 export async function initCatalogView() {
   if (!canEditCatalog()) {
-    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin/PM mới truy cập được tab này</div>';
+    $('#main').innerHTML = '<div class="empty-state">Chỉ Admin / Manager / PM mới truy cập được tab này</div>';
     return;
   }
   state.catalog = [];

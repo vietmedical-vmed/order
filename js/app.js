@@ -15,7 +15,7 @@ setAuthLostHandler(() => showLogin());
 
 // 3.1: chặn mất dữ liệu khi đóng tab/refresh lúc đang có thay đổi chưa lưu.
 window.addEventListener('beforeunload', e => {
-  // Màn Cấu hình: thanh lưu đang hiện = còn thay đổi chưa lưu
+  // Màn Cấu hình hệ thống: thanh lưu đang hiện = còn thay đổi chưa lưu
   const cfgDirty = !!document.querySelector('.cfg-savebar:not(.hidden)');
   if (state.changes.size || state.catalogDirty?.size || cfgDirty) { e.preventDefault(); e.returnValue = ''; }
 });
@@ -238,7 +238,7 @@ function bindLogout() {
 }
 
 function bindNav() {
-  // "Cấu hình danh mục": Admin + PM (PM chỉ thao tác vật tư trong nhóm mình phụ trách — backend đã giới hạn scope).
+  // "Danh mục đặt hàng": Admin + Manager + PM (PM chỉ thao tác vật tư trong nhóm mình phụ trách — backend đã giới hạn scope).
   const okCatalog = canEditCatalog();
   $$('.nav-tab').forEach(a => {
     // AM/Mua hàng được xem tab "Quản lý đặt hàng" (chỉ xem); các tab approver khác vẫn ẩn.

@@ -181,7 +181,7 @@ function renderCfgGroups(list, groups) {
   const body = $('#cfgGroupBody');
   if (!body) return;
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="5" class="text-slate-500 text-center py-3 text-[12px]">Chưa có nhóm sản phẩm nào — tích chọn vật tư ở tab "Cấu hình danh mục" trước.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="text-slate-500 text-center py-3 text-[12px]">Chưa có nhóm sản phẩm nào — tích chọn vật tư ở tab "Danh mục đặt hàng" trước.</td></tr>`;
     updateGroupCount();
     return;
   }

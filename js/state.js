@@ -16,22 +16,25 @@ export const state = {
 };
 
 // ============ QUYỀN THEO VAI TRÒ ============
+// Role luôn là 1 trong 5 mã ADMIN | MANAGER | AM | PM | PURCHASING: order-login và order-api
+// đã map role gốc của bảng users (sale_manager, product_manager, …) về các mã này,
+// nên frontend không cần xử lý alias. Quyền ở đây chỉ để ẩn/hiện UI — server chặn từng RPC.
 export function roleLabel(r) {
   return ({
     AM: 'Area Manager', PM: 'Product Manager', MANAGER: 'Manager', ADMIN: 'Admin',
     PURCHASING: 'Mua hàng',
-    SALE_MANAGER: 'Area Manager', PRODUCT_MANAGER: 'Product Manager',
   })[r] || r;
 }
 export function isPurchasing() { return state.user.role === 'PURCHASING'; }
-export function isAM() { return state.user.role === 'AM' || state.user.role === 'SALE_MANAGER'; }
+export function isAM() { return state.user.role === 'AM'; }
 // Miền AM phụ trách: users.mien có thể là "MB, MN"; BOTH/ALL/rỗng = cả 2 miền.
 export function userMiens() {
   const list = String(state.user.mien || '').split(/[,;]/).map(x => x.trim().toUpperCase()).filter(Boolean);
   return !list.length || list.includes('BOTH') || list.includes('ALL') ? ['MB', 'MN'] : list;
 }
 export function canApprove() {
-  return ['PM', 'MANAGER', 'ADMIN', 'PRODUCT_MANAGER'].indexOf(state.user.role) >= 0;
+  return ['PM', 'MANAGER', 'ADMIN'].includes(state.user.role);
 }
 export function canCreateSession() { return state.user.role === 'ADMIN' || state.user.role === 'AM'; }
-export function canEditCatalog() { return ['ADMIN', 'MANAGER', 'PM', 'PRODUCT_MANAGER'].includes(state.user.role); }
+// Khớp listCatalog / saveCatalog trên order-api (PM bị server giới hạn theo scope).
+export function canEditCatalog() { return ['ADMIN', 'MANAGER', 'PM'].includes(state.user.role); }
