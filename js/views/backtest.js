@@ -8,7 +8,7 @@
 // sổ MẶC ĐỊNH (như cache usage_indicators). Đổi bộ lọc / hệ số chỉ tính lại ở client; đổi mốc
 // phải bấm "Chạy".
 import { $, $$, esc, fmt, viCmp, debounce } from '../utils.js';
-import { rpc } from '../api.js';
+import { rpc, rpcOpts } from '../api.js';
 import { toast } from '../toast.js';
 import { loadSheetJS } from '../export-excel.js';
 
@@ -110,29 +110,23 @@ async function run() {
   btn.disabled = true;
   const host = $('#btHost');
   try {
-    const out = new Array(months.length);
-    let done = 0;
+    // Gọi theo lô 6 mốc: các mốc trong 1 lô dùng chung 1 lượt quét dữ liệu ở DB.
+    const missing = months.filter(m => !_cache.has(m));
+    let done = months.length - missing.length;
     const progress = () => {
       host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 p-4 text-[13px] text-slate-600" aria-busy="true">
         Đang tính lại gợi ý tại ${done}/${months.length} mốc…${'<div class="skeleton-line mt-2"></div>'.repeat(3)}</div>`;
     };
     progress();
-    // 2 mốc song song: mỗi mốc là 1 truy vấn ~1–2 giây trên sv + hoá đơn.
-    let next = 0;
-    const worker = async () => {
-      while (next < months.length) {
-        const i = next++;
-        if (!_cache.has(months[i])) {
-          const r = await rpc('backtestGoiY', { asof: months[i] });
-          if (r.cfg) _cfg = r.cfg;
-          _cache.set(months[i], r);
-        }
-        out[i] = _cache.get(months[i]);
-        done++;
-        progress();
-      }
-    };
-    await Promise.all([worker(), worker()]);
+    for (let i = 0; i < missing.length; i += 6) {
+      const chunk = missing.slice(i, i + 6);
+      const r = await rpcOpts({ timeoutMs: 90000 }, 'backtestGoiY', { asofs: chunk });
+      if (r.cfg) _cfg = r.cfg;
+      for (const x of r.results || []) _cache.set(x.asof, x);
+      done += chunk.length;
+      progress();
+    }
+    const out = months.map(m => _cache.get(m)).filter(Boolean);
     _results = out;
     if (!_results.some(r => r.asof === _detailAsof)) _detailAsof = _results[_results.length - 1]?.asof || '';
     buildGroupOptions();

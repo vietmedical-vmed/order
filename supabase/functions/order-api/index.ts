@@ -5,6 +5,7 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.110.8";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
+import postgres from "npm:postgres@3.4.5";
 
 // Chỉ cho phép frontend thật (GitHub Pages) + localhost khi dev, thay vì "*".
 const ALLOWED_ORIGINS = ["https://vietmedical-vmed.github.io"];
@@ -847,6 +848,36 @@ function tbKh3Thang(p: any, sumByBo: Record<string, number>, spBoMap: Record<str
   return total / Math.max(1, soThangDat);              // chia số tháng của cửa sổ
 }
 
+// backtest_goi_y (sql/26) quét sv + hoá đơn + sale_target: ấm ~2–3s, nhưng khi cache DB nguội
+// có thể 6–8s, chạm statement_timeout 8s của PostgREST (role authenticator). Vì vậy gọi qua
+// kết nối Postgres trực tiếp (SUPABASE_DB_URL — secret mặc định của Edge Functions) với
+// timeout riêng 60s cho đúng câu lệnh này, không nới timeout chung của các app dùng chung DB.
+// Không có SUPABASE_DB_URL -> quay về supa.rpc (vẫn bị giới hạn 8s).
+async function backtestRpc(supa: SupabaseClient, asofs: string[]): Promise<any[]> {
+  const viaRest = async () => {
+    const { data, error } = await supa.rpc("backtest_goi_y", { p_asofs: asofs });
+    if (error) throw new Error("Backtest: " + error.message);
+    return data || [];
+  };
+  const dbUrl = Deno.env.get("SUPABASE_DB_URL");
+  if (!dbUrl) return await viaRest();
+  const sql = postgres(dbUrl, { prepare: false, max: 1, idle_timeout: 2, connect_timeout: 10 });
+  try {
+    const rows = await sql.begin(async (tx: any) => {
+      await tx`set local statement_timeout = '60s'`;
+      // asofs đã kiểm tra dạng YYYY-MM -> literal mảng an toàn, tránh suy kiểu tham số mảng.
+      return await tx`select public.backtest_goi_y(${"{" + asofs.join(",") + "}"}::text[]) as r`;
+    });
+    return (rows[0] && rows[0].r) || [];
+  } catch (e) {
+    // Lỗi kết nối trực tiếp -> thử lại qua PostgREST (giới hạn 8s) thay vì báo lỗi ngay.
+    console.error("[backtestRpc] direct connection failed:", (e as Error).message || e);
+    return await viaRest();
+  } finally {
+    await sql.end({ timeout: 2 }).catch(() => {});
+  }
+}
+
 // ============================ HANDLERS ============================
 const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<any>> = {
 
@@ -925,19 +956,19 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
   // (cả override theo nhóm) để client tính đúng "công thức đang dùng".
   async backtestGoiY(supa, u, [args]) {
     if (u.role !== "ADMIN") throw new Error("Chỉ Admin được xem kiểm chứng gợi ý");
-    const asof = String((args && args.asof) || "");
-    if (!/^\d{4}-\d{2}$/.test(asof)) throw new Error("Mốc phải có dạng YYYY-MM");
-    const [{ data, error }, cfg, grants] = await Promise.all([
-      supa.rpc("backtest_goi_y", { p_asof: asof }),
+    const asofs: string[] = [...new Set<string>(((args && args.asofs) || []).map(String))];
+    if (!asofs.length || asofs.length > 12) throw new Error("Truyền 1–12 mốc mỗi lần");
+    if (asofs.some((a) => !/^\d{4}-\d{2}$/.test(a))) throw new Error("Mốc phải có dạng YYYY-MM");
+    const [list, cfg, grants] = await Promise.all([
+      backtestRpc(supa, asofs),
       getKConfig(supa),
       getGrants(supa, u),
     ]);
-    if (error) throw new Error("Backtest: " + error.message);
-    const out: any = data || {};
     const vis = makeVisibleFilter(u.role, grants);
-    if (vis) out.rows = (out.rows || []).filter((r: any) => vis({ nhom_san_pham: r.nhom, bu_code: r.bu }));
-    out.cfg = cfg;
-    return out;
+    for (const r of list) {
+      if (vis) r.rows = (r.rows || []).filter((x: any) => vis({ nhom_san_pham: x.nhom, bu_code: x.bu }));
+    }
+    return { cfg, results: list };
   },
 
   // Lần refresh cache usage_indicators gần nhất + số dòng (hiển thị ở tab Cấu hình).
