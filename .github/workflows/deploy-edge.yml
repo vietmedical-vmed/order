@@ -23,6 +23,7 @@ jobs:
         with:
           version: latest
 
+      # CLI mới bắt xác nhận trước khi deploy; CI không có TTY nên phải truyền --yes.
       - name: Deploy order-api
         run: supabase functions deploy order-api --project-ref "$PROJECT_REF"
 
