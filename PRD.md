@@ -166,8 +166,10 @@ Trạng thái cuối: `COMPLETED` (Mua hàng đã nhập PO — pill xanh lá "H
 
 **F4. Mua hàng nhập PO → Hoàn thành đợt**
 1. Purchasing (hoặc Admin) mở đợt `APPROVED`, xuất Excel (nếu cần), tạo Đề nghị mua hàng + PO bên Bravo.
-2. Bấm "Nhập PO", nhập `po` (bắt buộc) + `de_nghi_mua_hang` (tùy chọn) → `recordPurchase` → `APPROVED → COMPLETED`, lưu `nguoi_mua_hang`, `ngay_mua_hang`, gửi thông báo `PURCHASE`.
-3. Đợt `COMPLETED` vẫn sửa được DM/PO ("Sửa PO"): giữ trạng thái và người/ngày hoàn thành, audit `PURCHASE_UPDATE`, không gửi thông báo. Manager không sửa `sl_dat_hang` được nữa (chỉ Admin ghi đè).
+2. Bấm "Nhập PO". Một đợt có thể nhiều PO: mỗi lần "+ Thêm PO" (`addSessionPO`) ghi 1 dòng vào `app_order.order_session_po` gồm `po` (bắt buộc, không trùng trong đợt), `de_nghi_mua_hang`, `ghi_chu` (tùy chọn). Xóa PO bằng `deleteSessionPO`. Đợt vẫn ở `APPROVED`.
+3. Đủ PO thì bấm "Hoàn thành đợt" (`completeSession`, cần ≥ 1 PO) → `APPROVED → COMPLETED`, lưu `nguoi_mua_hang`, `ngay_mua_hang`, gửi thông báo `PURCHASE`.
+4. `order_sessions.po` / `de_nghi_mua_hang` là cột tóm tắt ("PO1; PO2"), order-api ghi lại sau mỗi lần thêm/xóa PO; danh sách đợt, email và Excel đọc cột này.
+5. Đợt `COMPLETED` vẫn thêm/xóa PO được (phải còn ≥ 1 PO), không đổi trạng thái, không gửi thông báo. Manager không sửa `sl_dat_hang` được nữa (chỉ Admin ghi đè).
 
 **F5. Cấu hình danh mục (Admin/Manager/PM)**
 1. Mở màn "Cấu hình danh mục".
@@ -220,7 +222,9 @@ Tất cả gọi qua `POST /functions/v1/order-api` với body `{ action, token,
 | `approveSession` | Duyệt nhanh (copy cột trước) | PM (SUBMITTED) / MANAGER (PM_APPROVED) | — |
 | `rejectSession` | Từ chối, trả DRAFT (bắt buộc lý do) | MANAGER/ADMIN | Chỉ khi PM_APPROVED |
 | `cancelSession` | Hủy đợt | AM/ADMIN | Chỉ DRAFT/SUBMITTED |
-| `recordPurchase` | Nhập PO (bắt buộc) + Đề nghị mua hàng | PURCHASING/ADMIN | APPROVED→COMPLETED; COMPLETED (sửa, không đổi trạng thái) |
+| `listSessionPOs` | Danh sách PO của đợt | Mọi role | — |
+| `addSessionPO` / `deleteSessionPO` | Thêm / xóa 1 PO của đợt | PURCHASING/ADMIN | APPROVED hoặc COMPLETED (COMPLETED phải còn ≥ 1 PO) |
+| `completeSession` | Hoàn thành đợt | PURCHASING/ADMIN | APPROVED→COMPLETED, cần ≥ 1 PO |
 | `approveItems` | Duyệt số theo `item_id` (legacy) | PM/MANAGER/ADMIN | — |
 | `adminSaveItems` | Admin ghi đè số lượng | ADMIN | Không đổi trạng thái |
 | `exportOrderData` | Trả dữ liệu để xuất Excel | MANAGER/ADMIN/PURCHASING | Chỉ APPROVED |
@@ -358,7 +362,7 @@ public.sale_target         (kế hoạch theo miền — nguồn TB KH)
 
 **B5. Hủy đợt** chỉ AM (miền mình) hoặc ADMIN, và chỉ khi `DRAFT`/`SUBMITTED`.
 
-**B6. Mua hàng nhập PO** bắt buộc `po` (`de_nghi_mua_hang` tùy chọn), đợt phải `APPROVED` (chuyển sang `COMPLETED`) hoặc đã `COMPLETED` (chỉ sửa).
+**B6. Mua hàng nhập PO**: một đợt nhiều PO (`order_session_po`), số PO không trùng trong đợt. Thêm/xóa khi đợt `APPROVED` hoặc `COMPLETED`. Hoàn thành đợt cần ≥ 1 PO; đợt `COMPLETED` không được xóa PO cuối cùng.
 
 **B7. Xuất Excel** chỉ khi `APPROVED`, chỉ MANAGER/ADMIN/PURCHASING.
 

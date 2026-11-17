@@ -1656,34 +1656,74 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return { ok: true, newStatus: "CANCELED" };
   },
 
-  // Mua hàng nhập PO (+ Đề nghị mua hàng, tùy chọn) cho đợt đã duyệt → đợt HOÀN THÀNH (COMPLETED).
-  // Đợt đã COMPLETED vẫn sửa được DM/PO (giữ trạng thái, giữ người/ngày hoàn thành ban đầu).
-  async recordPurchase(supa, u, [sessionId, dm, po]) {
-    if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được nhập PO");
-    const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
-    if (!s) throw new Error("Không tìm thấy đợt");
-    if (s.trang_thai !== "APPROVED" && s.trang_thai !== "COMPLETED")
-      throw new Error("Chỉ nhập PO khi đợt đã được duyệt (APPROVED)");
-    const deNghi = String(dm || "").trim();
-    const poStr = String(po || "").trim();
-    if (!poStr) throw new Error("Nhập số PO để hoàn thành đợt");
-    const completing = s.trang_thai === "APPROVED";
-    const patch: any = { de_nghi_mua_hang: deNghi, po: poStr };
-    if (completing) {
-      patch.trang_thai = "COMPLETED";
-      patch.nguoi_mua_hang = u.username;
-      patch.ngay_mua_hang = new Date().toISOString();
+  // ---- Danh sách PO của đợt (app_order.order_session_po) ----
+  // Mua hàng thêm/xóa PO khi đợt APPROVED (hoặc COMPLETED), rồi "Hoàn thành đợt" (cần >= 1 PO).
+  async listSessionPOs(supa, u, [sessionId]) {
+    const { data, error } = await supa.schema("app_order").from("order_session_po")
+      .select("po_id, po, de_nghi_mua_hang, ghi_chu, tao_boi, tao_luc")
+      .eq("session_id", sessionId).order("tao_luc", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []).map((r) => ({
+      po_id: String(r.po_id), po: r.po || "", de_nghi_mua_hang: r.de_nghi_mua_hang || "",
+      ghi_chu: r.ghi_chu || "", tao_boi: r.tao_boi || "",
+      tao_luc: r.tao_luc ? new Date(r.tao_luc).toISOString() : "",
+    }));
+  },
+
+  async addSessionPO(supa, u, [sessionId, input]) {
+    const s = await loadPurchasableSession(supa, u, sessionId);
+    input = input || {};
+    const po = String(input.po || "").trim();
+    const dm = String(input.de_nghi_mua_hang || "").trim();
+    const note = String(input.ghi_chu || "").trim();
+    if (!po) throw new Error("Nhập số PO");
+    const { error } = await supa.schema("app_order").from("order_session_po").insert({
+      session_id: sessionId, po, de_nghi_mua_hang: dm || null, ghi_chu: note || null, tao_boi: u.username,
+    });
+    if (error) {
+      if (error.code === "23505") throw new Error("PO " + po + " đã có trong đợt này");
+      throw new Error(error.message);
     }
+    await syncPoSummary(supa, sessionId);
+    await audit(supa, u.username, "PO_ADD", sessionId, "PO: " + po + (dm ? " · DM: " + dm : ""));
+    return { ok: true, trang_thai: s.trang_thai, pos: await H.listSessionPOs(supa, u, [sessionId]) };
+  },
+
+  async deleteSessionPO(supa, u, [sessionId, poId]) {
+    const s = await loadPurchasableSession(supa, u, sessionId);
+    const { data: rows, error: e1 } = await supa.schema("app_order").from("order_session_po")
+      .select("po_id, po").eq("session_id", sessionId);
+    if (e1) throw new Error(e1.message);
+    const target = (rows || []).find((r) => String(r.po_id) === String(poId));
+    if (!target) throw new Error("Không tìm thấy PO");
+    // Đợt đã Hoàn thành phải còn ít nhất 1 PO.
+    if (s.trang_thai === "COMPLETED" && (rows || []).length <= 1)
+      throw new Error("Đợt đã hoàn thành phải còn ít nhất 1 PO");
+    const { error } = await supa.schema("app_order").from("order_session_po")
+      .delete().eq("po_id", poId).eq("session_id", sessionId);
+    if (error) throw new Error(error.message);
+    await syncPoSummary(supa, sessionId);
+    await audit(supa, u.username, "PO_DELETE", sessionId, "PO: " + target.po);
+    return { ok: true, trang_thai: s.trang_thai, pos: await H.listSessionPOs(supa, u, [sessionId]) };
+  },
+
+  // Mua hàng chốt: APPROVED → COMPLETED. Cần >= 1 PO.
+  async completeSession(supa, u, [sessionId]) {
+    const s = await loadPurchasableSession(supa, u, sessionId);
+    if (s.trang_thai !== "APPROVED") throw new Error("Đợt không ở trạng thái chờ PO");
+    const { po, dm, count } = await syncPoSummary(supa, sessionId);
+    if (!count) throw new Error("Thêm ít nhất 1 PO trước khi hoàn thành đợt");
+    const patch = { trang_thai: "COMPLETED", nguoi_mua_hang: u.username, ngay_mua_hang: new Date().toISOString() };
     // Điều kiện theo trạng thái vừa đọc: 2 người bấm cùng lúc thì chỉ 1 người chuyển trạng thái.
     const { data: upd, error } = await supa.schema("app_order").from("order_sessions").update(patch)
-      .eq("session_id", sessionId).eq("trang_thai", s.trang_thai).select("session_id");
+      .eq("session_id", sessionId).eq("trang_thai", "APPROVED").select("session_id");
     if (error) throw new Error(error.message);
     if (!upd || !upd.length) throw new Error("Đợt vừa được người khác cập nhật — tải lại rồi thử lại");
-    await audit(supa, u.username, completing ? "PURCHASE" : "PURCHASE_UPDATE", sessionId, "DM: " + deNghi + " · PO: " + poStr);
-    if (completing) {
-      try { await notifyEvent(supa, { ...s, ...patch }, "PURCHASE", { actor: u.username, dm: deNghi, po: poStr }); } catch (e) { console.error("notifyEvent:", e); }
-    }
-    return { ok: true, newStatus: "COMPLETED", de_nghi_mua_hang: deNghi, po: poStr };
+    await audit(supa, u.username, "PURCHASE", sessionId, count + " PO: " + po + (dm ? " · DM: " + dm : ""));
+    try {
+      await notifyEvent(supa, { ...s, ...patch, po, de_nghi_mua_hang: dm }, "PURCHASE", { actor: u.username, dm, po });
+    } catch (e) { console.error("notifyEvent:", e); }
+    return { ok: true, newStatus: "COMPLETED", po, de_nghi_mua_hang: dm };
   },
 
   async approveItems(supa, u, [sessionId, approvals]) {
@@ -1830,6 +1870,32 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 };
 
 // ---------- workflow helpers ----------
+// Đợt Mua hàng được thao tác PO: chỉ PURCHASING/ADMIN, đợt APPROVED (chờ PO) hoặc COMPLETED.
+async function loadPurchasableSession(supa: SupabaseClient, u: any, sessionId: string) {
+  if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được nhập PO");
+  const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
+  if (!s) throw new Error("Không tìm thấy đợt");
+  if (s.trang_thai !== "APPROVED" && s.trang_thai !== "COMPLETED")
+    throw new Error("Chỉ nhập PO khi đợt đã được duyệt (APPROVED)");
+  return s;
+}
+
+// Ghi cột tóm tắt order_sessions.po / de_nghi_mua_hang ("PO1; PO2") từ order_session_po,
+// để danh sách đợt, email, Excel đọc như cũ.
+async function syncPoSummary(supa: SupabaseClient, sessionId: string) {
+  const { data, error } = await supa.schema("app_order").from("order_session_po")
+    .select("po, de_nghi_mua_hang").eq("session_id", sessionId).order("tao_luc", { ascending: true });
+  if (error) throw new Error(error.message);
+  const rows = data || [];
+  const uniq = (xs: string[]) => [...new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))];
+  const po = uniq(rows.map((r) => r.po)).join("; ");
+  const dm = uniq(rows.map((r) => r.de_nghi_mua_hang)).join("; ");
+  const { error: e2 } = await supa.schema("app_order").from("order_sessions")
+    .update({ po, de_nghi_mua_hang: dm }).eq("session_id", sessionId);
+  if (e2) throw new Error(e2.message);
+  return { po, dm, count: rows.length };
+}
+
 function actionForSession(u: any, session: any, skipPm = false) {
   const st = session.trang_thai;
   if (st === "APPROVED" || st === "COMPLETED") return null;

@@ -523,25 +523,39 @@
   </div>
 </div>
 
-<!-- ============ MODAL ĐẶT HÀNG (MUA HÀNG: DM + PO) ============ -->
+<!-- ============ MODAL PO CỦA ĐỢT (MUA HÀNG: nhiều PO → Hoàn thành đợt) ============ -->
 <div id="modalPurchase" role="dialog" aria-modal="true" aria-labelledby="modalPurchaseTitle"
      class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden">
     <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-      <h3 id="modalPurchaseTitle" class="font-semibold text-[15px]">Nhập PO · hoàn thành đợt</h3>
+      <h3 id="modalPurchaseTitle" class="font-semibold text-[15px]">PO của đợt</h3>
       <button id="pmClose" type="button" aria-label="Đóng" class="text-slate-500 hover:text-slate-700 text-[22px] leading-none">×</button>
     </div>
     <div class="p-5">
       <div id="pmNote" class="bg-primary-50 border border-primary-100 rounded-md p-3 text-[12px] text-primary-800 mb-4"></div>
-      <label for="pmDM" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Đề nghị mua hàng (DM) <span class="normal-case text-slate-400">· tùy chọn</span></label>
-      <input id="pmDM" placeholder="VD: DM-2026-0135" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-      <label for="pmPO" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Số PO <span class="text-danger-600">*</span></label>
-      <input id="pmPO" required aria-required="true" placeholder="VD: PO-2026-0421" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+      <div id="pmList" class="mb-4 border border-slate-200 rounded-md overflow-hidden" aria-live="polite"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
+        <div>
+          <label for="pmPO" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Số PO <span class="text-danger-600">*</span></label>
+          <input id="pmPO" required aria-required="true" placeholder="VD: PO-2026-0421" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+        </div>
+        <div>
+          <label for="pmDM" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Đề nghị mua hàng (DM) <span class="normal-case text-slate-400">· tùy chọn</span></label>
+          <input id="pmDM" placeholder="VD: DM-2026-0135" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+        </div>
+        <div class="sm:col-span-2">
+          <label for="pmNoteInput" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Ghi chú <span class="normal-case text-slate-400">· tùy chọn (VD: NCC, nhóm hàng)</span></label>
+          <div class="flex gap-2">
+            <input id="pmNoteInput" placeholder="VD: NCC Ulrich" class="flex-1 min-w-0 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+            <button id="pmAdd" type="button" class="ctl-btn ctl-btn-primary flex-shrink-0">+ Thêm PO</button>
+          </div>
+        </div>
+      </div>
       <div id="pmErr" role="alert" class="text-[12px] text-danger-600 mt-3 min-h-[16px]"></div>
     </div>
     <div class="flex justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">
-      <button id="pmCancel" type="button" class="px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-100 rounded-md">Huỷ</button>
-      <button id="pmSubmit" type="button" class="px-4 py-1.5 text-[13px] font-semibold bg-primary-600 hover:bg-primary-700 text-white rounded-md">Xác nhận</button>
+      <button id="pmCancel" type="button" class="px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-100 rounded-md">Đóng</button>
+      <button id="pmSubmit" type="button" class="px-4 py-1.5 text-[13px] font-semibold bg-success-600 hover:bg-success-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed">Hoàn thành đợt</button>
     </div>
   </div>
 </div>

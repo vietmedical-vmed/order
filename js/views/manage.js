@@ -134,7 +134,7 @@ async function renderManageList() {
     const role = state.user.role;
     const canPM = (role === 'PM' || role === 'ADMIN');           // duyệt/từ chối đợt SUBMITTED
     const canMgr = (role === 'MANAGER' || role === 'ADMIN');     // duyệt/từ chối đợt PM_APPROVED
-    const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // nhập PO đợt APPROVED → COMPLETED; sửa PO đợt COMPLETED
+    const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // thêm PO + hoàn thành đợt APPROVED; xem/sửa PO đợt COMPLETED
     const canCancel = (role === 'AM' || role === 'ADMIN');            // AM hủy đợt khi PM chưa duyệt
 
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
@@ -160,14 +160,14 @@ async function renderManageList() {
           const reviewable = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
           // Từ chối: PM ở SUBMITTED, Manager ở PM_APPROVED (hoặc SUBMITTED nếu CTTM skip PM).
           const canReject = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
-          // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Nhập PO / Sửa PO
+          // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Nhập PO / PO
           let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
           if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
           if (canReject) action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
           // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
           if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
           if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Nhập PO</button>`;
-          if (canPurchase && st === 'COMPLETED') action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">Sửa PO</button>`;
+          if (canPurchase && st === 'COMPLETED') action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">PO</button>`;
 
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
@@ -262,50 +262,138 @@ function bindManageActions() {
   });
 }
 
-// ============ MODAL NHẬP PO (MUA HÀNG: PO bắt buộc + DM tùy chọn) → HOÀN THÀNH ĐỢT ============
+
+// ============ MODAL PO CỦA ĐỢT (MUA HÀNG: nhiều PO → HOÀN THÀNH ĐỢT) ============
+// Đợt APPROVED: thêm/xóa PO, bấm "Hoàn thành đợt" khi đủ (cần >= 1 PO).
+// Đợt COMPLETED: vẫn thêm/xóa PO (phải còn >= 1), không có nút Hoàn thành.
 function openPurchaseModal(sess) {
   const modal = $('#modalPurchase');
   if (!modal) return;
-  modal.classList.remove('hidden');
   const full = state.sessions.find(s => s.session_id === sess.session_id) || sess;
-  const completing = full.trang_thai !== 'COMPLETED';
-  $('#pmDM').value = full.de_nghi_mua_hang || '';
-  $('#pmPO').value = full.po || '';
+  const sid = full.session_id;
+  let status = full.trang_thai;
+  let pos = [];
+  let changed = false;   // có thêm/xóa PO -> tải lại danh sách đợt khi đóng
+
+  modal.classList.remove('hidden');
+  $('#pmPO').value = '';
+  $('#pmDM').value = '';
+  $('#pmNoteInput').value = '';
   $('#pmErr').textContent = '';
-  $('#modalPurchaseTitle').textContent = completing ? 'Nhập PO · hoàn thành đợt' : 'Sửa thông tin PO';
-  $('#pmSubmit').textContent = completing ? 'Hoàn thành đợt' : 'Lưu';
-  const noteEl = $('#pmNote');
-  if (noteEl) {
-    const where = `đợt <strong>${esc(full.ten_dot || '')}</strong>`
-      + (full.mien ? ` (miền <strong>${full.mien === 'MB' ? 'Bắc' : full.mien === 'MN' ? 'Nam' : full.mien}</strong>)` : '');
-    noteEl.innerHTML = completing
-      ? `Nhập số PO cho ${where}. Sau khi lưu, đợt chuyển sang trạng thái <strong>Hoàn thành</strong>.`
-      : `Sửa thông tin PO cho ${where}. Đợt giữ trạng thái Hoàn thành.`;
-  }
-  setTimeout(() => $('#pmPO').focus(), 50);
+  const where = `đợt <strong>${esc(full.ten_dot || '')}</strong>`
+    + (full.mien ? ` (miền <strong>${full.mien === 'MB' ? 'Bắc' : full.mien === 'MN' ? 'Nam' : full.mien}</strong>)` : '');
+
+  const renderHeader = () => {
+    const done = status === 'COMPLETED';
+    $('#modalPurchaseTitle').textContent = done ? 'PO của đợt · Hoàn thành' : 'Nhập PO · hoàn thành đợt';
+    $('#pmNote').innerHTML = done
+      ? `PO của ${where}. Đợt đã <strong>Hoàn thành</strong>; vẫn thêm/xóa PO được (còn ít nhất 1 PO).`
+      : `Thêm các PO của ${where} (một đợt có thể nhiều PO). Đủ PO thì bấm <strong>Hoàn thành đợt</strong>.`;
+    const btn = $('#pmSubmit');
+    btn.classList.toggle('hidden', done);
+    btn.disabled = !pos.length;
+    btn.title = pos.length ? '' : 'Thêm ít nhất 1 PO trước';
+  };
+
+  const renderList = () => {
+    const host = $('#pmList');
+    if (!pos.length) {
+      host.innerHTML = '<div class="px-3 py-3 text-[12px] text-slate-500 text-center">Chưa có PO nào</div>';
+    } else {
+      host.innerHTML = `<table class="w-full text-[12.5px]">
+        <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+          <tr><th class="text-left px-3 py-1.5 font-medium">#</th><th class="text-left px-3 py-1.5 font-medium">Số PO</th>
+          <th class="text-left px-3 py-1.5 font-medium">DM</th><th class="text-left px-3 py-1.5 font-medium">Ghi chú</th><th></th></tr>
+        </thead>
+        <tbody>${pos.map((p, i) => `<tr class="border-t border-slate-100">
+          <td class="px-3 py-1.5 text-slate-500">${i + 1}</td>
+          <td class="px-3 py-1.5 font-medium text-slate-800">${esc(p.po)}</td>
+          <td class="px-3 py-1.5 text-slate-600">${esc(p.de_nghi_mua_hang || '—')}</td>
+          <td class="px-3 py-1.5 text-slate-600" title="${esc((p.tao_boi || '') + (p.tao_luc ? ' · ' + fmtDate(p.tao_luc) : ''))}">${esc(p.ghi_chu || '—')}</td>
+          <td class="px-2 py-1 text-right"><button type="button" class="ctl-btn ctl-btn-warn" data-po-del="${esc(p.po_id)}" aria-label="Xóa PO ${esc(p.po)}">Xóa</button></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+    }
+    renderHeader();
+  };
 
   const release = trapModal(modal, () => close());
-  const close = () => { modal.classList.add('hidden'); release(); };
+  const close = async () => {
+    modal.classList.add('hidden');
+    release();
+    if (changed) { await loadSessions(); renderManageList(); }
+  };
   $('#pmClose').onclick = close;
   $('#pmCancel').onclick = close;
 
-  $('#pmSubmit').onclick = async () => {
-    const dm = $('#pmDM').value.trim();
+  $('#pmList').innerHTML = '<div class="px-3 py-3"><div class="skeleton-line"></div></div>';
+  renderHeader();
+  rpc('listSessionPOs', sid)
+    .then(list => { pos = Array.isArray(list) ? list : []; renderList(); })
+    .catch(e => { $('#pmErr').textContent = 'Lỗi tải PO: ' + e.message; });
+  setTimeout(() => $('#pmPO').focus(), 50);
+
+  const add = async () => {
     const po = $('#pmPO').value.trim();
-    if (!po) { $('#pmErr').textContent = 'Nhập số PO để hoàn thành đợt'; $('#pmPO').focus(); return; }
-    const btn = $('#pmSubmit');
-    const label = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Đang lưu…';
+    if (!po) { $('#pmErr').textContent = 'Nhập số PO'; $('#pmPO').focus(); return; }
+    const btn = $('#pmAdd');
+    btn.disabled = true;
+    $('#pmErr').textContent = '';
     try {
-      await rpc('recordPurchase', sess.session_id, dm, po);
-      toast(completing ? 'Đã nhập PO · đợt chuyển sang Hoàn thành' : 'Đã cập nhật thông tin PO');
-      close();
-      await loadSessions();
-      renderManageList();
+      const r = await rpc('addSessionPO', sid, {
+        po, de_nghi_mua_hang: $('#pmDM').value.trim(), ghi_chu: $('#pmNoteInput').value.trim(),
+      });
+      pos = r.pos || pos; status = r.trang_thai || status; changed = true;
+      $('#pmPO').value = ''; $('#pmNoteInput').value = '';   // giữ DM: thường nhiều PO chung 1 DM
+      renderList();
+      $('#pmPO').focus();
     } catch (e) {
       $('#pmErr').textContent = e.message;
     } finally {
-      btn.disabled = false; btn.textContent = label;
+      btn.disabled = false;
+    }
+  };
+  $('#pmAdd').onclick = add;
+  ['#pmPO', '#pmDM', '#pmNoteInput'].forEach(id => {
+    $(id).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
+  });
+
+  // Xóa: bấm 2 lần (lần 1 đổi nút thành "Xóa?") để tránh xóa nhầm.
+  $('#pmList').onclick = async (e) => {
+    const b = e.target.closest('button[data-po-del]');
+    if (!b) return;
+    if (!b.dataset.armed) {
+      b.dataset.armed = '1'; b.textContent = 'Xóa?';
+      setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Xóa'; } }, 3000);
+      return;
+    }
+    b.disabled = true;
+    $('#pmErr').textContent = '';
+    try {
+      const r = await rpc('deleteSessionPO', sid, b.dataset.poDel);
+      pos = r.pos || []; status = r.trang_thai || status; changed = true;
+      renderList();
+    } catch (err) {
+      $('#pmErr').textContent = err.message;
+      b.disabled = false;
+    }
+  };
+
+  $('#pmSubmit').onclick = async () => {
+    if (!pos.length) { $('#pmErr').textContent = 'Thêm ít nhất 1 PO trước khi hoàn thành đợt'; return; }
+    if ($('#pmPO').value.trim()) { $('#pmErr').textContent = 'Còn số PO chưa thêm — bấm "+ Thêm PO" hoặc xóa ô trước'; return; }
+    const btn = $('#pmSubmit');
+    btn.disabled = true; btn.textContent = 'Đang lưu…';
+    try {
+      await rpc('completeSession', sid);
+      toast(`Đợt hoàn thành · ${pos.length} PO`);
+      changed = true;
+      await close();
+    } catch (e) {
+      $('#pmErr').textContent = e.message;
+      btn.disabled = false;
+    } finally {
+      btn.textContent = 'Hoàn thành đợt';
     }
   };
 }
