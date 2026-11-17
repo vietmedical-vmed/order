@@ -169,7 +169,7 @@
         <option value="DRAFT">AM đang nhập</option>
         <option value="SUBMITTED">PM chờ duyệt</option>
         <option value="PM_APPROVED">Manager chờ duyệt</option>
-        <option value="APPROVED">Đã duyệt · chờ PO</option>
+        <option value="APPROVED">Đã duyệt</option>
         <option value="COMPLETED">Hoàn thành</option>
         <option value="CANCELED">Đã hủy</option>
       </select>
@@ -178,6 +178,11 @@
         <button data-mmien="MB" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Bắc</button>
         <button data-mmien="MN" class="mmien-btn px-3 py-1 text-[12px] rounded font-medium" aria-pressed="false">Miền Nam</button>
       </div>
+      <div class="flex-1"></div>
+      <button id="mExport" class="ctl-btn" type="button" title="Xuất danh sách đợt đang lọc (kèm cột PO)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Xuất Excel
+      </button>
     </div>
 
     <div id="catalogFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">

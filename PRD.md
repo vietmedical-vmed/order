@@ -168,7 +168,7 @@ Trạng thái cuối: `COMPLETED` (Mua hàng đã nhập PO — pill xanh lá "H
 1. Purchasing (hoặc Admin) mở đợt `APPROVED`, xuất Excel (nếu cần), tạo Đề nghị mua hàng + PO bên Bravo.
 2. Bấm "Nhập PO". Một đợt có thể nhiều PO: mỗi lần "+ Thêm PO" (`addSessionPO`) ghi 1 dòng vào `app_order.order_session_po` gồm `po` (bắt buộc, không trùng trong đợt), `de_nghi_mua_hang`, `ghi_chu` (tùy chọn). Xóa PO bằng `deleteSessionPO`. Đợt vẫn ở `APPROVED`.
 3. Đủ PO thì bấm "Hoàn thành đợt" (`completeSession`, cần ≥ 1 PO) → `APPROVED → COMPLETED`, lưu `nguoi_mua_hang`, `ngay_mua_hang`, gửi thông báo `PURCHASE`.
-4. `order_sessions.po` / `de_nghi_mua_hang` là cột tóm tắt ("PO1; PO2"), order-api ghi lại sau mỗi lần thêm/xóa PO; danh sách đợt, email và Excel đọc cột này.
+4. `order_sessions.po` / `de_nghi_mua_hang` là cột tóm tắt ("PO1; PO2"), order-api ghi lại sau mỗi lần thêm/xóa PO; danh sách đợt, email và Excel đọc cột này. Màn Quản lý đợt có "Xuất Excel" danh sách đợt đang lọc (1 dòng / đợt, cột Số PO + PO + DM + người/ngày hoàn thành).
 5. Đợt `COMPLETED` vẫn thêm/xóa PO được (phải còn ≥ 1 PO), không đổi trạng thái, không gửi thông báo. Manager không sửa `sl_dat_hang` được nữa (chỉ Admin ghi đè).
 
 **F5. Cấu hình danh mục (Admin/Manager/PM)**

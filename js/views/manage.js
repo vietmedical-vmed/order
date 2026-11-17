@@ -7,11 +7,13 @@ let _mGrpListLoaded = false;
 let _mSelectedGroups = new Set();
 import { toast } from '../toast.js';
 import { askConfirm, trapModal } from '../modal.js';
+import { loadSheetJS } from '../export-excel.js';
 import { loadSessions } from '../session.js';
 import { renderView } from '../router.js';
 
 
 let _approvalFilterBound = false;
+let _lastList = [];   // danh sách đợt vừa hiển thị (đã lọc) -> nguồn cho Xuất Excel
 
 async function loadBUFilter() {
   if (_buListLoaded) return;
@@ -72,6 +74,7 @@ function bindApprovalFilterOnce() {
   if (_approvalFilterBound) return;
   _approvalFilterBound = true;
   $('#mStatus').addEventListener('change', renderManageList);
+  $('#mExport').addEventListener('click', exportManageList);
   const miens = userMiens();
   if (isAM() && miens.length === 1) {
     state.manageMien = miens[0];
@@ -107,7 +110,7 @@ export async function initApprovalView() {
   await renderManageList();
 }
 
-const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt · chờ PO', COMPLETED: 'Hoàn thành', CANCELED: 'Đã hủy' };
+const ST_LABEL = { DRAFT: 'AM đang nhập', SUBMITTED: 'PM chờ duyệt', PM_APPROVED: 'Manager chờ duyệt', APPROVED: 'Đã duyệt', COMPLETED: 'Hoàn thành', CANCELED: 'Đã hủy' };
 const ST_CLS = { DRAFT: 'st-draft', SUBMITTED: 'st-sub', PM_APPROVED: 'pill-mid', APPROVED: 'st-app', COMPLETED: 'st-done', CANCELED: 'pill-hot' };
 
 async function renderManageList() {
@@ -127,6 +130,7 @@ async function renderManageList() {
         return sessGroups.some(g => _mSelectedGroups.has(g));
       });
     }
+    _lastList = list;
     if (!list.length) {
       host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 empty-state">Không có đợt nào</div>`;
       return;
@@ -262,6 +266,51 @@ function bindManageActions() {
   });
 }
 
+
+// ============ XUẤT EXCEL DANH SÁCH ĐỢT (1 dòng / đợt, kèm cột PO) ============
+async function exportManageList() {
+  const list = _lastList || [];
+  if (!list.length) { toast('Không có đợt nào để xuất', 'error'); return; }
+  const btn = $('#mExport');
+  btn.disabled = true;
+  try {
+    const XLSX = await loadSheetJS();
+    const d = (v) => (v ? fmtDate(v) : '');
+    const n = (v) => Number(v) || 0;
+    const header = ['STT', 'Đợt', 'BU', 'Miền', 'Chủ sở hữu', 'Nhóm SP', 'Tạo bởi',
+      'Ngày mở', 'Ngày yêu cầu', 'Ngày PM duyệt', 'Ngày Manager duyệt', 'Trạng thái',
+      'Số SKU', 'SL đặt', 'SL duyệt', 'SL đặt hàng',
+      'Số PO', 'PO', 'DM', 'Người hoàn thành', 'Ngày hoàn thành'];
+    const aoa = [header];
+    list.forEach((s, i) => {
+      const st = s.stats || {};
+      const pos = String(s.po || '').split(';').map(x => x.trim()).filter(Boolean);
+      aoa.push([
+        i + 1, s.ten_dot, s.bu_label || s.bu || '', s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien,
+        s.csh_dklh || '', splitGroups(s.nhom_san_pham).join(', '), s.tao_boi || '',
+        d(s.ngay_mo), d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), ST_LABEL[s.trang_thai] || s.trang_thai,
+        n(st.sku), n(st.sl_dat), n(st.sl_duyet), n(st.sl_dat_hang),
+        pos.length || '', pos.join('; '), s.de_nghi_mua_hang || '',
+        s.trang_thai === 'COMPLETED' ? (s.nguoi_mua_hang || '') : '', s.trang_thai === 'COMPLETED' ? d(s.ngay_mua_hang) : '',
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 5 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 14 },
+      { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 16 },
+      { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 11 },
+      { wch: 7 }, { wch: 30 }, { wch: 22 }, { wch: 16 }, { wch: 13 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Danh sách đợt');
+    XLSX.writeFile(wb, `danh-sach-dot_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast(`Đã xuất ${list.length} đợt ra Excel`);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 // ============ MODAL PO CỦA ĐỢT (MUA HÀNG: nhiều PO → HOÀN THÀNH ĐỢT) ============
 // Đợt APPROVED: thêm/xóa PO, bấm "Hoàn thành đợt" khi đủ (cần >= 1 PO).

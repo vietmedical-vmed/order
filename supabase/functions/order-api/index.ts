@@ -1259,6 +1259,8 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ngay_manager_duyet: s.ngay_manager_duyet ? new Date(s.ngay_manager_duyet).toISOString() : "",
       de_nghi_mua_hang: s.de_nghi_mua_hang || "",
       po: s.po || "",
+      nguoi_mua_hang: s.nguoi_mua_hang || "",
+      ngay_mua_hang: s.ngay_mua_hang ? new Date(s.ngay_mua_hang).toISOString() : "",
       stats: stat[s.session_id] || { sku: 0, sl_dat: 0, sl_duyet: 0, sl_dat_hang: 0, approved_sku: 0, ordered_sku: 0 },
     }));
     out.sort((a, b) => +new Date(b.ngay_mo) - +new Date(a.ngay_mo));
