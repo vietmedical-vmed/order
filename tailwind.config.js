@@ -16,6 +16,8 @@ module.exports = {
         danger: { 50: '#fdecee', 100: '#fad3d6', 200: '#f5aab0', 300: '#ef7d85', 400: '#f9525c', 500: '#fa383e', 600: '#e41e3f', 700: '#c81f3d', 800: '#9f1830', 900: '#7a1225' },
         // Chờ xử lý / cần chú ý (giữ nguyên dải amber mặc định của Tailwind)
         warning: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e', 900: '#78350f' },
+        // Hoàn tất (đợt Hoàn thành) — dải green mặc định của Tailwind
+        success: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' },
       },
     },
   },

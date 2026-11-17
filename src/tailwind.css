@@ -261,6 +261,7 @@ table.dt[style*="table-layout: fixed"] thead th,
 .st-sub { background: #fef3c7; color: #92400e; }
 .st-app { background: #cfe4ff; color: #0a4fa8; }
 .st-close { background: #e7f3ff; color: #0c5dc7; }
+.st-done { background: #dcfce7; color: #15803d; }
 
 /* Mini bar */
 .mini-bar { height: 4px; background: #e4e6eb; border-radius: 2px; overflow: hidden; margin-top: 3px; }

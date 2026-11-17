@@ -169,7 +169,8 @@
         <option value="DRAFT">AM đang nhập</option>
         <option value="SUBMITTED">PM chờ duyệt</option>
         <option value="PM_APPROVED">Manager chờ duyệt</option>
-        <option value="APPROVED">Đã duyệt</option>
+        <option value="APPROVED">Đã duyệt · chờ PO</option>
+        <option value="COMPLETED">Hoàn thành</option>
         <option value="CANCELED">Đã hủy</option>
       </select>
       <div id="mMienSeg" role="group" aria-label="Chọn miền" class="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
@@ -527,15 +528,15 @@
      class="hidden fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
     <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-      <h3 id="modalPurchaseTitle" class="font-semibold text-[15px]">Đặt hàng · thông tin tracking</h3>
+      <h3 id="modalPurchaseTitle" class="font-semibold text-[15px]">Nhập PO · hoàn thành đợt</h3>
       <button id="pmClose" type="button" aria-label="Đóng" class="text-slate-500 hover:text-slate-700 text-[22px] leading-none">×</button>
     </div>
     <div class="p-5">
       <div id="pmNote" class="bg-primary-50 border border-primary-100 rounded-md p-3 text-[12px] text-primary-800 mb-4"></div>
-      <label for="pmDM" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Đề nghị mua hàng (DM)</label>
+      <label for="pmDM" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Đề nghị mua hàng (DM) <span class="normal-case text-slate-400">· tùy chọn</span></label>
       <input id="pmDM" placeholder="VD: DM-2026-0135" class="w-full mb-3 px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
-      <label for="pmPO" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Số PO</label>
-      <input id="pmPO" placeholder="VD: PO-2026-0421" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
+      <label for="pmPO" class="block text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-1">Số PO <span class="text-danger-600">*</span></label>
+      <input id="pmPO" required aria-required="true" placeholder="VD: PO-2026-0421" class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-md outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"/>
       <div id="pmErr" role="alert" class="text-[12px] text-danger-600 mt-3 min-h-[16px]"></div>
     </div>
     <div class="flex justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">

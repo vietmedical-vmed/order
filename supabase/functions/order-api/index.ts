@@ -1199,10 +1199,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     let q = supa.schema("app_order").from("order_sessions").select("*");
     if (u.role === "AM") q = q.in("mien", amMiens(u));
     if (filter.mien && filter.mien !== "ALL" && (u.role !== "AM" || amCovers(u, filter.mien))) q = q.eq("mien", filter.mien);
-    // Manager thấy SUBMITTED (CTTM skip PM) + PM_APPROVED + APPROVED.
-    if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
-    // Mua hàng chỉ thấy đợt đã được duyệt (APPROVED).
-    if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "CLOSED"]);
+    // Manager thấy SUBMITTED (CTTM skip PM) + PM_APPROVED + APPROVED + COMPLETED.
+    if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"]);
+    // Mua hàng: đợt đang duyệt (theo dõi) + đã duyệt (chờ nhập PO) + hoàn thành.
+    if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED", "CLOSED"]);
     if (filter.status && filter.status !== "ALL") q = q.eq("trang_thai", filter.status);
     const { data: sessions } = await q;
     let list = sessions || [];
@@ -1656,23 +1656,34 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return { ok: true, newStatus: "CANCELED" };
   },
 
-  // Mua hàng "Đặt hàng": lưu thông tin tracking (Đề nghị mua hàng + PO) cho đợt đã duyệt.
+  // Mua hàng nhập PO (+ Đề nghị mua hàng, tùy chọn) cho đợt đã duyệt → đợt HOÀN THÀNH (COMPLETED).
+  // Đợt đã COMPLETED vẫn sửa được DM/PO (giữ trạng thái, giữ người/ngày hoàn thành ban đầu).
   async recordPurchase(supa, u, [sessionId, dm, po]) {
-    if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được đặt hàng");
+    if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được nhập PO");
     const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
     if (!s) throw new Error("Không tìm thấy đợt");
-    if (s.trang_thai !== "APPROVED")
-      throw new Error("Chỉ đặt hàng khi đợt đã được duyệt (APPROVED)");
+    if (s.trang_thai !== "APPROVED" && s.trang_thai !== "COMPLETED")
+      throw new Error("Chỉ nhập PO khi đợt đã được duyệt (APPROVED)");
     const deNghi = String(dm || "").trim();
     const poStr = String(po || "").trim();
-    if (!deNghi && !poStr) throw new Error("Nhập ít nhất Đề nghị mua hàng hoặc số PO");
-    await supa.schema("app_order").from("order_sessions").update({
-      de_nghi_mua_hang: deNghi, po: poStr,
-      nguoi_mua_hang: u.username, ngay_mua_hang: new Date().toISOString(),
-    }).eq("session_id", sessionId);
-    await audit(supa, u.username, "PURCHASE", sessionId, "DM: " + deNghi + " · PO: " + poStr);
-    try { await notifyEvent(supa, s, "PURCHASE", { actor: u.username, dm: deNghi, po: poStr }); } catch (e) { console.error("notifyEvent:", e); }
-    return { ok: true, de_nghi_mua_hang: deNghi, po: poStr };
+    if (!poStr) throw new Error("Nhập số PO để hoàn thành đợt");
+    const completing = s.trang_thai === "APPROVED";
+    const patch: any = { de_nghi_mua_hang: deNghi, po: poStr };
+    if (completing) {
+      patch.trang_thai = "COMPLETED";
+      patch.nguoi_mua_hang = u.username;
+      patch.ngay_mua_hang = new Date().toISOString();
+    }
+    // Điều kiện theo trạng thái vừa đọc: 2 người bấm cùng lúc thì chỉ 1 người chuyển trạng thái.
+    const { data: upd, error } = await supa.schema("app_order").from("order_sessions").update(patch)
+      .eq("session_id", sessionId).eq("trang_thai", s.trang_thai).select("session_id");
+    if (error) throw new Error(error.message);
+    if (!upd || !upd.length) throw new Error("Đợt vừa được người khác cập nhật — tải lại rồi thử lại");
+    await audit(supa, u.username, completing ? "PURCHASE" : "PURCHASE_UPDATE", sessionId, "DM: " + deNghi + " · PO: " + poStr);
+    if (completing) {
+      try { await notifyEvent(supa, { ...s, ...patch }, "PURCHASE", { actor: u.username, dm: deNghi, po: poStr }); } catch (e) { console.error("notifyEvent:", e); }
+    }
+    return { ok: true, newStatus: "COMPLETED", de_nghi_mua_hang: deNghi, po: poStr };
   },
 
   async approveItems(supa, u, [sessionId, approvals]) {
@@ -1729,10 +1740,10 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     const maBravos = filtered.map((p: any) => p.ma_bravo);
     if (!maBravos.length) return { rows: [], months: [] };
 
-    // Lấy sessions APPROVED/CLOSED, lọc miền + BU nếu cần
+    // Lấy sessions APPROVED/COMPLETED/CLOSED, lọc miền + BU nếu cần
     let sq = supa.schema("app_order").from("order_sessions")
       .select("session_id, ten_dot, mien, bu, ngay_mo, trang_thai")
-      .in("trang_thai", ["APPROVED", "CLOSED"]);
+      .in("trang_thai", ["APPROVED", "COMPLETED", "CLOSED"]);
     if (filter.mien && filter.mien !== "ALL") sq = sq.eq("mien", filter.mien);
     const reportBu = toBuCode(await loadBuDict(supa), filter.bu);
     if (reportBu && reportBu !== "all") sq = sq.eq("bu", reportBu);
@@ -1821,7 +1832,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 // ---------- workflow helpers ----------
 function actionForSession(u: any, session: any, skipPm = false) {
   const st = session.trang_thai;
-  if (st === "APPROVED") return null;
+  if (st === "APPROVED" || st === "COMPLETED") return null;
   if (st === "DRAFT" && canActAs(u, "AM")) {
     if (u.role === "AM" && !amCovers(u, session.mien)) return null;
     return { code: "AM_CONFIRM", label: u.role === "ADMIN" ? "Xác nhận (thay AM)" : "Xác nhận",
@@ -1853,7 +1864,7 @@ function editContextForSession(u: any, session: any, skipPm = false) {
   if (u.role === "ADMIN") {
     const noteByStatus: Record<string, string> = {
       DRAFT: "ghi_chu_dat", SUBMITTED: "ghi_chu_duyet",
-      PM_APPROVED: "ghi_chu_dat_hang", APPROVED: "ghi_chu_dat_hang",
+      PM_APPROVED: "ghi_chu_dat_hang", APPROVED: "ghi_chu_dat_hang", COMPLETED: "ghi_chu_dat_hang",
     };
     return {
       // changesOnly: chỉ ghi ô đã sửa (không điền sẵn hàng loạt); prefill off (không có cột "chính").
@@ -1907,6 +1918,7 @@ function editContextForSession(u: any, session: any, skipPm = false) {
   }
 
   // Manager: sửa SL đặt hàng ở đợt đã duyệt (APPROVED) — chỉ cập nhật, không đổi trạng thái.
+  // Đợt COMPLETED (Mua hàng đã nhập PO) thì khóa — chỉ Admin sửa được.
   if (u.role === "MANAGER" && st === "APPROVED") {
     return {
       action: { code: "MANAGER_EDIT_APPROVED", label: "Cập nhật SL đặt hàng", changesOnly: true, prefill: false,
@@ -1924,8 +1936,8 @@ function editContextForSession(u: any, session: any, skipPm = false) {
 async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string) {
   let q = supa.schema("app_order").from("order_sessions").select("*");
   if (u.role === "AM") q = q.in("mien", amMiens(u));
-  else if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
-  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED"]);
+  else if (u.role === "MANAGER") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"]);
+  else if (u.role === "PURCHASING") q = q.in("trang_thai", ["SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"]);
   if (mienHint && mienHint !== "ALL" && (u.role !== "AM" || amCovers(u, mienHint))) q = q.eq("mien", mienHint);
   const { data } = await q;
   let cands = data || [];
@@ -1943,11 +1955,11 @@ async function findCurrentSession(supa: SupabaseClient, u: any, mienHint: string
   }
   if (!cands.length) return null;
   const priority: Record<string, string[]> = {
-    AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
-    PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED"],
-    MANAGER: ["SUBMITTED", "PM_APPROVED", "APPROVED"],
-    PURCHASING: ["APPROVED", "CLOSED", "PM_APPROVED", "SUBMITTED"],
-    ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED"],
+    AM: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"],
+    PM: ["SUBMITTED", "PM_APPROVED", "DRAFT", "APPROVED", "COMPLETED"],
+    MANAGER: ["SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"],
+    PURCHASING: ["APPROVED", "COMPLETED", "CLOSED", "PM_APPROVED", "SUBMITTED"],
+    ADMIN: ["DRAFT", "SUBMITTED", "PM_APPROVED", "APPROVED", "COMPLETED"],
   };
   const order = priority[u.role] || priority.ADMIN;
   for (const st of order) {
@@ -2063,7 +2075,7 @@ async function generateExportLink(supa: SupabaseClient, session: any, event: str
   // Tên file khi tải = "<tên đợt>_<status>.xlsx" (status suy từ sự kiện). Bỏ dấu + ký tự cấm.
   const statusByEvent: Record<string, string> = {
     SUBMIT: "SUBMITTED", PM_APPROVE: "PM_APPROVED", MANAGER_APPROVE: "APPROVED",
-    REJECT: "DRAFT", CANCEL: "CANCELED", PURCHASE: "PURCHASED",
+    REJECT: "DRAFT", CANCEL: "CANCELED", PURCHASE: "COMPLETED",
   };
   const st = statusByEvent[event] || session.trang_thai || "";
   const safe = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -2080,16 +2092,16 @@ const EVENT_ROLES: Record<string, string[]> = {
   MANAGER_APPROVE: ["PURCHASING", "AM", "PM", "MANAGER", "ADMIN"],   // Manager duyệt (đợt được duyệt)
   REJECT:          ["AM", "PM"],                            // Từ chối -> AM, PM
   CANCEL:          ["PM", "MANAGER", "AM"],                 // AM hủy
-  PURCHASE:        ["AM", "PM", "MANAGER"],                 // Mua hàng ghi DM/PO
+  PURCHASE:        ["AM", "PM", "MANAGER"],                 // Mua hàng nhập PO -> đợt hoàn thành
   CLOSE:           ["AM", "PM"],                 // chốt đợt
 };
 const EVENT_TITLE: Record<string, string> = {
   SUBMIT:          "AM gửi duyệt — chờ PM duyệt",
   PM_APPROVE:      "PM đã duyệt — chờ Manager duyệt",
-  MANAGER_APPROVE: "Manager đã duyệt — chờ Mua hàng đặt",
+  MANAGER_APPROVE: "Manager đã duyệt — chờ Mua hàng nhập PO",
   REJECT:          "Đợt bị từ chối — trả về AM chỉnh sửa",
   CANCEL:          "Đợt đã bị hủy",
-  PURCHASE:        "Đã ghi thông tin đặt hàng (DM/PO)",
+  PURCHASE:        "Mua hàng đã nhập PO — đợt hoàn thành",
   CLOSE:           "Đợt đã chốt",
 };
 

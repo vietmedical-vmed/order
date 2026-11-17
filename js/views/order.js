@@ -364,20 +364,25 @@ function renderSessionBanner() {
     return;
   }
 
-  const statusOrder = ['DRAFT', 'SUBMITTED', 'PM_APPROVED', 'APPROVED'];
-  const stepLabels = { DRAFT: 'AM xác nhận', SUBMITTED: 'PM xác nhận', PM_APPROVED: 'Manager phê duyệt', APPROVED: 'Hoàn thành' };
+  // Mỗi bước = việc cần làm khi đợt đang ở trạng thái đó; COMPLETED là trạng thái cuối.
+  const statusOrder = ['DRAFT', 'SUBMITTED', 'PM_APPROVED', 'APPROVED', 'COMPLETED'];
+  const stepLabels = { DRAFT: 'AM xác nhận', SUBMITTED: 'PM xác nhận', PM_APPROVED: 'Manager phê duyệt', APPROVED: 'Mua hàng nhập PO', COMPLETED: 'Hoàn thành' };
   const stepHints = {
     DRAFT: 'AM nhập số lượng yêu cầu rồi bấm xác nhận',
     SUBMITTED: 'PM rà soát và điều chỉnh số lượng duyệt',
     PM_APPROVED: 'Manager phê duyệt lần cuối (hoặc từ chối trả về AM)',
-    APPROVED: 'Đợt đã duyệt — Mua hàng ghi DM/PO và xuất Excel',
+    APPROVED: 'Đợt đã duyệt — Mua hàng nhập số PO (và DM) để hoàn thành đợt',
+    COMPLETED: 'Mua hàng đã nhập PO — đợt hoàn thành',
   };
   const currIdx = statusOrder.indexOf(sess.trang_thai);
-  const isDone = sess.trang_thai === 'APPROVED';
+  const isDone = sess.trang_thai === 'COMPLETED';
 
   const stepsHtml = statusOrder.map((st, i) => {
     let circleCls, content;
-    if (i < currIdx || (isDone && i === currIdx)) {
+    if (isDone && i === currIdx) {
+      circleCls = 'bg-success-600 text-white';
+      content = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else if (i < currIdx) {
       circleCls = 'bg-primary-500 text-white';
       content = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     } else if (i === currIdx) {
@@ -387,8 +392,9 @@ function renderSessionBanner() {
       circleCls = 'bg-slate-200 text-slate-500';
       content = String(i + 1);
     }
-    const labelCls = i <= currIdx ? 'text-slate-800 font-medium' : 'text-slate-500';
-    const conn = i < 3 ? `<div class="w-6 h-px ${i < currIdx ? 'bg-primary-400' : 'bg-slate-200'}"></div>` : '';
+    const labelCls = (isDone && i === currIdx) ? 'text-success-700 font-semibold'
+      : i <= currIdx ? 'text-slate-800 font-medium' : 'text-slate-500';
+    const conn = i < statusOrder.length - 1 ?`<div class="w-6 h-px ${i < currIdx ? 'bg-primary-400' : 'bg-slate-200'}"></div>` : '';
     // 4.4: tooltip giải thích từng bước cho người dùng mới
     return `<div class="flex items-center gap-1.5" title="${esc(stepHints[st])}">
       <div class="w-5 h-5 rounded-full ${circleCls} flex items-center justify-center text-[10px] font-semibold flex-shrink-0">${content}</div>

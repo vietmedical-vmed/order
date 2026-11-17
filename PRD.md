@@ -87,7 +87,7 @@ Trước đây quy trình đặt hàng của khối Cung ứng chạy trên Goog
 | **AM (Area Manager)** | Đề xuất số lượng đặt cho miền mình phụ trách | Tạo đợt, nhập `sl_dat`, sửa cho tới khi PM duyệt, hủy khi cần |
 | **PM (Product Manager)** | Duyệt số lượng theo nhóm sản phẩm | Chỉ thấy/sửa SKU thuộc `scope` của mình, nhập `sl_duyet` |
 | **MANAGER** | Ký duyệt đợt sau khi PM đã duyệt | Xem đợt PM_APPROVED, phê duyệt (nhập `sl_dat_hang`) hoặc từ chối |
-| **PURCHASING** | Nhân viên Mua hàng | Xem đợt đã APPROVED, nhập Đề nghị mua hàng + PO |
+| **PURCHASING** | Nhân viên Mua hàng | Xem đợt đã APPROVED, nhập PO (+ Đề nghị mua hàng) để hoàn thành đợt (COMPLETED) |
 | **ADMIN** | Quản trị hệ thống | Cấu hình công thức, cấu hình danh mục, ghi đè dữ liệu đợt, xem toàn bộ nhật ký |
 
 ### 4.2 Bảng phân quyền theo hành động
@@ -104,7 +104,7 @@ Ghi chú: role gốc trong `users` (`area_manager`, `product_manager`, `manager`
 | Phê duyệt Manager (nhập `sl_dat_hang`) | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Từ chối (trả DRAFT) | ❌ | ❌ | ✅ (khi PM_APPROVED) | ✅ | ❌ |
 | Hủy đợt (CANCELED) | ✅ (DRAFT/SUBMITTED của miền mình) | ❌ | ❌ | ✅ | ❌ |
-| Ghi Đề nghị mua hàng + PO | ❌ | ❌ | ❌ | ✅ | ✅ (đợt APPROVED) |
+| Nhập PO → Hoàn thành đợt | ❌ | ❌ | ❌ | ✅ | ✅ (đợt APPROVED; sửa PO khi COMPLETED) |
 | Xuất Excel đợt (APPROVED) | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Cấu hình danh mục (`saveCatalog`) | ❌ | ✅ (SKU thuộc scope) | ✅ | ✅ | ❌ |
 | Cấu hình công thức gợi ý (`saveConfig`) | ❌ | ❌ | ❌ | ✅ | ❌ |
@@ -116,7 +116,7 @@ Ghi chú: role gốc trong `users` (`area_manager`, `product_manager`, `manager`
 - **AM**: chỉ thấy/tạo đợt của `mien` = mình, và (nếu có) `bu` khớp `users.bu` (so khớp ilike, không phân biệt hoa/thường).
 - **PM**: `scope` là danh sách nhóm sản phẩm, phân tách bằng dấu phẩy hoặc `;` (vd `"Cột sống Ulrich, Khớp UOC"`). Filter khớp không phân biệt hoa/thường. Server chặn cả read (`listCatalog`, `loadOrderScreen`) lẫn write (`pmConfirm`, `saveCatalog`).
 - **MANAGER**: chỉ thấy đợt từ `PM_APPROVED` trở đi.
-- **PURCHASING**: chỉ thấy đợt `APPROVED`.
+- **PURCHASING**: thấy đợt từ `SUBMITTED` trở đi (theo dõi), thao tác ở `APPROVED` / `COMPLETED`.
 - **ADMIN**: toàn quyền, bao gồm `adminSaveItems` để ghi đè bất kỳ cột số lượng nào ở bất kỳ trạng thái nào (không đổi trạng thái, không ràng buộc scope).
 
 ---
@@ -133,12 +133,15 @@ DRAFT ─────────────► SUBMITTED
   │ (kèm lý do)      PM_APPROVED
   │                     │ Manager phê duyệt
   │                     ▼
-  │                  APPROVED ───► (Purchasing nhập Đề nghị mua hàng + PO)
+  │                  APPROVED
+  │                     │ Mua hàng nhập PO (+ DM)
+  │                     ▼
+  │                  COMPLETED (Hoàn thành)
   │
   └─── CANCELED (AM hủy khi còn DRAFT/SUBMITTED)
 ```
 
-Trạng thái cuối: `APPROVED` (đã duyệt và có thể ghi PO) và `CANCELED` (đợt hủy). Từ chối trả về `DRAFT`, xoá mốc `ngay_pm_duyet` / `ngay_manager_duyet` và ghi lại `ly_do_tu_choi` + `nguoi_tu_choi` + `tu_choi_o_buoc` + `tu_choi_luc`.
+Trạng thái cuối: `COMPLETED` (Mua hàng đã nhập PO — pill xanh lá "Hoàn thành") và `CANCELED` (đợt hủy). `APPROVED` không còn là trạng thái cuối: đợt đã duyệt, chờ Mua hàng nhập PO. Từ chối trả về `DRAFT`, xoá mốc `ngay_pm_duyet` / `ngay_manager_duyet` và ghi lại `ly_do_tu_choi` + `nguoi_tu_choi` + `tu_choi_o_buoc` + `tu_choi_luc`.
 
 ### 5.2 Luồng chính
 
@@ -161,9 +164,10 @@ Trạng thái cuối: `APPROVED` (đã duyệt và có thể ghi PO) và `CANCEL
 2. Bấm "Phê duyệt" → `managerApprove` → `PM_APPROVED → APPROVED`, ghi `ngay_manager_duyet`.
 3. Hoặc "Từ chối" → nhập lý do (bắt buộc) → `rejectSession` → trả về `DRAFT`.
 
-**F4. Mua hàng ghi PO**
-1. Purchasing (hoặc Admin) mở đợt `APPROVED`, xuất Excel (nếu cần), tạo Đề nghị mua hàng bên Bravo.
-2. Nhập `de_nghi_mua_hang` + `po` → `recordPurchase` → lưu `nguoi_mua_hang`, `ngay_mua_hang`.
+**F4. Mua hàng nhập PO → Hoàn thành đợt**
+1. Purchasing (hoặc Admin) mở đợt `APPROVED`, xuất Excel (nếu cần), tạo Đề nghị mua hàng + PO bên Bravo.
+2. Bấm "Nhập PO", nhập `po` (bắt buộc) + `de_nghi_mua_hang` (tùy chọn) → `recordPurchase` → `APPROVED → COMPLETED`, lưu `nguoi_mua_hang`, `ngay_mua_hang`, gửi thông báo `PURCHASE`.
+3. Đợt `COMPLETED` vẫn sửa được DM/PO ("Sửa PO"): giữ trạng thái và người/ngày hoàn thành, audit `PURCHASE_UPDATE`, không gửi thông báo. Manager không sửa `sl_dat_hang` được nữa (chỉ Admin ghi đè).
 
 **F5. Cấu hình danh mục (Admin/Manager/PM)**
 1. Mở màn "Cấu hình danh mục".
@@ -216,7 +220,7 @@ Tất cả gọi qua `POST /functions/v1/order-api` với body `{ action, token,
 | `approveSession` | Duyệt nhanh (copy cột trước) | PM (SUBMITTED) / MANAGER (PM_APPROVED) | — |
 | `rejectSession` | Từ chối, trả DRAFT (bắt buộc lý do) | MANAGER/ADMIN | Chỉ khi PM_APPROVED |
 | `cancelSession` | Hủy đợt | AM/ADMIN | Chỉ DRAFT/SUBMITTED |
-| `recordPurchase` | Ghi Đề nghị mua hàng + PO | PURCHASING/ADMIN | Chỉ APPROVED |
+| `recordPurchase` | Nhập PO (bắt buộc) + Đề nghị mua hàng | PURCHASING/ADMIN | APPROVED→COMPLETED; COMPLETED (sửa, không đổi trạng thái) |
 | `approveItems` | Duyệt số theo `item_id` (legacy) | PM/MANAGER/ADMIN | — |
 | `adminSaveItems` | Admin ghi đè số lượng | ADMIN | Không đổi trạng thái |
 | `exportOrderData` | Trả dữ liệu để xuất Excel | MANAGER/ADMIN/PURCHASING | Chỉ APPROVED |
@@ -304,7 +308,7 @@ public.sale_target         (kế hoạch theo miền — nguồn TB KH)
 
 `app_order.order_sessions`:
 - PK `session_id uuid`.
-- Cột: `ten_dot, mien (MB|MN), bu, ngay_mo, ngay_dong, trang_thai (DRAFT|SUBMITTED|PM_APPROVED|APPROVED|CLOSED|CANCELED), tao_boi, nhom_san_pham (nullable, "A;B" khi nhiều), ly_do_tu_choi, nguoi_tu_choi, tu_choi_o_buoc, tu_choi_luc, ngay_yeu_cau, ngay_pm_duyet, ngay_manager_duyet, de_nghi_mua_hang, po, nguoi_mua_hang, ngay_mua_hang`.
+- Cột: `ten_dot, mien (MB|MN), bu, ngay_mo, ngay_dong, trang_thai (DRAFT|SUBMITTED|PM_APPROVED|APPROVED|COMPLETED|CLOSED|CANCELED), tao_boi, nhom_san_pham (nullable, "A;B" khi nhiều), ly_do_tu_choi, nguoi_tu_choi, tu_choi_o_buoc, tu_choi_luc, ngay_yeu_cau, ngay_pm_duyet, ngay_manager_duyet, de_nghi_mua_hang, po, nguoi_mua_hang, ngay_mua_hang`.
 - Index: `idx_sessions_bu`.
 
 `app_order.order_items`:
@@ -354,7 +358,7 @@ public.sale_target         (kế hoạch theo miền — nguồn TB KH)
 
 **B5. Hủy đợt** chỉ AM (miền mình) hoặc ADMIN, và chỉ khi `DRAFT`/`SUBMITTED`.
 
-**B6. Mua hàng ghi PO** yêu cầu ít nhất một trong `de_nghi_mua_hang` hoặc `po`, đợt phải `APPROVED`.
+**B6. Mua hàng nhập PO** bắt buộc `po` (`de_nghi_mua_hang` tùy chọn), đợt phải `APPROVED` (chuyển sang `COMPLETED`) hoặc đã `COMPLETED` (chỉ sửa).
 
 **B7. Xuất Excel** chỉ khi `APPROVED`, chỉ MANAGER/ADMIN/PURCHASING.
 
