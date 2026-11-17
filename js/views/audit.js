@@ -9,7 +9,7 @@ const ACTION_LABELS = {
   APPROVE: 'Duyệt SKU', CLOSE_SESSION: 'Chốt đợt', CREATE_SESSION: 'Tạo đợt',
   CONFIG_CATALOG: 'Sửa danh mục đặt hàng', SAVE_CONFIG: 'Cấu hình công thức', REFRESH_INDICATORS: 'Tính lại chỉ số',
   AM_CONFIRM: 'AM xác nhận', PM_CONFIRM: 'PM xác nhận', PM_APPROVE: 'PM phê duyệt',
-  MANAGER_APPROVE: 'Manager phê duyệt', REJECT: 'Từ chối', EXPORT: 'Xuất Excel', PURCHASE: 'Hoàn thành đợt (PO)', PURCHASE_UPDATE: 'Sửa PO', PO_ADD: 'Thêm PO', PO_DELETE: 'Xóa PO',
+  MANAGER_APPROVE: 'Manager phê duyệt', REJECT: 'Từ chối', EXPORT: 'Xuất Excel', PURCHASE: 'Hoàn thành đợt (PO)', PURCHASE_UPDATE: 'Sửa PO', PO_ADD: 'Thêm PO', PO_UPDATE: 'Sửa PO', PO_DELETE: 'Xóa PO',
 };
 
 let _auditFilterBound = false;

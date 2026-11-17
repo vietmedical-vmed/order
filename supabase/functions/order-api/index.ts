@@ -1231,6 +1231,19 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     // items toàn hệ thống vượt 1000 (bug cũ khiến thống kê sai), và nhanh hơn
     // hẳn khi càng nhiều đợt (listSessions gọi rất thường xuyên).
     const statRows = await rpcAll(supa, "session_stats", {}, ["session_id"]);
+
+    // Ngày đặt hàng = ngày điền PO đầu tiên của đợt (min tao_luc trong order_session_po).
+    const poDate: Record<string, string> = {};
+    const poIds = list.map((s: any) => String(s.session_id));
+    for (let i = 0; i < poIds.length; i += 200) {
+      const { data: poRows, error: poErr } = await supa.schema("app_order").from("order_session_po")
+        .select("session_id, tao_luc").in("session_id", poIds.slice(i, i + 200));
+      if (poErr) throw new Error(poErr.message);
+      for (const r of poRows || []) {
+        const k = String(r.session_id);
+        if (r.tao_luc && (!poDate[k] || r.tao_luc < poDate[k])) poDate[k] = r.tao_luc;
+      }
+    }
     const stat: Record<string, any> = {};
     statRows.forEach((r) => {
       stat[String(r.session_id)] = {
@@ -1257,6 +1270,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ngay_yeu_cau: s.ngay_yeu_cau ? new Date(s.ngay_yeu_cau).toISOString() : "",
       ngay_pm_duyet: s.ngay_pm_duyet ? new Date(s.ngay_pm_duyet).toISOString() : "",
       ngay_manager_duyet: s.ngay_manager_duyet ? new Date(s.ngay_manager_duyet).toISOString() : "",
+      ngay_dat_hang: poDate[String(s.session_id)] ? new Date(poDate[String(s.session_id)]).toISOString() : "",
       de_nghi_mua_hang: s.de_nghi_mua_hang || "",
       po: s.po || "",
       nguoi_mua_hang: s.nguoi_mua_hang || "",
@@ -1691,6 +1705,34 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     return { ok: true, trang_thai: s.trang_thai, pos: await H.listSessionPOs(supa, u, [sessionId]) };
   },
 
+  // Sửa số PO / DM / ghi chú của 1 PO đã có. Mua hàng, Manager, Admin.
+  async updateSessionPO(supa, u, [sessionId, poId, input]) {
+    await loadPurchasableSession(supa, u, sessionId, true);
+    input = input || {};
+    const po = String(input.po || "").trim();
+    const dm = String(input.de_nghi_mua_hang || "").trim();
+    const note = String(input.ghi_chu || "").trim();
+    if (!po) throw new Error("Nhập số PO");
+    const { data: old, error: e1 } = await supa.schema("app_order").from("order_session_po")
+      .select("po, de_nghi_mua_hang, ghi_chu").eq("po_id", poId).eq("session_id", sessionId).maybeSingle();
+    if (e1) throw new Error(e1.message);
+    if (!old) throw new Error("Không tìm thấy PO");
+    const { error } = await supa.schema("app_order").from("order_session_po")
+      .update({ po, de_nghi_mua_hang: dm || null, ghi_chu: note || null })
+      .eq("po_id", poId).eq("session_id", sessionId);
+    if (error) {
+      if (error.code === "23505") throw new Error("PO " + po + " đã có trong đợt này");
+      throw new Error(error.message);
+    }
+    await syncPoSummary(supa, sessionId);
+    const diff: string[] = [];
+    if ((old.po || "") !== po) diff.push("PO: " + (old.po || "-") + " → " + po);
+    if ((old.de_nghi_mua_hang || "") !== dm) diff.push("DM: " + (old.de_nghi_mua_hang || "-") + " → " + (dm || "-"));
+    if ((old.ghi_chu || "") !== note) diff.push("Ghi chú: " + (old.ghi_chu || "-") + " → " + (note || "-"));
+    if (diff.length) await audit(supa, u.username, "PO_UPDATE", sessionId, diff.join(" · "));
+    return { ok: true, pos: await H.listSessionPOs(supa, u, [sessionId]) };
+  },
+
   async deleteSessionPO(supa, u, [sessionId, poId]) {
     const s = await loadPurchasableSession(supa, u, sessionId);
     const { data: rows, error: e1 } = await supa.schema("app_order").from("order_session_po")
@@ -1872,9 +1914,12 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
 };
 
 // ---------- workflow helpers ----------
-// Đợt Mua hàng được thao tác PO: chỉ PURCHASING/ADMIN, đợt APPROVED (chờ PO) hoặc COMPLETED.
-async function loadPurchasableSession(supa: SupabaseClient, u: any, sessionId: string) {
-  if (u.role !== "PURCHASING" && u.role !== "ADMIN") throw new Error("Chỉ Mua hàng/Admin được nhập PO");
+// Đợt được thao tác PO: đợt APPROVED (chờ PO) hoặc COMPLETED.
+// Thêm/xóa PO + hoàn thành: PURCHASING/ADMIN. Sửa PO/DM: thêm MANAGER (allowManager).
+async function loadPurchasableSession(supa: SupabaseClient, u: any, sessionId: string, allowManager = false) {
+  const roles = allowManager ? ["PURCHASING", "ADMIN", "MANAGER"] : ["PURCHASING", "ADMIN"];
+  if (!roles.includes(u.role))
+    throw new Error(allowManager ? "Chỉ Mua hàng/Manager/Admin được sửa PO" : "Chỉ Mua hàng/Admin được nhập PO");
   const { data: s } = await supa.schema("app_order").from("order_sessions").select("*").eq("session_id", sessionId).maybeSingle();
   if (!s) throw new Error("Không tìm thấy đợt");
   if (s.trang_thai !== "APPROVED" && s.trang_thai !== "COMPLETED")

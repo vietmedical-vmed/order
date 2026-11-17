@@ -170,6 +170,8 @@ Trạng thái cuối: `COMPLETED` (Mua hàng đã nhập PO — pill xanh lá "H
 3. Đủ PO thì bấm "Hoàn thành đợt" (`completeSession`, cần ≥ 1 PO) → `APPROVED → COMPLETED`, lưu `nguoi_mua_hang`, `ngay_mua_hang`, gửi thông báo `PURCHASE`.
 4. `order_sessions.po` / `de_nghi_mua_hang` là cột tóm tắt ("PO1; PO2"), order-api ghi lại sau mỗi lần thêm/xóa PO; danh sách đợt, email và Excel đọc cột này. Màn Quản lý đợt có "Xuất Excel" danh sách đợt đang lọc (1 dòng / đợt, cột Số PO + PO + DM + người/ngày hoàn thành).
 5. Đợt `COMPLETED` vẫn thêm/xóa PO được (phải còn ≥ 1 PO), không đổi trạng thái, không gửi thông báo. Manager không sửa `sl_dat_hang` được nữa (chỉ Admin ghi đè).
+6. Sửa số PO / DM / ghi chú của 1 PO đã có (`updateSessionPO`): Mua hàng, Manager, Admin; đợt `APPROVED` hoặc `COMPLETED`. Manager chỉ sửa, không thêm/xóa PO hay hoàn thành đợt. Audit `PO_UPDATE` ghi giá trị cũ → mới.
+7. **Ngày đặt hàng** = ngày điền PO đầu tiên của đợt (min `order_session_po.tao_luc`), hiện sau cột Ngày Manager duyệt ở màn Quản lý đợt và file Excel danh sách đợt.
 
 **F5. Cấu hình danh mục (Admin/Manager/PM)**
 1. Mở màn "Cấu hình danh mục".
@@ -224,6 +226,7 @@ Tất cả gọi qua `POST /functions/v1/order-api` với body `{ action, token,
 | `cancelSession` | Hủy đợt | AM/ADMIN | Chỉ DRAFT/SUBMITTED |
 | `listSessionPOs` | Danh sách PO của đợt | Mọi role | — |
 | `addSessionPO` / `deleteSessionPO` | Thêm / xóa 1 PO của đợt | PURCHASING/ADMIN | APPROVED hoặc COMPLETED (COMPLETED phải còn ≥ 1 PO) |
+| `updateSessionPO` | Sửa số PO / DM / ghi chú của 1 PO | PURCHASING/MANAGER/ADMIN | APPROVED hoặc COMPLETED |
 | `completeSession` | Hoàn thành đợt | PURCHASING/ADMIN | APPROVED→COMPLETED, cần ≥ 1 PO |
 | `approveItems` | Duyệt số theo `item_id` (legacy) | PM/MANAGER/ADMIN | — |
 | `adminSaveItems` | Admin ghi đè số lượng | ADMIN | Không đổi trạng thái |

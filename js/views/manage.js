@@ -152,6 +152,7 @@ async function renderManageList() {
           <th class="hidden lg:table-cell">Ngày yêu cầu</th>
           <th class="hidden lg:table-cell">Ngày PM duyệt</th>
           <th class="hidden lg:table-cell">Ngày Manager duyệt</th>
+          <th class="hidden lg:table-cell" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
           <th class="c">Trạng thái</th>
           <th class="r">SKU · SL đặt</th>
           <th class="r">SL duyệt</th>
@@ -172,6 +173,8 @@ async function renderManageList() {
           if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
           if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Nhập PO</button>`;
           if (canPurchase && st === 'COMPLETED') action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">PO</button>`;
+          // Manager: chỉ sửa số PO / DM đã nhập (không thêm/xóa/hoàn thành) -> chỉ hiện khi đợt đã có PO.
+          if (role === 'MANAGER' && (st === 'APPROVED' || st === 'COMPLETED') && s.po) action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">PO</button>`;
 
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
@@ -189,6 +192,7 @@ async function renderManageList() {
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_yeu_cau)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_pm_duyet)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_manager_duyet)}</td>
+            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_dat_hang)}</td>
             <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
             <td class="r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
             <td class="r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
@@ -278,7 +282,7 @@ async function exportManageList() {
     const d = (v) => (v ? fmtDate(v) : '');
     const n = (v) => Number(v) || 0;
     const header = ['STT', 'Đợt', 'BU', 'Miền', 'Chủ sở hữu', 'Nhóm SP', 'Tạo bởi',
-      'Ngày mở', 'Ngày yêu cầu', 'Ngày PM duyệt', 'Ngày Manager duyệt', 'Trạng thái',
+      'Ngày mở', 'Ngày yêu cầu', 'Ngày PM duyệt', 'Ngày Manager duyệt', 'Ngày đặt hàng', 'Trạng thái',
       'Số SKU', 'SL đặt', 'SL duyệt', 'SL đặt hàng',
       'Số PO', 'PO', 'DM', 'Người hoàn thành', 'Ngày hoàn thành'];
     const aoa = [header];
@@ -288,7 +292,7 @@ async function exportManageList() {
       aoa.push([
         i + 1, s.ten_dot, s.bu_label || s.bu || '', s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien,
         s.csh_dklh || '', splitGroups(s.nhom_san_pham).join(', '), s.tao_boi || '',
-        d(s.ngay_mo), d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), ST_LABEL[s.trang_thai] || s.trang_thai,
+        d(s.ngay_mo), d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), d(s.ngay_dat_hang), ST_LABEL[s.trang_thai] || s.trang_thai,
         n(st.sku), n(st.sl_dat), n(st.sl_duyet), n(st.sl_dat_hang),
         pos.length || '', pos.join('; '), s.de_nghi_mua_hang || '',
         s.trang_thai === 'COMPLETED' ? (s.nguoi_mua_hang || '') : '', s.trang_thai === 'COMPLETED' ? d(s.ngay_mua_hang) : '',
@@ -297,7 +301,7 @@ async function exportManageList() {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
       { wch: 5 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 14 },
-      { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 16 },
+      { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 12 }, { wch: 16 },
       { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 11 },
       { wch: 7 }, { wch: 30 }, { wch: 22 }, { wch: 16 }, { wch: 13 },
     ];
@@ -315,16 +319,21 @@ async function exportManageList() {
 // ============ MODAL PO CỦA ĐỢT (MUA HÀNG: nhiều PO → HOÀN THÀNH ĐỢT) ============
 // Đợt APPROVED: thêm/xóa PO, bấm "Hoàn thành đợt" khi đủ (cần >= 1 PO).
 // Đợt COMPLETED: vẫn thêm/xóa PO (phải còn >= 1), không có nút Hoàn thành.
+// Sửa số PO / DM / ghi chú từng dòng: Mua hàng, Manager, Admin. Manager CHỈ sửa (không thêm/xóa/hoàn thành).
 function openPurchaseModal(sess) {
   const modal = $('#modalPurchase');
   if (!modal) return;
   const full = state.sessions.find(s => s.session_id === sess.session_id) || sess;
   const sid = full.session_id;
+  const role = state.user.role;
+  const canManage = role === 'PURCHASING' || role === 'ADMIN';   // thêm/xóa PO + hoàn thành đợt
   let status = full.trang_thai;
   let pos = [];
-  let changed = false;   // có thêm/xóa PO -> tải lại danh sách đợt khi đóng
+  let editingId = null;  // po_id đang sửa trên bảng
+  let changed = false;   // có thêm/sửa/xóa PO -> tải lại danh sách đợt khi đóng
 
   modal.classList.remove('hidden');
+  $('#pmAddForm').classList.toggle('hidden', !canManage);
   $('#pmPO').value = '';
   $('#pmDM').value = '';
   $('#pmNoteInput').value = '';
@@ -334,12 +343,15 @@ function openPurchaseModal(sess) {
 
   const renderHeader = () => {
     const done = status === 'COMPLETED';
-    $('#modalPurchaseTitle').textContent = done ? 'PO của đợt · Hoàn thành' : 'Nhập PO · hoàn thành đợt';
-    $('#pmNote').innerHTML = done
-      ? `PO của ${where}. Đợt đã <strong>Hoàn thành</strong>; vẫn thêm/xóa PO được (còn ít nhất 1 PO).`
-      : `Thêm các PO của ${where} (một đợt có thể nhiều PO). Đủ PO thì bấm <strong>Hoàn thành đợt</strong>.`;
+    $('#modalPurchaseTitle').textContent = !canManage ? 'PO của đợt'
+      : done ? 'PO của đợt · Hoàn thành' : 'Nhập PO · hoàn thành đợt';
+    $('#pmNote').innerHTML = !canManage
+      ? `PO của ${where}. Bấm <strong>Sửa</strong> trên từng dòng để sửa số PO / DM.`
+      : done
+        ? `PO của ${where}. Đợt đã <strong>Hoàn thành</strong>; vẫn thêm/sửa/xóa PO được (còn ít nhất 1 PO).`
+        : `Thêm các PO của ${where} (một đợt có thể nhiều PO). Đủ PO thì bấm <strong>Hoàn thành đợt</strong>.`;
     const btn = $('#pmSubmit');
-    btn.classList.toggle('hidden', done);
+    btn.classList.toggle('hidden', done || !canManage);
     btn.disabled = !pos.length;
     btn.title = pos.length ? '' : 'Thêm ít nhất 1 PO trước';
   };
@@ -354,19 +366,29 @@ function openPurchaseModal(sess) {
           <tr><th class="text-left px-3 py-1.5 font-medium">#</th><th class="text-left px-3 py-1.5 font-medium">Số PO</th>
           <th class="text-left px-3 py-1.5 font-medium">DM</th><th class="text-left px-3 py-1.5 font-medium">Ghi chú</th><th></th></tr>
         </thead>
-        <tbody>${pos.map((p, i) => `<tr class="border-t border-slate-100">
+        <tbody>${pos.map((p, i) => p.po_id === editingId ? `<tr class="border-t border-slate-100 bg-primary-50/40" data-edit-row="${esc(p.po_id)}">
+          <td class="px-3 py-1.5 text-slate-500">${i + 1}</td>
+          <td class="px-1 py-1"><input data-f="po" value="${esc(p.po)}" aria-label="Số PO" class="w-full px-2 py-1 text-[12.5px] border border-slate-300 rounded outline-none focus:border-primary-500"/></td>
+          <td class="px-1 py-1"><input data-f="de_nghi_mua_hang" value="${esc(p.de_nghi_mua_hang)}" aria-label="DM" class="w-full px-2 py-1 text-[12.5px] border border-slate-300 rounded outline-none focus:border-primary-500"/></td>
+          <td class="px-1 py-1"><input data-f="ghi_chu" value="${esc(p.ghi_chu)}" aria-label="Ghi chú" class="w-full px-2 py-1 text-[12.5px] border border-slate-300 rounded outline-none focus:border-primary-500"/></td>
+          <td class="px-2 py-1 text-right whitespace-nowrap"><button type="button" class="ctl-btn ctl-btn-primary" data-po-save="${esc(p.po_id)}">Lưu</button> <button type="button" class="ctl-btn" data-po-cancel="1">Hủy</button></td>
+        </tr>` : `<tr class="border-t border-slate-100">
           <td class="px-3 py-1.5 text-slate-500">${i + 1}</td>
           <td class="px-3 py-1.5 font-medium text-slate-800">${esc(p.po)}</td>
           <td class="px-3 py-1.5 text-slate-600">${esc(p.de_nghi_mua_hang || '—')}</td>
           <td class="px-3 py-1.5 text-slate-600" title="${esc((p.tao_boi || '') + (p.tao_luc ? ' · ' + fmtDate(p.tao_luc) : ''))}">${esc(p.ghi_chu || '—')}</td>
-          <td class="px-2 py-1 text-right"><button type="button" class="ctl-btn ctl-btn-warn" data-po-del="${esc(p.po_id)}" aria-label="Xóa PO ${esc(p.po)}">Xóa</button></td>
+          <td class="px-2 py-1 text-right whitespace-nowrap"><button type="button" class="ctl-btn" data-po-edit="${esc(p.po_id)}" aria-label="Sửa PO ${esc(p.po)}">Sửa</button>${canManage ? ` <button type="button" class="ctl-btn ctl-btn-warn" data-po-del="${esc(p.po_id)}" aria-label="Xóa PO ${esc(p.po)}">Xóa</button>` : ''}</td>
         </tr>`).join('')}</tbody>
       </table>`;
     }
     renderHeader();
   };
 
-  const release = trapModal(modal, () => close());
+  // Esc / bấm nền: đang sửa 1 dòng thì chỉ hủy sửa, không đóng modal.
+  const release = trapModal(modal, () => {
+    if (editingId) { editingId = null; renderList(); return; }
+    close();
+  });
   const close = async () => {
     modal.classList.add('hidden');
     release();
@@ -380,7 +402,26 @@ function openPurchaseModal(sess) {
   rpc('listSessionPOs', sid)
     .then(list => { pos = Array.isArray(list) ? list : []; renderList(); })
     .catch(e => { $('#pmErr').textContent = 'Lỗi tải PO: ' + e.message; });
-  setTimeout(() => $('#pmPO').focus(), 50);
+  if (canManage) setTimeout(() => $('#pmPO').focus(), 50);
+
+  const saveEdit = async (poId) => {
+    const row = $('#pmList').querySelector(`tr[data-edit-row="${CSS.escape(poId)}"]`);
+    if (!row) return;
+    const val = (f) => row.querySelector(`input[data-f="${f}"]`).value.trim();
+    const input = { po: val('po'), de_nghi_mua_hang: val('de_nghi_mua_hang'), ghi_chu: val('ghi_chu') };
+    if (!input.po) { $('#pmErr').textContent = 'Nhập số PO'; row.querySelector('input[data-f="po"]').focus(); return; }
+    row.querySelectorAll('button, input').forEach(x => { x.disabled = true; });
+    $('#pmErr').textContent = '';
+    try {
+      const r = await rpc('updateSessionPO', sid, poId, input);
+      pos = r.pos || pos; editingId = null; changed = true;
+      renderList();
+      toast('Đã cập nhật PO');
+    } catch (err) {
+      $('#pmErr').textContent = err.message;
+      row.querySelectorAll('button, input').forEach(x => { x.disabled = false; });
+    }
+  };
 
   const add = async () => {
     const po = $('#pmPO').value.trim();
@@ -407,8 +448,26 @@ function openPurchaseModal(sess) {
     $(id).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
   });
 
-  // Xóa: bấm 2 lần (lần 1 đổi nút thành "Xóa?") để tránh xóa nhầm.
+  // Sửa trên dòng: Enter = Lưu. Esc = Hủy sửa (xử lý trong onDismiss của trapModal).
+  $('#pmList').onkeydown = (e) => {
+    const row = e.target.closest('tr[data-edit-row]');
+    if (row && e.key === 'Enter') { e.preventDefault(); saveEdit(row.dataset.editRow); }
+  };
+
   $('#pmList').onclick = async (e) => {
+    const ed = e.target.closest('button[data-po-edit]');
+    if (ed) {
+      editingId = ed.dataset.poEdit; $('#pmErr').textContent = '';
+      renderList();
+      const inp = $('#pmList').querySelector('tr[data-edit-row] input[data-f="po"]');
+      if (inp) { inp.focus(); inp.select(); }
+      return;
+    }
+    if (e.target.closest('button[data-po-cancel]')) { editingId = null; renderList(); return; }
+    const sv = e.target.closest('button[data-po-save]');
+    if (sv) { await saveEdit(sv.dataset.poSave); return; }
+
+    // Xóa: bấm 2 lần (lần 1 đổi nút thành "Xóa?") để tránh xóa nhầm.
     const b = e.target.closest('button[data-po-del]');
     if (!b) return;
     if (!b.dataset.armed) {
