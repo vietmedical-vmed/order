@@ -1308,16 +1308,16 @@ async function populateSessionCshOptions() {
   syncSessionCshField();
 }
 
-// Tên đợt gợi ý, ghép từ các lựa chọn trên form:
-//   T{tháng}/{năm} · {mã BU} · {nhóm SP | Tất cả nhóm} [· CSH {chủ sở hữu}] · Đợt {n}
-// n = số thứ tự kế tiếp trong các đợt đã có cùng phần đầu (cùng tháng/BU/nhóm/CSH);
-// 2 miền tạo cùng tên nên đếm theo tên, không đếm theo dòng.
-let _nameTouched = false;
+// Tên đợt theo mẫu cố định — SERVER tự đặt khi tạo (buildSessionName trong order-api),
+// form chỉ hiển thị bản xem trước, không sửa được:
+//   T{tháng}/{năm} · {MÃ BU} · {nhóm SP | Tất cả nhóm} [· CSH {chủ sở hữu}] · Đợt {n}
+// n = số thứ tự kế tiếp trong các đợt đã có cùng phần đầu. Client chỉ thấy các đợt mình
+// được xem nên n trên form có thể lệch; tên thật lấy theo server.
 function suggestSessionName() {
   const now = new Date();
   const parts = [`T${now.getMonth() + 1}/${now.getFullYear()}`];
   const bu = ($('#modalSessBU') || {}).value || '';
-  if (bu) parts.push(bu);
+  if (bu) parts.push(bu.toUpperCase());
   const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value.trim());
   parts.push(!nhom.length ? 'Tất cả nhóm' : nhom.length <= 3 ? nhom.join(', ') : `${nhom.slice(0, 2).join(', ')} +${nhom.length - 2}`);
   const csh = sessionCshNeeded() ? (($('#modalSessCsh') || {}).value || '') : '';
@@ -1334,37 +1334,18 @@ function suggestSessionName() {
   return `${base} · Đợt ${max + 1}`;
 }
 
-// Điền tên gợi ý vào ô, trừ khi user đã tự sửa tên (khi đó chỉ hiện nút dùng lại gợi ý).
 function refreshSuggestedName() {
   const input = $('#modalSessName');
-  const hint = $('#modalSessNameHint');
-  if (!input) return;
-  const name = suggestSessionName();
-  if (!_nameTouched) input.value = name;
-  if (hint) {
-    const differs = _nameTouched && input.value.trim() !== name;
-    hint.classList.toggle('hidden', !differs);
-    hint.innerHTML = differs
-      ? `Gợi ý: <button type="button" id="modalSessNameUse" class="text-primary-600 hover:underline">${esc(name)}</button>`
-      : '';
-  }
+  if (input) input.value = suggestSessionName();
 }
 
 function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
-  _nameTouched = false;
   const nameInput = $('#modalSessName');
   if (!nameInput._suggestBound) {
     nameInput._suggestBound = true;
-    nameInput.addEventListener('input', () => { _nameTouched = nameInput.value.trim() !== ''; refreshSuggestedName(); });
-    $('#modalSessNameHint').addEventListener('click', e => {
-      if (!e.target.closest('#modalSessNameUse')) return;
-      _nameTouched = false;
-      refreshSuggestedName();
-      nameInput.focus();
-    });
     $('#modalSessNhomList').addEventListener('change', refreshSuggestedName);
     $('#modalSessBU').addEventListener('change', refreshSuggestedName);
     $('#modalSessCsh').addEventListener('change', refreshSuggestedName);
@@ -1397,7 +1378,7 @@ function openCreateSessionModal() {
       ? `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> ở trạng thái <strong>Chờ PM duyệt</strong>. Bạn điền cột SL PM duyệt.`
       : `Đợt sẽ được tạo cho <strong>cả miền Bắc và miền Nam</strong> với cùng tên. Sale manager mỗi miền có thể bắt đầu nhập đặt hàng ngay.`;
   }
-  setTimeout(() => $('#modalSessName').focus(), 50);
+  setTimeout(() => $('#modalSessBU').focus(), 50);
 
   const release = trapModal(modal, () => close());
   const close = () => { modal.classList.add('hidden'); release(); };
@@ -1405,8 +1386,7 @@ function openCreateSessionModal() {
   $('#modalCancel').onclick = close;
 
   $('#modalSubmit').onclick = async () => {
-    const name = $('#modalSessName').value.trim();
-    if (!name) { $('#modalErr').textContent = 'Vui lòng nhập tên đợt'; return; }
+    const name = $('#modalSessName').value.trim();   // chỉ để tham khảo; server tự đặt tên
     const buSel = $('#modalSessBU');
     const bu = buSel ? buSel.value : '';
     if (!bu) { $('#modalErr').textContent = 'Vui lòng chọn BU'; return; }
@@ -1417,15 +1397,13 @@ function openCreateSessionModal() {
     try {
       let toastMsg;
       const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value);
-      const nhomLabel = nhom.length ? ` · nhóm ${nhom.join(', ')}` : '';
-      const buLabel = ` · ${bu}${csh ? ` · CSH ${csh}` : ''}`;
       if (role === 'AM') {
         const s = await rpc('createSession', name, state.mien, '', nhom, bu, csh);
         state.pinnedSessionId = (s && s.session_id) || null;
-        toastMsg = `Đã tạo đợt "${name}" cho miền ${state.mien}${buLabel}${nhomLabel}`;
+        toastMsg = `Đã tạo đợt "${(s && s.ten_dot) || name}" cho miền ${state.mien}`;
       } else {
         const r = await rpc('createSessionBoth', name, '', nhom, bu, csh);
-        toastMsg = `Đã tạo đợt "${name}" cho cả 2 miền${buLabel}${nhomLabel}`;
+        toastMsg = `Đã tạo đợt "${(r && r.mb && r.mb.ten_dot) || name}" cho cả 2 miền`;
         // Hiển thị + mở đợt mới tạo của 1 miền cụ thể (ALL không xem chi tiết đợt được).
         const targetMien = state.mien === 'MN' ? 'MN' : 'MB';
         const created = targetMien === 'MN' ? (r && r.mn) : (r && r.mb);

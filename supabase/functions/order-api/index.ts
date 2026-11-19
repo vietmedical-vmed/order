@@ -358,6 +358,80 @@ async function isSkipPmSession(supa: SupabaseClient, session: any): Promise<bool
   return true;
 }
 
+// Tên đợt theo mẫu cố định (server tự đặt, bỏ qua tên client gửi lên):
+//   T{tháng}/{năm} · {MÃ BU} · {nhóm SP | Tất cả nhóm} [· CSH {chủ sở hữu}] · Đợt {n}
+// Tháng/năm theo giờ Việt Nam. >3 nhóm -> 2 nhóm đầu + "+N". n = số "Đợt n" lớn nhất
+// trong các đợt đã có cùng phần đầu + 1 (cặp MB/MN cùng tên chỉ tính 1 lần).
+// Giữ đồng bộ với suggestSessionName() ở js/views/order.js (bản xem trước trên form).
+async function buildSessionName(supa: SupabaseClient, sessionBu: string, grp: string, csh: string): Promise<string> {
+  const vn = new Date(Date.now() + 7 * 3600 * 1000);
+  const parts = [`T${vn.getUTCMonth() + 1}/${vn.getUTCFullYear()}`];
+  if (sessionBu) parts.push(sessionBu.toUpperCase());
+  const groups = grp ? grp.split(";").map((g) => g.trim()).filter(Boolean) : [];
+  parts.push(!groups.length ? "Tất cả nhóm"
+    : groups.length <= 3 ? groups.join(", ")
+    : `${groups.slice(0, 2).join(", ")} +${groups.length - 2}`);
+  if (csh) parts.push(`CSH ${csh}`);
+  const base = parts.join(" · ");
+  const prefix = base + " · Đợt ";
+  const likeEsc = prefix.replace(/[\\%_]/g, (c) => "\\" + c);
+  const { data, error } = await supa.schema("app_order").from("order_sessions")
+    .select("ten_dot").ilike("ten_dot", likeEsc + "%");
+  if (error) throw new Error("Đặt tên đợt: " + error.message);
+  let max = 0;
+  const pLow = prefix.toLowerCase();
+  for (const r of data || []) {
+    const name = String(r.ten_dot || "").trim().toLowerCase();
+    if (!name.startsWith(pLow)) continue;
+    const n = parseInt(name.slice(pLow.length), 10);
+    if (n > max) max = n;
+  }
+  return `${prefix}${max + 1}`;
+}
+
+// Tạo 1 dòng order_sessions. presetName = tên đã đặt sẵn (createSessionBoth dùng chung cho 2 miền);
+// null -> tự đặt theo mẫu (buildSessionName).
+async function createSessionRow(supa: SupabaseClient, u: any, mien: string, nhomSanPham: any, bu: any, cshDklh: any, presetName: string | null) {
+  if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
+  else if (u.role === "AM") { if (!amCovers(u, mien)) throw new Error("AM chỉ tạo được đợt cho miền " + amMiens(u).join(", ")); }
+  else throw new Error("Không có quyền tạo đợt");
+  // Đợt lưu bu_code chuẩn (vd "CH&CS" → "chcs"). "all" = không gắn BU.
+  const dict = await loadBuDict(supa);
+  let sessionBu = toBuCode(dict, bu || u.bu);
+  if (sessionBu === "all") sessionBu = "";
+  if (sessionBu && !dict.label.has(sessionBu)) throw new Error("BU không có trong danh mục: " + (bu || u.bu));
+
+  const isPmCreator = u.role === "PM";
+  const row: any = { ten_dot: "", mien, trang_thai: isPmCreator ? "SUBMITTED" : "DRAFT", tao_boi: u.username, bu: sessionBu };
+  if (isPmCreator) row.ngay_yeu_cau = new Date().toISOString();
+
+  const grp = normalizeGroups(nhomSanPham);
+  if (isPmCreator && grp) {
+    const grants = await getGrants(supa, u);
+    if (grants.scope) {
+      const pmScope = parseScope(grants.scope);
+      const requested = parseScope(grp);
+      for (const g of requested) {
+        if (!pmScope.has(g)) throw new Error("Nhóm sản phẩm \"" + g + "\" ngoài phạm vi phụ trách");
+      }
+    }
+  }
+  if (grp) row.nhom_san_pham = grp;
+  // Miền/nhóm bật CSH: bắt buộc chọn chủ sở hữu ĐKLH (xuất xứ); ngoài phạm vi -> bỏ qua.
+  if (await sessionNeedsCsh(supa, mien, grp, sessionBu)) {
+    const csh = String(cshDklh || "").trim();
+    if (!csh) throw new Error("Vui lòng chọn chủ sở hữu ĐKLH (xuất xứ) cho miền " + mien);
+    if (!(await cshOwnerOptions(supa, mien)).includes(csh)) throw new Error("Chủ sở hữu ĐKLH không hợp lệ: " + csh);
+    row.csh_dklh = csh;
+  }
+  const name = presetName || await buildSessionName(supa, sessionBu, grp || "", row.csh_dklh || "");
+  row.ten_dot = name;
+  const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
+  if (error) throw new Error(error.message);
+  await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien + (grp ? " · " + grp : "") + (row.csh_dklh ? " · CSH " + row.csh_dklh : ""));
+  return data;
+}
+
 // Chuẩn hoá lựa chọn nhóm sản phẩm (mảng hoặc chuỗi "A;B") -> "A;B;C" (bỏ trùng/rỗng, giữ tên gốc).
 function normalizeGroups(v: any): string {
   const arr = Array.isArray(v) ? v : String(v || "").split(/[,;]/);
@@ -1484,50 +1558,22 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
     };
   },
 
-  async createSession(supa, u, [name, mien, _ngayDong, nhomSanPham, bu, cshDklh]) {
-    if (u.role === "ADMIN" || u.role === "PM") { /* ok */ }
-    else if (u.role === "AM") { if (!amCovers(u, mien)) throw new Error("AM chỉ tạo được đợt cho miền " + amMiens(u).join(", ")); }
-    else throw new Error("Không có quyền tạo đợt");
-    // Đợt lưu bu_code chuẩn (vd "CH&CS" → "chcs"). "all" = không gắn BU.
+  async createSession(supa, u, [_clientName, mien, _ngayDong, nhomSanPham, bu, cshDklh]) {
+    return await createSessionRow(supa, u, mien, nhomSanPham, bu, cshDklh, null);
+  },
+
+  async createSessionBoth(supa, u, [_clientName, _ngayDong, nhomSanPham, bu, cshDklh]) {
+    if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được tạo đợt cho cả 2 miền");
+    // 2 miền dùng chung 1 tên. CSH vào tên khi ít nhất 1 miền bắt buộc CSH.
     const dict = await loadBuDict(supa);
     let sessionBu = toBuCode(dict, bu || u.bu);
     if (sessionBu === "all") sessionBu = "";
-    if (sessionBu && !dict.label.has(sessionBu)) throw new Error("BU không có trong danh mục: " + (bu || u.bu));
-
-    const isPmCreator = u.role === "PM";
-    const row: any = { ten_dot: name, mien, trang_thai: isPmCreator ? "SUBMITTED" : "DRAFT", tao_boi: u.username, bu: sessionBu };
-    if (isPmCreator) row.ngay_yeu_cau = new Date().toISOString();
-
     const grp = normalizeGroups(nhomSanPham);
-    if (isPmCreator && grp) {
-      const grants = await getGrants(supa, u);
-      if (grants.scope) {
-        const pmScope = parseScope(grants.scope);
-        const requested = parseScope(grp);
-        for (const g of requested) {
-          if (!pmScope.has(g)) throw new Error("Nhóm sản phẩm \"" + g + "\" ngoài phạm vi phụ trách");
-        }
-      }
-    }
-    if (grp) row.nhom_san_pham = grp;
-    // Miền/nhóm bật CSH: bắt buộc chọn chủ sở hữu ĐKLH (xuất xứ); ngoài phạm vi -> bỏ qua.
-    if (await sessionNeedsCsh(supa, mien, grp, sessionBu)) {
-      const csh = String(cshDklh || "").trim();
-      if (!csh) throw new Error("Vui lòng chọn chủ sở hữu ĐKLH (xuất xứ) cho miền " + mien);
-      if (!(await cshOwnerOptions(supa, mien)).includes(csh)) throw new Error("Chủ sở hữu ĐKLH không hợp lệ: " + csh);
-      row.csh_dklh = csh;
-    }
-    const { data, error } = await supa.schema("app_order").from("order_sessions").insert(row).select().single();
-    if (error) throw new Error(error.message);
-    await audit(supa, u.username, "CREATE_SESSION", data.session_id, name + " · " + mien + (grp ? " · " + grp : "") + (row.csh_dklh ? " · CSH " + row.csh_dklh : ""));
-    return data;
-  },
-
-  async createSessionBoth(supa, u, [name, ngayDong, nhomSanPham, bu, cshDklh]) {
-    if (u.role !== "ADMIN" && u.role !== "MANAGER" && u.role !== "PM") throw new Error("Chỉ Admin/Manager/PM được tạo đợt cho cả 2 miền");
+    const needCsh = (await sessionNeedsCsh(supa, "MN", grp, sessionBu)) || (await sessionNeedsCsh(supa, "MB", grp, sessionBu));
+    const name = await buildSessionName(supa, sessionBu, grp, needCsh ? String(cshDklh || "").trim() : "");
     // Tạo MN trước: MN có thể bị từ chối vì thiếu CSH -> không để lại đợt MB lẻ.
-    const mn = await H.createSession(supa, u, [name, "MN", ngayDong, nhomSanPham, bu, cshDklh]);
-    const mb = await H.createSession(supa, u, [name, "MB", ngayDong, nhomSanPham, bu, cshDklh]);
+    const mn = await createSessionRow(supa, u, "MN", nhomSanPham, bu, cshDklh, name);
+    const mb = await createSessionRow(supa, u, "MB", nhomSanPham, bu, cshDklh, name);
     return { mb, mn };
   },
 
