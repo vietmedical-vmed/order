@@ -349,12 +349,18 @@ function openPurchaseModal(sess) {
       ? `PO của ${where}. Bấm <strong>Sửa</strong> trên từng dòng để sửa số PO / DM.`
       : done
         ? `PO của ${where}. Đợt đã <strong>Hoàn thành</strong>; vẫn thêm/sửa/xóa PO được (còn ít nhất 1 PO).`
-        : `Thêm các PO của ${where} (một đợt có thể nhiều PO). Đủ PO thì bấm <strong>Hoàn thành đợt</strong>.`;
-    const btn = $('#pmSubmit');
-    btn.classList.toggle('hidden', done || !canManage);
-    btn.disabled = !pos.length;
-    btn.title = pos.length ? '' : 'Thêm ít nhất 1 PO trước';
+        : `Nhập PO của ${where} rồi bấm <strong>Hoàn thành đợt</strong>. Đợt có nhiều PO: bấm <strong>+ Thêm PO</strong> để lưu PO đang nhập, rồi nhập PO tiếp theo.`;
+    $('#pmSubmit').classList.toggle('hidden', done || !canManage);
+    syncSubmit();
   };
+  // "Hoàn thành đợt" bấm được khi đã có PO trong danh sách HOẶC đang nhập số PO (sẽ tự lưu PO đó trước).
+  const syncSubmit = () => {
+    const ok = pos.length > 0 || !!$('#pmPO').value.trim();
+    const btn = $('#pmSubmit');
+    btn.disabled = !ok;
+    btn.title = ok ? '' : 'Nhập số PO trước';
+  };
+  $('#pmPO').oninput = syncSubmit;
 
   const renderList = () => {
     const host = $('#pmList');
@@ -423,9 +429,10 @@ function openPurchaseModal(sess) {
     }
   };
 
+  // Lưu PO đang nhập vào danh sách. Trả true nếu lưu được.
   const add = async () => {
     const po = $('#pmPO').value.trim();
-    if (!po) { $('#pmErr').textContent = 'Nhập số PO'; $('#pmPO').focus(); return; }
+    if (!po) { $('#pmErr').textContent = 'Nhập số PO'; $('#pmPO').focus(); return false; }
     const btn = $('#pmAdd');
     btn.disabled = true;
     $('#pmErr').textContent = '';
@@ -437,8 +444,10 @@ function openPurchaseModal(sess) {
       $('#pmPO').value = ''; $('#pmNoteInput').value = '';   // giữ DM: thường nhiều PO chung 1 DM
       renderList();
       $('#pmPO').focus();
+      return true;
     } catch (e) {
       $('#pmErr').textContent = e.message;
+      return false;
     } finally {
       btn.disabled = false;
     }
@@ -488,10 +497,19 @@ function openPurchaseModal(sess) {
   };
 
   $('#pmSubmit').onclick = async () => {
-    if (!pos.length) { $('#pmErr').textContent = 'Thêm ít nhất 1 PO trước khi hoàn thành đợt'; return; }
-    if ($('#pmPO').value.trim()) { $('#pmErr').textContent = 'Còn số PO chưa thêm — bấm "+ Thêm PO" hoặc xóa ô trước'; return; }
     const btn = $('#pmSubmit');
     btn.disabled = true; btn.textContent = 'Đang lưu…';
+    // PO đang nhập (chưa bấm "+ Thêm PO") -> lưu luôn rồi mới hoàn thành.
+    if ($('#pmPO').value.trim() && !(await add())) {
+      btn.textContent = 'Hoàn thành đợt'; syncSubmit();
+      return;
+    }
+    if (!pos.length) {
+      $('#pmErr').textContent = 'Nhập số PO trước khi hoàn thành đợt';
+      btn.textContent = 'Hoàn thành đợt'; syncSubmit();
+      return;
+    }
+    btn.disabled = true;   // add() vẽ lại danh sách và bật lại nút -> khóa lại khi đang hoàn thành
     try {
       await rpc('completeSession', sid);
       toast(`Đợt hoàn thành · ${pos.length} PO`);
