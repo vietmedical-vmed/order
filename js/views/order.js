@@ -1308,10 +1308,68 @@ async function populateSessionCshOptions() {
   syncSessionCshField();
 }
 
+// Tên đợt gợi ý, ghép từ các lựa chọn trên form:
+//   T{tháng}/{năm} · {mã BU} · {nhóm SP | Tất cả nhóm} [· CSH {chủ sở hữu}] · Đợt {n}
+// n = số thứ tự kế tiếp trong các đợt đã có cùng phần đầu (cùng tháng/BU/nhóm/CSH);
+// 2 miền tạo cùng tên nên đếm theo tên, không đếm theo dòng.
+let _nameTouched = false;
+function suggestSessionName() {
+  const now = new Date();
+  const parts = [`T${now.getMonth() + 1}/${now.getFullYear()}`];
+  const bu = ($('#modalSessBU') || {}).value || '';
+  if (bu) parts.push(bu);
+  const nhom = $$('#modalSessNhomList .msn-opt').filter(x => x.checked).map(x => x.value.trim());
+  parts.push(!nhom.length ? 'Tất cả nhóm' : nhom.length <= 3 ? nhom.join(', ') : `${nhom.slice(0, 2).join(', ')} +${nhom.length - 2}`);
+  const csh = sessionCshNeeded() ? (($('#modalSessCsh') || {}).value || '') : '';
+  if (csh) parts.push(`CSH ${csh}`);
+  const base = parts.join(' · ');
+  const prefix = (base + ' · Đợt ').toLowerCase();
+  let max = 0;
+  (state.sessions || []).forEach(s => {
+    const name = String(s.ten_dot || '').trim().toLowerCase();
+    if (!name.startsWith(prefix)) return;
+    const n = parseInt(name.slice(prefix.length), 10);
+    if (n > max) max = n;
+  });
+  return `${base} · Đợt ${max + 1}`;
+}
+
+// Điền tên gợi ý vào ô, trừ khi user đã tự sửa tên (khi đó chỉ hiện nút dùng lại gợi ý).
+function refreshSuggestedName() {
+  const input = $('#modalSessName');
+  const hint = $('#modalSessNameHint');
+  if (!input) return;
+  const name = suggestSessionName();
+  if (!_nameTouched) input.value = name;
+  if (hint) {
+    const differs = _nameTouched && input.value.trim() !== name;
+    hint.classList.toggle('hidden', !differs);
+    hint.innerHTML = differs
+      ? `Gợi ý: <button type="button" id="modalSessNameUse" class="text-primary-600 hover:underline">${esc(name)}</button>`
+      : '';
+  }
+}
+
 function openCreateSessionModal() {
   const modal = $('#modalCreateSession');
   modal.classList.remove('hidden');
   $('#modalSessName').value = '';
+  _nameTouched = false;
+  const nameInput = $('#modalSessName');
+  if (!nameInput._suggestBound) {
+    nameInput._suggestBound = true;
+    nameInput.addEventListener('input', () => { _nameTouched = nameInput.value.trim() !== ''; refreshSuggestedName(); });
+    $('#modalSessNameHint').addEventListener('click', e => {
+      if (!e.target.closest('#modalSessNameUse')) return;
+      _nameTouched = false;
+      refreshSuggestedName();
+      nameInput.focus();
+    });
+    $('#modalSessNhomList').addEventListener('change', refreshSuggestedName);
+    $('#modalSessBU').addEventListener('change', refreshSuggestedName);
+    $('#modalSessCsh').addEventListener('change', refreshSuggestedName);
+  }
+  refreshSuggestedName();
   $('#modalErr').textContent = '';
   $('#modalSessCshWrap').classList.add('hidden');
   const nhomBox = $('#modalSessNhomList');
@@ -1323,9 +1381,10 @@ function openCreateSessionModal() {
     const buSel = $('#modalSessBU');
     await populateSessionGroupOptions(buSel ? buSel.value : '');
     await populateSessionCshOptions();
+    refreshSuggestedName();
     if (buSel && !buSel._grpBound) {
       buSel._grpBound = true;
-      buSel.addEventListener('change', () => populateSessionGroupOptions(buSel.value).then(syncSessionCshField));
+      buSel.addEventListener('change', () => populateSessionGroupOptions(buSel.value).then(() => { syncSessionCshField(); refreshSuggestedName(); }));
     }
   });
 
