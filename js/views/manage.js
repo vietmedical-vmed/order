@@ -422,8 +422,8 @@ async function exportManageList() {
     const d = (v) => (v ? fmtDate(v) : '');
     const n = (v) => Number(v) || 0;
     const header = ['STT', 'Đợt', 'BU', 'Miền', 'Chủ sở hữu', 'Nhóm SP', 'Tạo bởi',
-      'Ngày mở', 'Ngày yêu cầu', 'Ngày PM duyệt', 'Ngày Manager duyệt', 'Ngày đặt hàng', 'Trạng thái',
-      'Số SKU', 'SL đặt', 'SL duyệt', 'SL đặt hàng',
+      'Ngày mở', 'Ngày yêu cầu', 'PM duyệt', 'Manager duyệt', 'Đặt hàng', 'Trạng thái',
+      'Số SKU', 'SL yêu cầu', 'SL duyệt', 'SL đặt hàng',
       'Số PO', 'PO', 'DM', 'Người hoàn thành', 'Ngày hoàn thành'];
     const aoa = [header];
     list.forEach((s, i) => {
