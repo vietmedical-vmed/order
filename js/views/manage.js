@@ -30,6 +30,46 @@ function applyProgState(table, open) {
   th.setAttribute('aria-expanded', String(open));
   const chev = th.querySelector('.prog-chev');
   if (chev) chev.textContent = open ? '▾' : '▸';
+  layoutManageTable();
+}
+
+// Bảng đợt: thanh cuộn ngang đặt ở ĐẦU bảng (đồng bộ với khung bảng) và khung bảng
+// có chiều cao tối đa = phần còn lại của màn hình -> tiêu đề (sticky) luôn nằm trên khi cuộn dọc.
+function bindManageScroll(host) {
+  const top = host.querySelector('.m-tbl-top');
+  const wrap = host.querySelector('.m-tbl-wrap');
+  if (!top || !wrap) return;
+  top.addEventListener('scroll', () => { if (wrap.scrollLeft !== top.scrollLeft) wrap.scrollLeft = top.scrollLeft; });
+  wrap.addEventListener('scroll', () => { if (top.scrollLeft !== wrap.scrollLeft) top.scrollLeft = wrap.scrollLeft; });
+}
+
+function layoutManageTable() {
+  const host = $('#manageHost');
+  const wrap = host && host.querySelector('.m-tbl-wrap');
+  const table = wrap && wrap.querySelector('table.dt');
+  if (!table) return;
+  // Chiều cao khung: tới sát đáy cửa sổ (tối thiểu 240px).
+  const avail = window.innerHeight - wrap.getBoundingClientRect().top - 16;
+  wrap.style.maxHeight = Math.max(240, Math.floor(avail)) + 'px';
+  // Hàng tiêu đề thứ 2 (cột con của "Tiến trình") dính ngay dưới hàng 1.
+  const rows = table.tHead ? table.tHead.rows : [];
+  if (rows.length > 1) {
+    const h = rows[0].getBoundingClientRect().height;
+    [...rows[1].cells].forEach(c => { c.style.top = h + 'px'; });
+  }
+  // Thanh cuộn trên: rộng bằng bảng; ẩn khi bảng vừa khung.
+  const top = host.querySelector('.m-tbl-top');
+  top.querySelector('.m-tbl-top-spacer').style.width = table.scrollWidth + 'px';
+  top.classList.toggle('hidden', table.scrollWidth <= wrap.clientWidth + 1);
+  top.scrollLeft = wrap.scrollLeft;
+}
+
+let _manageResizeBound = false;
+function bindManageResizeOnce() {
+  if (_manageResizeBound) return;
+  _manageResizeBound = true;
+  let t;
+  window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(layoutManageTable, 100); });
 }
 
 async function loadBUFilter() {
@@ -124,6 +164,7 @@ export async function initApprovalView() {
   await loadBUFilter();
   await loadManageGroupFilter();
   bindManageActions();
+  bindManageResizeOnce();
   await renderManageList();
 }
 
@@ -158,7 +199,9 @@ async function renderManageList() {
     const canPurchase = (role === 'PURCHASING' || role === 'ADMIN'); // thêm PO + hoàn thành đợt APPROVED; xem/sửa PO đợt COMPLETED
     const canCancel = (role === 'AM' || role === 'ADMIN');            // AM hủy đợt khi PM chưa duyệt
 
-    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
+    host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div class="m-tbl-top scroll-area" aria-hidden="true"><div class="m-tbl-top-spacer"></div></div>
+      <div class="m-tbl-wrap scroll-area">
       <table class="dt">
         <thead><tr>
           <th rowspan="2">Đợt</th>
@@ -210,7 +253,7 @@ async function renderManageList() {
             <td class="c text-slate-700 whitespace-nowrap">${esc(s.bu_label || s.bu || '—')}</td>
             <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
-            <td class="c text-slate-700">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
+            <td class="c text-slate-700 whitespace-nowrap">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
             <td class="whitespace-nowrap">${action}</td>
             <td class="prog-stub"></td>
@@ -225,8 +268,11 @@ async function renderManageList() {
           </tr>`;
         }).join('')}</tbody>
       </table>
+      </div>
     </div>`;
     applyProgState(host.querySelector('table.dt'), progOpen());
+    bindManageScroll(host);
+    layoutManageTable();
   } catch (e) {
     console.error('[renderManageList]', e);
     // 3.10: kèm nút Thử lại thay vì chỉ hiện text lỗi
