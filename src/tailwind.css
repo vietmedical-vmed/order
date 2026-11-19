@@ -120,6 +120,13 @@ table.dt[style*="table-layout: fixed"] thead th,
 .m-tbl-top-spacer { height: 1px; }
 .m-tbl-wrap { overflow: auto; }
 .m-tbl-wrap::-webkit-scrollbar { height: 0; }
+/* Dòng mẹ theo tháng mở đợt; nhãn dính trái để vẫn thấy khi cuộn ngang. */
+.dt tbody tr.m-month { cursor: pointer; }
+.dt tbody tr.m-month td { background: #e7f0fd; border-bottom: 1px solid #c7dafa; padding: 6px 8px; }
+.dt tbody tr.m-month:hover td { background: #dbe7fb; }
+.dt tbody tr.m-month:focus-visible td { outline: 2px solid #1877f2; outline-offset: -2px; }
+.m-month-label { position: sticky; left: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #0c5dc7; }
+.m-month-chev { width: 12px; display: inline-block; }
 .dt tbody td { padding: 8px; border-bottom: 1px solid #e4e6eb; vertical-align: middle; }
 .dt tbody td.nowrap { white-space: nowrap; }
 .dt tbody tr:hover { background: #f0f2f5; }

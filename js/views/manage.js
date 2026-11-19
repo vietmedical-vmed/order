@@ -64,6 +64,42 @@ function layoutManageTable() {
   top.scrollLeft = wrap.scrollLeft;
 }
 
+// Nhóm đợt theo tháng của ngày mở. Mặc định chỉ tháng hiện tại xổ ra;
+// lựa chọn mở/đóng giữ trong lúc ở tab (vẽ lại sau duyệt/từ chối không bị đóng lại).
+const MANAGE_COLS = 18;   // 9 cột chính + ô thu gọn + 8 cột Tiến trình
+const NO_MONTH = 'none';
+let _openMonths = new Set();
+function monthKeyOf(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return NO_MONTH;
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabel(key) {
+  if (key === NO_MONTH) return 'Không rõ ngày mở';
+  const [y, m] = key.split('-');
+  return `Tháng ${Number(m)}/${y}`;
+}
+function groupByMonth(list) {
+  const map = new Map();
+  list.forEach(s => {
+    const k = monthKeyOf(s.ngay_mo);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(s);
+  });
+  // Tháng mới nhất lên đầu; "Không rõ ngày" xuống cuối.
+  return [...map.entries()].sort((a, b) => a[0] === NO_MONTH ? 1 : b[0] === NO_MONTH ? -1 : b[0].localeCompare(a[0]));
+}
+function toggleMonth(row) {
+  const key = row.dataset.month;
+  const open = !_openMonths.has(key);
+  if (open) _openMonths.add(key); else _openMonths.delete(key);
+  row.setAttribute('aria-expanded', String(open));
+  const chev = row.querySelector('.m-month-chev');
+  if (chev) chev.textContent = open ? '▾' : '▸';
+  $$(`tr[data-month-child="${CSS.escape(key)}"]`, row.closest('tbody')).forEach(tr => tr.classList.toggle('hidden', !open));
+  layoutManageTable();
+}
+
 let _manageResizeBound = false;
 function bindManageResizeOnce() {
   if (_manageResizeBound) return;
@@ -163,6 +199,7 @@ export async function initApprovalView() {
   bindApprovalFilterOnce();
   await loadBUFilter();
   await loadManageGroupFilter();
+  _openMonths = new Set([monthKeyOf(new Date().toISOString())]);
   bindManageActions();
   bindManageResizeOnce();
   await renderManageList();
@@ -211,6 +248,7 @@ async function renderManageList() {
           <th rowspan="2" class="c">Miền</th>
           <th rowspan="2" class="c">Chủ sở hữu</th>
           <th rowspan="2" class="c">Trạng thái</th>
+          <th rowspan="2">TT đặt hàng</th>
           <th rowspan="2">Tác vụ</th>
           <th class="prog-head" role="button" tabindex="0" title="Bấm để ẩn/hiện các cột tiến trình"><span class="prog-chev">▸</span> Tiến trình</th>
         </tr><tr class="prog-sub">
@@ -223,7 +261,24 @@ async function renderManageList() {
           <th class="prog-col r">SKU · SL duyệt</th>
           <th class="prog-col r">SKU · SL đặt hàng</th>
         </tr></thead>
-        <tbody>${list.map(s => {
+        <tbody>${groupByMonth(list).map(([key, items]) => {
+          const open = _openMonths.has(key);
+          return `<tr class="m-month" data-month="${esc(key)}" role="button" tabindex="0" aria-expanded="${open}">
+            <td colspan="${MANAGE_COLS}"><div class="m-month-label">
+              <span class="m-month-chev">${open ? '▾' : '▸'}</span>
+              <span>${esc(monthLabel(key))}</span>
+              <span class="text-[11px] font-normal text-slate-500">${items.length} đợt</span>
+            </div></td>
+          </tr>` + items.map(s => rowHtml(s, key, open)).join('');
+        }).join('')}</tbody>
+      </table>
+      </div>
+    </div>`;
+    applyProgState(host.querySelector('table.dt'), progOpen());
+    bindManageScroll(host);
+    layoutManageTable();
+
+    function rowHtml(s, monthKey, open) {
           const st = s.trang_thai;
           // Đợt này người dùng có quyền phê duyệt không?
           const reviewable = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
@@ -244,17 +299,21 @@ async function renderManageList() {
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
             ? `<div class="text-[10.5px] text-danger-600 mt-1">↩ Bị từ chối${s.tu_choi_o_buoc ? ' (' + esc(s.tu_choi_o_buoc) + ')' : ''}: ${esc(s.ly_do_tu_choi)}</div>`
             : '';
-          const purchaseNote = (s.de_nghi_mua_hang || s.po)
-            ? `<div class="text-[10.5px] ${st === 'COMPLETED' ? 'text-success-700' : 'text-primary-700'} mt-1">🛒 DM: ${esc(s.de_nghi_mua_hang || '—')} · PO: ${esc(s.po || '—')}</div>`
-            : '';
-          return `<tr>
-            <td class="font-medium text-slate-800">${esc(s.ten_dot)}</td>
+          // TT đặt hàng: thông tin từ bước Nhập PO (đề nghị mua hàng + số PO).
+          const purchaseInfo = (s.de_nghi_mua_hang || s.po)
+            ? `<div class="${st === 'COMPLETED' ? 'text-success-700' : 'text-primary-700'}">
+                <div><span class="text-slate-500">DM:</span> ${esc(s.de_nghi_mua_hang || '—')}</div>
+                <div><span class="text-slate-500">PO:</span> ${esc(s.po || '—')}</div></div>`
+            : '<span class="text-slate-400">—</span>';
+          return `<tr data-month-child="${esc(monthKey)}"${open ? '' : ' class="hidden"'}>
+            <td class="font-medium text-slate-800" style="min-width:140px">${esc(s.ten_dot)}</td>
             <td class="text-slate-700 whitespace-nowrap" title="${esc(s.tao_boi || '')}">${esc(s.tao_boi_ten || s.tao_boi || '—')}</td>
             <td class="c text-slate-700 whitespace-nowrap">${esc(s.bu_label || s.bu || '—')}</td>
             <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
-            <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
+            <td class="c whitespace-nowrap"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="c text-slate-700 whitespace-nowrap">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
-            <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
+            <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}</td>
+            <td class="text-[12px]" style="min-width:130px;max-width:220px">${purchaseInfo}</td>
             <td class="whitespace-nowrap">${action}</td>
             <td class="prog-stub"></td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_mo)}</td>
@@ -266,13 +325,7 @@ async function renderManageList() {
             <td class="prog-col r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
             <td class="prog-col r num text-primary-800">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
           </tr>`;
-        }).join('')}</tbody>
-      </table>
-      </div>
-    </div>`;
-    applyProgState(host.querySelector('table.dt'), progOpen());
-    bindManageScroll(host);
-    layoutManageTable();
+    }
   } catch (e) {
     console.error('[renderManageList]', e);
     // 3.10: kèm nút Thử lại thay vì chỉ hiện text lỗi
@@ -295,11 +348,15 @@ function bindManageActions() {
   };
   host.addEventListener('keydown', e => {
     const th = e.target.closest('th.prog-head');
-    if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleProg(th); }
+    if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleProg(th); return; }
+    const mr = e.target.closest('tr.m-month');
+    if (mr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleMonth(mr); }
   });
   host.addEventListener('click', async (e) => {
     const th = e.target.closest('th.prog-head');
     if (th) { toggleProg(th); return; }
+    const mr = e.target.closest('tr.m-month');
+    if (mr) { toggleMonth(mr); return; }
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const id = b.dataset.id;
