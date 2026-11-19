@@ -18,7 +18,7 @@ let _lastList = [];   // danh sách đợt vừa hiển thị (đã lọc) -> ng
 // Nhóm cột "Tiến trình" (ngày mở/duyệt + số lượng): mặc định ẩn, bấm tiêu đề để mở.
 // Ghi nhớ lựa chọn theo trình duyệt (chỉ là tiện ích hiển thị).
 const PROG_KEY = 'manage.progOpen';
-const PROG_COLS = 8;
+const PROG_COLS = 7;
 function progOpen() { try { return localStorage.getItem(PROG_KEY) === '1'; } catch (e) { return false; } }
 function setProgOpen(v) { try { localStorage.setItem(PROG_KEY, v ? '1' : '0'); } catch (e) {} }
 function applyProgState(table, open) {
@@ -66,7 +66,7 @@ function layoutManageTable() {
 
 // Nhóm đợt theo tháng của ngày mở. Mặc định chỉ tháng hiện tại xổ ra;
 // lựa chọn mở/đóng giữ trong lúc ở tab (vẽ lại sau duyệt/từ chối không bị đóng lại).
-const MANAGE_COLS = 18;   // 9 cột chính + ô thu gọn + 8 cột Tiến trình
+const MANAGE_COLS = 18;   // 10 cột chính + ô thu gọn + 7 cột Tiến trình
 const NO_MONTH = 'none';
 let _openMonths = new Set();
 function monthKeyOf(iso) {
@@ -98,6 +98,13 @@ function toggleMonth(row) {
   if (chev) chev.textContent = open ? '▾' : '▸';
   $$(`tr[data-month-child="${CSS.escape(key)}"]`, row.closest('tbody')).forEach(tr => tr.classList.toggle('hidden', !open));
   layoutManageTable();
+}
+
+// Ngày dạng dd/mm/yyyy (giờ địa phương), dùng cho cột Thời gian.
+function fmtDay(iso, empty = '—') {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return empty;
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
 }
 
 let _manageResizeBound = false;
@@ -241,6 +248,7 @@ async function renderManageList() {
       <div class="m-tbl-wrap scroll-area">
       <table class="dt">
         <thead><tr>
+          <th rowspan="2" class="c" title="Ngày mở đợt">Thời gian</th>
           <th rowspan="2">Đợt</th>
           <th rowspan="2">Tạo bởi</th>
           <th rowspan="2" class="c">BU</th>
@@ -252,7 +260,6 @@ async function renderManageList() {
           <th rowspan="2">Tác vụ</th>
           <th class="prog-head" role="button" tabindex="0" title="Bấm để ẩn/hiện các cột tiến trình"><span class="prog-chev">▸</span> Tiến trình</th>
         </tr><tr class="prog-sub">
-          <th class="prog-col">Ngày mở</th>
           <th class="prog-col">Ngày yêu cầu</th>
           <th class="prog-col">PM duyệt</th>
           <th class="prog-col">Manager duyệt</th>
@@ -306,6 +313,7 @@ async function renderManageList() {
                 <div><span class="text-slate-500">PO:</span> ${esc(s.po || '—')}</div></div>`
             : '<span class="text-slate-400">—</span>';
           return `<tr data-month-child="${esc(monthKey)}"${open ? '' : ' class="hidden"'}>
+            <td class="c text-slate-600 whitespace-nowrap" title="${esc(fmtDate(s.ngay_mo))}">${fmtDay(s.ngay_mo)}</td>
             <td class="font-medium text-slate-800" style="min-width:140px">${esc(s.ten_dot)}</td>
             <td class="text-slate-700 whitespace-nowrap" title="${esc(s.tao_boi || '')}">${esc(s.tao_boi_ten || s.tao_boi || '—')}</td>
             <td class="c text-slate-700 whitespace-nowrap">${esc(s.bu_label || s.bu || '—')}</td>
@@ -316,7 +324,6 @@ async function renderManageList() {
             <td class="text-[12px]" style="min-width:130px;max-width:220px">${purchaseInfo}</td>
             <td class="whitespace-nowrap">${action}</td>
             <td class="prog-stub"></td>
-            <td class="prog-col text-slate-600">${fmtDate(s.ngay_mo)}</td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_yeu_cau)}</td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_pm_duyet)}</td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_manager_duyet)}</td>
@@ -421,8 +428,8 @@ async function exportManageList() {
     const XLSX = await loadSheetJS();
     const d = (v) => (v ? fmtDate(v) : '');
     const n = (v) => Number(v) || 0;
-    const header = ['STT', 'Đợt', 'BU', 'Miền', 'Chủ sở hữu', 'Nhóm SP', 'Tạo bởi',
-      'Ngày mở', 'Ngày yêu cầu', 'PM duyệt', 'Manager duyệt', 'Đặt hàng', 'Trạng thái',
+    const header = ['STT', 'Thời gian', 'Đợt', 'BU', 'Miền', 'Chủ sở hữu', 'Nhóm SP', 'Tạo bởi',
+      'Ngày yêu cầu', 'PM duyệt', 'Manager duyệt', 'Đặt hàng', 'Trạng thái',
       'Số SKU', 'SL yêu cầu', 'SL duyệt', 'SL đặt hàng',
       'Số PO', 'PO', 'DM', 'Người hoàn thành', 'Ngày hoàn thành'];
     const aoa = [header];
@@ -430,9 +437,9 @@ async function exportManageList() {
       const st = s.stats || {};
       const pos = String(s.po || '').split(';').map(x => x.trim()).filter(Boolean);
       aoa.push([
-        i + 1, s.ten_dot, s.bu_label || s.bu || '', s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien,
+        i + 1, fmtDay(s.ngay_mo, ''), s.ten_dot, s.bu_label || s.bu || '', s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien,
         s.csh_dklh || '', splitGroups(s.nhom_san_pham).join(', '), s.tao_boi_ten || s.tao_boi || '',
-        d(s.ngay_mo), d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), d(s.ngay_dat_hang), ST_LABEL[s.trang_thai] || s.trang_thai,
+        d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), d(s.ngay_dat_hang), ST_LABEL[s.trang_thai] || s.trang_thai,
         n(st.sku), n(st.sl_dat), n(st.sl_duyet), n(st.sl_dat_hang),
         pos.length || '', pos.join('; '), s.de_nghi_mua_hang || '',
         s.trang_thai === 'COMPLETED' ? (s.nguoi_mua_hang || '') : '', s.trang_thai === 'COMPLETED' ? d(s.ngay_mua_hang) : '',
