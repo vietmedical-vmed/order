@@ -18,7 +18,7 @@ let _lastList = [];   // danh sách đợt vừa hiển thị (đã lọc) -> ng
 // Nhóm cột "Tiến trình" (ngày mở/duyệt + số lượng): mặc định ẩn, bấm tiêu đề để mở.
 // Ghi nhớ lựa chọn theo trình duyệt (chỉ là tiện ích hiển thị).
 const PROG_KEY = 'manage.progOpen';
-const PROG_COLS = 7;
+const PROG_COLS = 8;
 function progOpen() { try { return localStorage.getItem(PROG_KEY) === '1'; } catch (e) { return false; } }
 function setProgOpen(v) { try { localStorage.setItem(PROG_KEY, v ? '1' : '0'); } catch (e) {} }
 function applyProgState(table, open) {
@@ -162,11 +162,11 @@ async function renderManageList() {
       <table class="dt">
         <thead><tr>
           <th rowspan="2">Đợt</th>
+          <th rowspan="2">Tạo bởi</th>
           <th rowspan="2" class="c">BU</th>
           <th rowspan="2">Nhóm SP</th>
           <th rowspan="2" class="c">Miền</th>
           <th rowspan="2" class="c">Chủ sở hữu</th>
-          <th rowspan="2" class="hidden lg:table-cell" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
           <th rowspan="2" class="c">Trạng thái</th>
           <th rowspan="2">Tác vụ</th>
           <th class="prog-head" role="button" tabindex="0" title="Bấm để ẩn/hiện các cột tiến trình"><span class="prog-chev">▸</span> Tiến trình</th>
@@ -175,6 +175,7 @@ async function renderManageList() {
           <th class="prog-col">Ngày yêu cầu</th>
           <th class="prog-col">Ngày PM duyệt</th>
           <th class="prog-col">Ngày Manager duyệt</th>
+          <th class="prog-col" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
           <th class="prog-col r">SKU · SL đặt</th>
           <th class="prog-col r">SKU · SL duyệt</th>
           <th class="prog-col r">SKU · SL đặt hàng</th>
@@ -204,12 +205,12 @@ async function renderManageList() {
             ? `<div class="text-[10.5px] ${st === 'COMPLETED' ? 'text-success-700' : 'text-primary-700'} mt-1">🛒 DM: ${esc(s.de_nghi_mua_hang || '—')} · PO: ${esc(s.po || '—')}</div>`
             : '';
           return `<tr>
-            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}</div></td>
-            <td class="c"><span class="pill">${esc(s.bu_label || s.bu || '—')}</span></td>
+            <td class="font-medium text-slate-800">${esc(s.ten_dot)}</td>
+            <td class="text-slate-700 whitespace-nowrap" title="${esc(s.tao_boi || '')}">${esc(s.tao_boi_ten || s.tao_boi || '—')}</td>
+            <td class="c text-slate-700 whitespace-nowrap">${esc(s.bu_label || s.bu || '—')}</td>
             <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="c text-slate-700">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
-            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_dat_hang)}</td>
             <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
             <td class="whitespace-nowrap">${action}</td>
             <td class="prog-stub"></td>
@@ -217,6 +218,7 @@ async function renderManageList() {
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_yeu_cau)}</td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_pm_duyet)}</td>
             <td class="prog-col text-slate-600">${fmtDate(s.ngay_manager_duyet)}</td>
+            <td class="prog-col text-slate-600">${fmtDate(s.ngay_dat_hang)}</td>
             <td class="prog-col r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
             <td class="prog-col r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
             <td class="prog-col r num text-primary-800">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
@@ -326,7 +328,7 @@ async function exportManageList() {
       const pos = String(s.po || '').split(';').map(x => x.trim()).filter(Boolean);
       aoa.push([
         i + 1, s.ten_dot, s.bu_label || s.bu || '', s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien,
-        s.csh_dklh || '', splitGroups(s.nhom_san_pham).join(', '), s.tao_boi || '',
+        s.csh_dklh || '', splitGroups(s.nhom_san_pham).join(', '), s.tao_boi_ten || s.tao_boi || '',
         d(s.ngay_mo), d(s.ngay_yeu_cau), d(s.ngay_pm_duyet), d(s.ngay_manager_duyet), d(s.ngay_dat_hang), ST_LABEL[s.trang_thai] || s.trang_thai,
         n(st.sku), n(st.sl_dat), n(st.sl_duyet), n(st.sl_dat_hang),
         pos.length || '', pos.join('; '), s.de_nghi_mua_hang || '',

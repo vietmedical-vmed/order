@@ -1250,6 +1250,19 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
         if (r.tao_luc && (!poDate[k] || r.tao_luc < poDate[k])) poDate[k] = r.tao_luc;
       }
     }
+    // Họ tên người tạo đợt (order_sessions.tao_boi lưu username). select("*") để không
+    // phụ thuộc tên cột (ho_va_ten / ho_ten). Lỗi đọc -> giữ username, không chặn danh sách.
+    const creatorName: Record<string, string> = {};
+    const creators = [...new Set(list.map((s: any) => String(s.tao_boi || "")).filter(Boolean))];
+    for (let i = 0; i < creators.length; i += 200) {
+      const { data: urows, error: uErr } = await supa.schema("shared").from("users")
+        .select("*").in("username", creators.slice(i, i + 200));
+      if (uErr) { console.warn("[listSessions] users:", uErr.message); break; }
+      for (const r of urows || []) {
+        const name = r.ho_va_ten || r.ho_ten;
+        if (name) creatorName[String(r.username)] = String(name);
+      }
+    }
     const stat: Record<string, any> = {};
     statRows.forEach((r) => {
       stat[String(r.session_id)] = {
@@ -1268,6 +1281,7 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       ngay_dong: s.ngay_dong ? new Date(s.ngay_dong).toISOString() : "",
       trang_thai: String(s.trang_thai || ""),
       tao_boi: String(s.tao_boi || ""),
+      tao_boi_ten: creatorName[String(s.tao_boi || "")] || String(s.tao_boi || ""),
       nhom_san_pham: s.nhom_san_pham || "",
       csh_dklh: s.csh_dklh || "",
       ly_do_tu_choi: s.ly_do_tu_choi || "",
