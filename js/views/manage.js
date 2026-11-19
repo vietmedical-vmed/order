@@ -146,6 +146,7 @@ async function renderManageList() {
         <thead><tr>
           <th>Đợt</th>
           <th class="c">BU</th>
+          <th>Nhóm SP</th>
           <th class="c">Miền</th>
           <th class="c">Chủ sở hữu</th>
           <th>Ngày mở</th>
@@ -166,15 +167,15 @@ async function renderManageList() {
           // Từ chối: PM ở SUBMITTED, Manager ở PM_APPROVED (hoặc SUBMITTED nếu CTTM skip PM).
           const canReject = (st === 'SUBMITTED' && (canPM || canMgr)) || (st === 'PM_APPROVED' && canMgr);
           // Thứ tự nút: Xem · Phê duyệt · Từ chối · Hủy · Nhập PO / PO
-          let action = `<button class="ctl-btn" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
-          if (reviewable) action += ` <button class="ctl-btn ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
-          if (canReject) action += ` <button class="ctl-btn ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
+          let action = `<button class="ctl-btn ctl-btn-xs" data-act="open" data-id="${s.session_id}" data-mien="${s.mien}">Xem</button>`;
+          if (reviewable) action += ` <button class="ctl-btn ctl-btn-xs ctl-btn-primary" data-act="approve" data-id="${s.session_id}">Phê duyệt</button>`;
+          if (canReject) action += ` <button class="ctl-btn ctl-btn-xs ctl-btn-warn" data-act="reject" data-id="${s.session_id}">Từ chối</button>`;
           // AM hủy đợt khi CHƯA được PM duyệt (DRAFT hoặc SUBMITTED) -> trạng thái Đã hủy.
-          if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
-          if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Nhập PO</button>`;
-          if (canPurchase && st === 'COMPLETED') action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">PO</button>`;
+          if (canCancel && (st === 'DRAFT' || st === 'SUBMITTED')) action += ` <button class="ctl-btn ctl-btn-xs ctl-btn-warn" data-act="cancel" data-id="${s.session_id}">Hủy</button>`;
+          if (canPurchase && st === 'APPROVED') action += ` <button class="ctl-btn ctl-btn-xs ctl-btn-primary" data-act="purchase" data-id="${s.session_id}">Nhập PO</button>`;
+          if (canPurchase && st === 'COMPLETED') action += ` <button class="ctl-btn ctl-btn-xs" data-act="purchase" data-id="${s.session_id}">PO</button>`;
           // Manager: chỉ sửa số PO / DM đã nhập (không thêm/xóa/hoàn thành) -> chỉ hiện khi đợt đã có PO.
-          if (role === 'MANAGER' && (st === 'APPROVED' || st === 'COMPLETED') && s.po) action += ` <button class="ctl-btn" data-act="purchase" data-id="${s.session_id}">PO</button>`;
+          if (role === 'MANAGER' && (st === 'APPROVED' || st === 'COMPLETED') && s.po) action += ` <button class="ctl-btn ctl-btn-xs" data-act="purchase" data-id="${s.session_id}">PO</button>`;
 
           const mienLabel = s.mien === 'MB' ? 'Miền Bắc' : s.mien === 'MN' ? 'Miền Nam' : s.mien;
           const rejectNote = (st === 'DRAFT' && s.ly_do_tu_choi)
@@ -184,8 +185,9 @@ async function renderManageList() {
             ? `<div class="text-[10.5px] ${st === 'COMPLETED' ? 'text-success-700' : 'text-primary-700'} mt-1">🛒 DM: ${esc(s.de_nghi_mua_hang || '—')} · PO: ${esc(s.po || '—')}</div>`
             : '';
           return `<tr>
-            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}${s.nhom_san_pham ? ` · nhóm <span class="text-slate-600 font-medium">${esc(splitGroups(s.nhom_san_pham).join(', '))}</span>` : ''}</div></td>
+            <td><div class="font-medium text-slate-800">${esc(s.ten_dot)}</div><div class="text-[11px] text-slate-500">tạo bởi ${esc(s.tao_boi || '—')}</div></td>
             <td class="c"><span class="pill">${esc(s.bu_label || s.bu || '—')}</span></td>
+            <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="c text-slate-700">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
             <td class="text-slate-600">${fmtDate(s.ngay_mo)}</td>

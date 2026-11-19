@@ -42,6 +42,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .ctl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; border: 1px solid #dadde1; border-radius: 6px; background: #fff; color: #3a3b3c; cursor: pointer; transition: all 0.15s; }
 .ctl-btn:hover { background: #f0f2f5; }
 .ctl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Nút nhỏ (2 cỡ dưới .ctl-btn) — dùng cho cột Tác vụ trong bảng. */
+.ctl-btn.ctl-btn-xs { padding: 2px 7px; font-size: 11px; gap: 4px; border-radius: 4px; }
 .ctl-btn-primary { background: #1877f2; color: #fff; border-color: #1877f2; }
 .ctl-btn-primary:hover { background: #166fe5; }
 .ctl-btn-primary:disabled { background: #ccd0d5; border-color: #ccd0d5; color: #fff; }
