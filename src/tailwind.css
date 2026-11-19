@@ -107,6 +107,13 @@ table.dt[style*="table-layout: fixed"] thead th,
 .dt thead th.c { text-align: center; }
 .dt thead th.l { text-align: center; }
 .dt thead.grabbing th { cursor: grabbing; }
+/* Nhóm cột thu gọn được (tab Quản lý đặt hàng: "Tiến trình"). */
+.dt thead th.prog-head { cursor: pointer; color: #0c5dc7; background: #dbe7fb; text-align: left; }
+.dt thead th.prog-head:hover { background: #c7dafa; }
+.dt thead th.prog-head:focus-visible { outline: 2px solid #1877f2; outline-offset: -2px; }
+.dt.prog-collapsed .prog-col,
+.dt.prog-collapsed tr.prog-sub { display: none; }
+.dt:not(.prog-collapsed) .prog-stub { display: none; }
 .dt tbody td { padding: 8px; border-bottom: 1px solid #e4e6eb; vertical-align: middle; }
 .dt tbody td.nowrap { white-space: nowrap; }
 .dt tbody tr:hover { background: #f0f2f5; }

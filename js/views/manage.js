@@ -15,6 +15,23 @@ import { renderView } from '../router.js';
 let _approvalFilterBound = false;
 let _lastList = [];   // danh sách đợt vừa hiển thị (đã lọc) -> nguồn cho Xuất Excel
 
+// Nhóm cột "Tiến trình" (ngày mở/duyệt + số lượng): mặc định ẩn, bấm tiêu đề để mở.
+// Ghi nhớ lựa chọn theo trình duyệt (chỉ là tiện ích hiển thị).
+const PROG_KEY = 'manage.progOpen';
+const PROG_COLS = 7;
+function progOpen() { try { return localStorage.getItem(PROG_KEY) === '1'; } catch (e) { return false; } }
+function setProgOpen(v) { try { localStorage.setItem(PROG_KEY, v ? '1' : '0'); } catch (e) {} }
+function applyProgState(table, open) {
+  table.classList.toggle('prog-collapsed', !open);
+  const th = table.querySelector('th.prog-head');
+  if (!th) return;
+  th.colSpan = open ? PROG_COLS : 1;
+  th.rowSpan = open ? 1 : 2;
+  th.setAttribute('aria-expanded', String(open));
+  const chev = th.querySelector('.prog-chev');
+  if (chev) chev.textContent = open ? '▾' : '▸';
+}
+
 async function loadBUFilter() {
   if (_buListLoaded) return;
   _buListLoaded = true;
@@ -144,21 +161,23 @@ async function renderManageList() {
     host.innerHTML = `<div class="bg-white rounded-lg border border-slate-200 overflow-x-auto scroll-area">
       <table class="dt">
         <thead><tr>
-          <th>Đợt</th>
-          <th class="c">BU</th>
-          <th>Nhóm SP</th>
-          <th class="c">Miền</th>
-          <th class="c">Chủ sở hữu</th>
-          <th>Ngày mở</th>
-          <th class="hidden lg:table-cell">Ngày yêu cầu</th>
-          <th class="hidden lg:table-cell">Ngày PM duyệt</th>
-          <th class="hidden lg:table-cell">Ngày Manager duyệt</th>
-          <th class="hidden lg:table-cell" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
-          <th class="c">Trạng thái</th>
-          <th class="r">SKU · SL đặt</th>
-          <th class="r">SL duyệt</th>
-          <th class="r">SL đặt hàng</th>
-          <th>Tác vụ</th>
+          <th rowspan="2">Đợt</th>
+          <th rowspan="2" class="c">BU</th>
+          <th rowspan="2">Nhóm SP</th>
+          <th rowspan="2" class="c">Miền</th>
+          <th rowspan="2" class="c">Chủ sở hữu</th>
+          <th rowspan="2" class="hidden lg:table-cell" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
+          <th rowspan="2" class="c">Trạng thái</th>
+          <th rowspan="2">Tác vụ</th>
+          <th class="prog-head" role="button" tabindex="0" title="Bấm để ẩn/hiện các cột tiến trình"><span class="prog-chev">▸</span> Tiến trình</th>
+        </tr><tr class="prog-sub">
+          <th class="prog-col">Ngày mở</th>
+          <th class="prog-col">Ngày yêu cầu</th>
+          <th class="prog-col">Ngày PM duyệt</th>
+          <th class="prog-col">Ngày Manager duyệt</th>
+          <th class="prog-col r">SKU · SL đặt</th>
+          <th class="prog-col r">SKU · SL duyệt</th>
+          <th class="prog-col r">SKU · SL đặt hàng</th>
         </tr></thead>
         <tbody>${list.map(s => {
           const st = s.trang_thai;
@@ -190,20 +209,22 @@ async function renderManageList() {
             <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="c text-slate-700">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
-            <td class="text-slate-600">${fmtDate(s.ngay_mo)}</td>
-            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_yeu_cau)}</td>
-            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_pm_duyet)}</td>
-            <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_manager_duyet)}</td>
             <td class="text-slate-600 hidden lg:table-cell">${fmtDate(s.ngay_dat_hang)}</td>
             <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}${purchaseNote}</td>
-            <td class="r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
-            <td class="r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
-            <td class="r num text-primary-800">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
             <td class="whitespace-nowrap">${action}</td>
+            <td class="prog-stub"></td>
+            <td class="prog-col text-slate-600">${fmtDate(s.ngay_mo)}</td>
+            <td class="prog-col text-slate-600">${fmtDate(s.ngay_yeu_cau)}</td>
+            <td class="prog-col text-slate-600">${fmtDate(s.ngay_pm_duyet)}</td>
+            <td class="prog-col text-slate-600">${fmtDate(s.ngay_manager_duyet)}</td>
+            <td class="prog-col r num text-slate-700">${(s.stats && s.stats.sku) || 0} · ${fmt((s.stats && s.stats.sl_dat) || 0)}</td>
+            <td class="prog-col r num text-primary-700">${(s.stats && s.stats.approved_sku) || 0} · ${fmt((s.stats && s.stats.sl_duyet) || 0)}</td>
+            <td class="prog-col r num text-primary-800">${(s.stats && s.stats.ordered_sku) || 0} · ${fmt((s.stats && s.stats.sl_dat_hang) || 0)}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>
     </div>`;
+    applyProgState(host.querySelector('table.dt'), progOpen());
   } catch (e) {
     console.error('[renderManageList]', e);
     // 3.10: kèm nút Thử lại thay vì chỉ hiện text lỗi
@@ -218,7 +239,19 @@ async function renderManageList() {
 
 // 1 listener delegation trên host (thay vì gắn cho từng nút mỗi lần render danh sách đợt).
 function bindManageActions() {
-  $('#manageHost').addEventListener('click', async (e) => {
+  const host = $('#manageHost');
+  const toggleProg = th => {
+    const open = !progOpen();
+    setProgOpen(open);
+    applyProgState(th.closest('table'), open);
+  };
+  host.addEventListener('keydown', e => {
+    const th = e.target.closest('th.prog-head');
+    if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleProg(th); }
+  });
+  host.addEventListener('click', async (e) => {
+    const th = e.target.closest('th.prog-head');
+    if (th) { toggleProg(th); return; }
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const id = b.dataset.id;
