@@ -254,10 +254,10 @@ async function renderManageList() {
         </tr><tr class="prog-sub">
           <th class="prog-col">Ngày mở</th>
           <th class="prog-col">Ngày yêu cầu</th>
-          <th class="prog-col">Ngày PM duyệt</th>
-          <th class="prog-col">Ngày Manager duyệt</th>
-          <th class="prog-col" title="Ngày điền PO đầu tiên">Ngày đặt hàng</th>
-          <th class="prog-col r">SKU · SL đặt</th>
+          <th class="prog-col">PM duyệt</th>
+          <th class="prog-col">Manager duyệt</th>
+          <th class="prog-col" title="Ngày điền PO đầu tiên">Đặt hàng</th>
+          <th class="prog-col r">SKU · SL yêu cầu</th>
           <th class="prog-col r">SKU · SL duyệt</th>
           <th class="prog-col r">SKU · SL đặt hàng</th>
         </tr></thead>
@@ -312,7 +312,7 @@ async function renderManageList() {
             <td class="text-slate-700 text-[12px]" style="min-width:140px;max-width:240px">${s.nhom_san_pham ? esc(splitGroups(s.nhom_san_pham).join(', ')) : '<span class="text-slate-400">—</span>'}</td>
             <td class="c whitespace-nowrap"><span class="pill ${s.mien === 'MB' ? 'pill-info' : 'pill-mid'}">${mienLabel}</span></td>
             <td class="c text-slate-700 whitespace-nowrap">${s.csh_dklh ? esc(s.csh_dklh) : '<span class="text-slate-400">—</span>'}</td>
-            <td class="c"><span class="pill ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}</td>
+            <td class="c"><span class="pill whitespace-nowrap ${ST_CLS[st] || 'st-draft'}">${ST_LABEL[st] || st}</span>${rejectNote}</td>
             <td class="text-[12px]" style="min-width:130px;max-width:220px">${purchaseInfo}</td>
             <td class="whitespace-nowrap">${action}</td>
             <td class="prog-stub"></td>
