@@ -1107,19 +1107,25 @@ const H: Record<string, (supa: SupabaseClient, u: any, args: any[]) => Promise<a
       all.push(...batch);
       if (batch.length < PAGE) break;
     }
-    const mapped = all.map((v: any) => ({
-      ma_bravo: v.ma_bravo,
-      code_ncc: v.ma_ncc || "",
-      ten_hang: v.ten_vat_tu || "",
-      san_pham: v.san_pham || "",
-      phan_loai_1: v.phan_loai_1 || "",
-      phan_loai_2: v.phan_loai_2 || "",
-      nhom_san_pham: v.nhom_san_pham || "",
-      gia: num(v.don_gia_thau_moi),
-      muc_do_sd: v.muc_do_sd || "",
-      safety_stock: num(v.safety_stock),
-      dat_hang: v.dat_hang === true,
-    }));
+    const buMap = await buLookup(supa);
+    const mapped = all.map((v: any) => {
+      const bu = buMap.get(normGroup(v.nhom_san_pham || ""));
+      return {
+        ma_bravo: v.ma_bravo,
+        code_ncc: v.ma_ncc || "",
+        ten_hang: v.ten_vat_tu || "",
+        san_pham: v.san_pham || "",
+        phan_loai_1: v.phan_loai_1 || "",
+        phan_loai_2: v.phan_loai_2 || "",
+        nhom_san_pham: v.nhom_san_pham || "",
+        bu: bu?.label || "",
+        bu_code: bu?.code || "",
+        gia: num(v.don_gia_thau_moi),
+        muc_do_sd: v.muc_do_sd || "",
+        safety_stock: num(v.safety_stock),
+        dat_hang: v.dat_hang === true,
+      };
+    });
     // Gộp trùng cặp (code_ncc, ma_bravo)
     const seen = new Set<string>();
     let out = mapped.filter(p => {

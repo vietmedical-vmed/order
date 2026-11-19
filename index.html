@@ -188,7 +188,14 @@
     <div id="catalogFilterBar" class="hidden px-3 sm:px-6 py-2 border-t border-slate-100 flex items-center gap-2.5 flex-wrap">
       <span class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold pl-1">Vật tư được đặt hàng</span>
       <div class="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
-      <select id="catGrp" class="ctl-select" aria-label="Lọc theo nhóm sản phẩm"><option value="">Tất cả nhóm sản phẩm</option></select>
+      <select id="catBU" class="ctl-select" aria-label="Lọc theo BU"><option value="">Tất cả BU</option></select>
+      <div id="catGrpWrap" class="relative">
+        <button type="button" id="catGrpBtn" class="ctl-select cursor-pointer flex items-center justify-between gap-2" style="min-width:190px;max-width:260px" aria-haspopup="true" aria-expanded="false">
+          <span id="catGrpLabel" class="truncate">Tất cả nhóm sản phẩm</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 shrink-0" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="catGrpMenu" role="menu" class="hidden absolute left-0 top-full z-30 mt-1 w-72 max-h-80 overflow-auto bg-white border border-slate-200 rounded-md shadow-lg p-1"></div>
+      </div>
       <label class="flex items-center gap-1.5 text-[12px] text-slate-600">
         <input type="checkbox" id="catOnlySel" class="rounded"/> Chỉ hiện đã chọn
       </label>

@@ -14,7 +14,42 @@ function bindCatalogFilterOnce() {
   if (_catalogFilterBound) return;
   _catalogFilterBound = true;
   $('#catSearch').addEventListener('input', debounce(e => { state.catFilter.search = e.target.value.toLowerCase(); renderCatalogBody(); }, 200));
-  $('#catGrp').addEventListener('change', e => { state.catFilter.grp = e.target.value; renderCatalogBody(); });
+  // BU -> giới hạn danh sách nhóm SP; nhóm đã chọn nhưng không thuộc BU mới bị bỏ.
+  $('#catBU').addEventListener('change', e => {
+    state.catFilter.bu = e.target.value;
+    const allowed = new Set(groupsForBU(state.catFilter.bu));
+    state.catFilter.grps = new Set([...state.catFilter.grps].filter(g => allowed.has(g)));
+    renderGroupMenu();
+    renderCatalogBody();
+  });
+  const btn = $('#catGrpBtn');
+  const menu = $('#catGrpMenu');
+  btn.addEventListener('click', () => {
+    const open = menu.classList.toggle('hidden') === false;
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', e => {
+    if (!menu.classList.contains('hidden') && !e.target.closest('#catGrpWrap')) {
+      menu.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+  menu.addEventListener('change', e => {
+    const cb = e.target.closest('input.cat-grp-cb');
+    if (!cb) return;
+    if (cb.checked) state.catFilter.grps.add(cb.value);
+    else state.catFilter.grps.delete(cb.value);
+    updateGroupLabel();
+    renderCatalogBody();
+  });
+  menu.addEventListener('click', e => {
+    const act = e.target.closest('[data-cat-grp-act]');
+    if (!act) return;
+    const groups = groupsForBU(state.catFilter.bu);
+    state.catFilter.grps = act.dataset.catGrpAct === 'all' ? new Set(groups) : new Set();
+    renderGroupMenu();
+    renderCatalogBody();
+  });
   $('#catOnlySel').addEventListener('change', e => { state.catFilter.onlySelected = e.target.checked; renderCatalogBody(); });
   $('#catSelectAll').addEventListener('click', () => bulkSelectCatalog(true));
   $('#catUnselectAll').addEventListener('click', () => bulkSelectCatalog(false));
@@ -28,7 +63,9 @@ export async function initCatalogView() {
   }
   state.catalog = [];
   state.catalogDirty = new Map();
-  state.catFilter = { search: '', grp: '', onlySelected: false };
+  state.catFilter = { search: '', bu: '', grps: new Set(), onlySelected: false };
+  const searchEl = $('#catSearch'); if (searchEl) searchEl.value = '';
+  const onlyEl = $('#catOnlySel'); if (onlyEl) onlyEl.checked = false;
 
   bindCatalogFilterOnce();
   bindCatalogInputs();
@@ -44,8 +81,8 @@ async function loadCatalog() {
     const list = await rpc('listCatalog');
     state.catalog = Array.isArray(list) ? list : [];
     state.catalogIndex = new Map(state.catalog.map(r => [r.ma_bravo, r]));
-    const grps = [...new Set(state.catalog.map(r => r.nhom_san_pham).filter(Boolean))].sort();
-    $('#catGrp').innerHTML = '<option value="">Tất cả nhóm sản phẩm</option>' + grps.map(g => `<option>${esc(g)}</option>`).join('');
+    renderBUOptions();
+    renderGroupMenu();
     renderCatalogBody();
   } catch (e) {
     // 3.10: nút Thử lại gọi lại đúng loader
@@ -56,6 +93,57 @@ async function loadCatalog() {
     const retry = $('#catRetry');
     if (retry) retry.onclick = () => loadCatalog();
   }
+}
+
+const NO_BU = '__none__';
+
+function rowBU(r) { return r.bu_code || NO_BU; }
+
+function renderBUOptions() {
+  const sel = $('#catBU');
+  const map = new Map();
+  state.catalog.forEach(r => { if (r.bu_code && !map.has(r.bu_code)) map.set(r.bu_code, r.bu || r.bu_code); });
+  const hasNoBU = state.catalog.some(r => !r.bu_code);
+  const opts = [...map.entries()].sort((a, b) => viCmp(a[1], b[1]));
+  sel.innerHTML = '<option value="">Tất cả BU</option>'
+    + opts.map(([code, label]) => `<option value="${esc(code)}">${esc(label)}</option>`).join('')
+    + (hasNoBU && opts.length ? `<option value="${NO_BU}">(Chưa gán BU)</option>` : '');
+  sel.value = state.catFilter.bu;
+  // Không có dữ liệu BU (vd. backend chưa deploy) -> ẩn filter BU.
+  sel.classList.toggle('hidden', opts.length === 0);
+}
+
+function groupsForBU(bu) {
+  const set = new Set();
+  state.catalog.forEach(r => {
+    if (!r.nhom_san_pham) return;
+    if (bu && rowBU(r) !== bu) return;
+    set.add(r.nhom_san_pham);
+  });
+  return [...set].sort(viCmp);
+}
+
+function renderGroupMenu() {
+  const menu = $('#catGrpMenu');
+  const groups = groupsForBU(state.catFilter.bu);
+  const f = state.catFilter;
+  menu.innerHTML = groups.length
+    ? `<div class="flex items-center justify-between px-2 py-1 border-b border-slate-100 mb-1 text-[12px]">
+        <button type="button" class="text-primary-600 hover:underline" data-cat-grp-act="all">Chọn tất cả</button>
+        <button type="button" class="text-slate-500 hover:underline" data-cat-grp-act="none">Bỏ chọn</button>
+      </div>` + groups.map(g => `<label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-[13px]">
+        <input type="checkbox" class="cat-grp-cb rounded" value="${esc(g)}" ${f.grps.has(g) ? 'checked' : ''}/>${esc(g)}</label>`).join('')
+    : '<div class="px-2 py-1.5 text-[12px] text-slate-500">Không có nhóm sản phẩm</div>';
+  updateGroupLabel();
+}
+
+function updateGroupLabel() {
+  const label = $('#catGrpLabel');
+  const g = state.catFilter.grps;
+  if (g.size === 0) label.textContent = 'Tất cả nhóm sản phẩm';
+  else if (g.size === 1) label.textContent = [...g][0];
+  else label.textContent = g.size + ' nhóm sản phẩm';
+  $('#catGrpBtn').title = [...g].join(', ');
 }
 
 function catEffective(r) {
@@ -70,7 +158,8 @@ function catEffective(r) {
 function filteredCatalog() {
   const f = state.catFilter;
   return state.catalog.filter(r => {
-    if (f.grp && r.nhom_san_pham !== f.grp) return false;
+    if (f.bu && rowBU(r) !== f.bu) return false;
+    if (f.grps.size && !f.grps.has(r.nhom_san_pham)) return false;
     if (f.onlySelected && !catEffective(r).dat_hang) return false;
     if (f.search) {
       const hay = ((r.ma_bravo || '') + ' ' + (r.code_ncc || '') + ' ' + (r.ten_hang || '')).toLowerCase();
