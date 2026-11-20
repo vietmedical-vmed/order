@@ -1,103 +1,133 @@
-# Đặt hàng CTCH — Supabase + GitHub Pages (kiến trúc danh mục dùng chung)
+# Đặt hàng — Supabase + GitHub Pages
 
-Chuyển app "Đặt hàng CTCH" từ Google Apps Script sang Supabase + GitHub Pages,
-**dùng chung danh mục** (users, sản phẩm, vật tư…) với các web app khác của công ty.
+Web app đặt hàng vật tư y tế của khối Cung ứng Vietmedical. Luồng: AM đề xuất → PM duyệt →
+Manager phê duyệt → Mua hàng nhập PO → Hoàn thành. App dùng chung danh mục (`shared.dm_*`,
+`shared.users`) với các web app khác của công ty.
+
+- Nghiệp vụ, phân quyền, công thức gợi ý, mô hình dữ liệu: [PRD.md](PRD.md).
+- Sơ đồ thư mục: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
 
 ## Kiến trúc
 
-**Dùng chung — mọi app xài chung (bảng `dm_*` + `users`):**
-- `users` — **đã có sẵn trên Supabase cloud, KHÔNG tạo lại.** Cột dùng: `username,
-  ho_va_ten, password_hash, role, mien` (+ `salt` nếu có). App đọc role/mien trực tiếp
-  từ đây. Map role: `area_manager`→AM, `product_manager`→PM, `manager`→MANAGER,
-  `admin`→ADMIN. Role khác (vd `ps`) bị chặn đăng nhập app này.
-- `dm_vat_tu` — master SKU (Mã Bravo, tên, giá, NCC, phân loại…) — nguồn tên/giá dùng chung.
-- `dm_san_pham`, `dm_nhom_san_pham`, `dm_bu`, `dm_bo_vat_tu`, `dm_bo_vat_tu_mapping`.
-- `dm_ps`, `dm_dia_ban`, `dm_khach_hang`.
-
-**Riêng app Đặt hàng:**
-- `order_catalog` — **danh mục đặt hàng** (chỉ thuộc tính riêng: muc_do_sd, leadtime,
-  tb_kh_3_thang, so_thang_dat, active). Tên/giá/NCC/nhóm lấy từ `dm_vat_tu` qua `ma_bravo`.
-- `order_sessions`, `order_items`, `audit_log`, `stock`, `usage_stat`, `app_config`.
-
-Danh mục hiển thị trong app = `order_catalog ⋈ dm_vat_tu` (join trong Edge Function `api`).
-
-## Cấu trúc repo
-
 ```
-sql/01_shared_catalog.sql   -- bảng dm_* dùng chung (IF NOT EXISTS)
-sql/02_order_app.sql        -- ctch_order_roles, order_catalog, order_* , stock…
-supabase/functions/order-login/ -- verify users (chung) + lấy role/mien
-supabase/functions/order-api/   -- RPC; danh mục = order_catalog ⋈ dm_vat_tu
-scripts/migrate_catalog.py  -- nạp dm_* từ 4 file Excel master
-scripts/migrate_order.py    -- nạp ctch_order_roles + order_catalog + sessions/items/log
-scripts/refresh_stock.py    -- aggregate + nạp tồn kho & usage (chạy định kỳ)
-scripts/set_password.py     -- đặt/đổi mật khẩu trong bảng users dùng chung
-index.html                  -- markup SPA (frontend tĩnh)
-js/**                       -- JS frontend (ES modules) — xem PROJECT_STRUCTURE.md
-src/tailwind.css → dist/app.css -- CSS build bằng Tailwind CLI
-.github/workflows/deploy-edge.yml
+Trình duyệt ── GitHub Pages (index.html + js/ + dist/app.css)
+     │ HTTPS, token HMAC
+     ▼
+Supabase Edge Functions
+  order-login    đăng nhập, đổi mật khẩu
+  order-api      toàn bộ nghiệp vụ (POST { action, token, args })
+  notify-sender  gửi email từ outbox, chạy theo pg_cron
+     │ service_role (+ kết nối Postgres trực tiếp cho RPC nặng)
+     ▼
+Supabase Postgres
+  shared     dm_bu, dm_mien, dm_nhom_san_pham, dm_san_pham, dm_vat_tu, dm_bo_vat_tu*,
+             users, notifications            — dùng chung nhiều app
+  app_order  order_sessions, order_items, order_session_po, audit_log, stock,
+             logistics_input, sv, usage_indicators, app_config, order_config_log
+  app_sale   hoa_don_bovattu                 — nguồn SL thực hiện BU khác CH&CS
+  public     sale_target + các RPC
 ```
 
-## Các bước triển khai
+Điểm chính:
+- **Danh mục đặt hàng** = `shared.dm_vat_tu WHERE dat_hang = true`. Cột riêng app (`dat_hang`,
+  `muc_do_sd`, `safety_stock`) nằm trên chính `dm_vat_tu`. `app_order.order_catalog` là di sản,
+  không còn đọc.
+- **BU** khoá theo `bu_code` (`chcs`, `cttm`, `thnk`) trong từ điển `shared.dm_bu`. **Miền** khoá
+  `MB / MT / MN` trong `shared.dm_mien`. FK / CHECK ở sql/16–17.
+- **Role** lấy từ `shared.users.role`, map trong `ROLE_MAP` (`order-api/index.ts`):
+  `admin→ADMIN`, `manager→MANAGER`, `area_manager / sale_manager / ps→AM`,
+  `product_manager→PM`, `purchasing→PURCHASING`. Role khác bị chặn.
+- **Phạm vi**: AM theo `users.mien` (nhiều miền: `"MB, MN"`) + `users.bu`; PM theo `users.scope`
+  (danh sách nhóm SP); mọi role giới hạn thêm theo `users.nhom_san_pham` nếu có. Server đọc
+  các cột này tươi ở mỗi request.
+- **RLS** bật toàn bộ, deny anon. Chỉ Edge Function (service_role) đọc/ghi.
 
-### 1. Tạo bảng
-Supabase → SQL Editor → chạy lần lượt `sql/01_shared_catalog.sql` rồi `sql/02_order_app.sql`.
-(01 dùng IF NOT EXISTS nên không đè bảng dùng chung đã có.)
+## Triển khai lần đầu
 
-### 2. Secrets + deploy Edge Function
+### 1. Database
+Supabase → SQL Editor → chạy lần lượt các file `sql/` theo số thứ tự (`01` → `27`).
+- File dùng `IF NOT EXISTS`, không đè bảng dùng chung đã có.
+- File `*_ROLLBACK.sql` chỉ chạy khi cần quay lại bước tương ứng.
+- Sau các migration chỉ số (22, 25): chạy `select public.refresh_usage_indicators();` hoặc bấm
+  "Tính lại chỉ số" ở Cấu hình hệ thống.
+
+### 2. Secrets Edge Function
 ```bash
-supabase secrets set TOKEN_SECRET="chuỗi-random-dài"
-supabase link --project-ref YOUR_PROJECT_REF
-supabase functions deploy order-login
-supabase functions deploy order-api
+supabase link --project-ref <PROJECT_REF>
+supabase secrets set TOKEN_SECRET="<chuỗi random dài>"
+supabase secrets set APP_URL="<URL GitHub Pages của app>"   # deep-link trong email
+supabase secrets set SMTP_HOST=... SMTP_PORT=465 SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
+supabase secrets set CRON_SECRET="<chuỗi random>"
 ```
-(config.toml đã đặt verify_jwt=false cho cả hai.)
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` do Supabase tự cấp.
+- `ZIMBRA_URL` (tuỳ chọn): có thì `notify-sender` gửi qua Zimbra SOAP (HTTPS 443) thay SMTP,
+  đăng nhập bằng `SMTP_USER` / `SMTP_PASS`.
+- Supabase Edge chặn outbound cổng 25 và 587: SMTP chỉ dùng 465 (hoặc 2525).
 
-### 3. Nạp danh mục dùng chung
+### 3. Deploy Edge Functions
+Tự động: push thay đổi trong `supabase/functions/**` lên `master` → `.github/workflows/deploy-edge.yml`
+(cần secret repo `SUPABASE_ACCESS_TOKEN`; `PROJECT_REF` khai báo trong workflow). Thủ công:
+```bash
+supabase functions deploy order-login --yes
+supabase functions deploy order-api --yes
+supabase functions deploy notify-sender --no-verify-jwt --yes
+```
+`supabase/config.toml` đặt `verify_jwt = false` cho `order-login` và `order-api` (dùng token HMAC nội bộ).
+
+### 4. Lịch gửi email
+Tạo job pg_cron (vd `notify-sender-1m`, mỗi phút) gọi URL function `notify-sender` qua pg_net,
+kèm header `x-cron-secret: <CRON_SECRET>`. Email người nhận lấy từ `shared.users.email`
+(Admin sửa ở Cấu hình hệ thống → Email thông báo).
+
+### 5. Frontend
+- `js/config.js`: `apiBase` + `anonKey` (có thể ghi đè bằng `window.ORDER_CONFIG`).
+- GitHub Pages serve tĩnh trực tiếp từ nhánh `master`, không có bước build CI.
+- Đổi class Tailwind trong `index.html` hoặc `js/**` thì chạy:
+  ```bash
+  npm install
+  npm run build:css
+  ```
+  rồi **commit lại `dist/app.css`**, nếu không giao diện trên Pages sẽ lệch.
+
+### 6. Tài khoản
+`shared.users` đã có sẵn trên Supabase, không tạo lại. Đặt / đổi mật khẩu:
+```bash
+python scripts/set_password.py --user <username> --password <mật khẩu>
+```
+Thêm `--create --role admin --ho-va-ten "..."` để tạo user mới. Cần ít nhất 1 tài khoản `role = admin`.
+
+## Nạp dữ liệu
+
+| Dữ liệu | Cách nạp | Bảng |
+|---|---|---|
+| Danh mục dùng chung | `scripts/migrate_catalog.py --dir ./danh_muc` | `shared.dm_*` |
+| Dữ liệu cũ từ Google Sheets | `scripts/migrate_order.py --source ./export_cu.xlsx` (một lần) | `app_order.*` |
+| Tồn kho theo lô | `scripts/refresh_stock.py --stock ./chi_tiet.xlsx [--usage ./sdvt.xlsx] [--cycledate YYYY-MM-DD]` | `app_order.stock` |
+| SL thực hiện CH&CS | pipeline `merge_bao_cao_su_dung_vat_tu.py` (ngoài repo) | `app_order.sv` |
+| Hàng đi đường / ký gửi | `build_logistics_input.py` (ngoài repo) → RPC `logistics_replace_snapshot` | `app_order.logistics_input` |
+| SL thực hiện BU khác | app Sale | `app_sale.hoa_don_bovattu` |
+| Kế hoạch bán | app Sale | `public.sale_target` |
+
+Script nạp cần biến môi trường `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`:
 ```bash
 pip install pandas openpyxl supabase
-cp .env.example .env      # điền SUPABASE_URL + SERVICE_ROLE_KEY
 set -a; source .env; set +a
-python scripts/migrate_catalog.py --dir ./danh_muc     # thư mục chứa 4 file .xlsx
 ```
-
-### 4. Nạp dữ liệu riêng app (từ export Google Sheet cũ)
-```bash
-python scripts/migrate_order.py --source ./export_cu.xlsx
-```
-- Role/mien: cập nhật TRỰC TIẾP trên bảng `users` dùng chung (không qua script).
-- Tab `Products` cũ → `order_catalog` (giữ muc_do_sd/tb_kh_3_thang/so_thang_dat).
-  Mã nào không có trong `dm_vat_tu` sẽ bị bỏ (in ra số lượng).
-
-### 5. Nạp tồn kho + usage
-```bash
-python scripts/refresh_stock.py --stock ./chi_tiet.xlsx --usage ./sdvt.xlsx
-```
-
-### 6. Cấu hình + deploy frontend
-Sửa `js/config.js` (apiBase + anonKey), push GitHub.
-
-**CSS build (Tailwind CLI, không còn CDN):** sau khi sửa class Tailwind trong `index.html`
-hoặc trong `js/**/*.js`,
-chạy `npm install` (lần đầu) rồi `npm run build:css` và **commit lại `dist/app.css`** — GitHub
-Pages ở repo này serve tĩnh trực tiếp từ nhánh `master` (không có bước build CI), nên nếu quên
-build/commit thì giao diện trên Pages sẽ không khớp với thay đổi class mới.
+Sau khi nạp dữ liệu mới, bấm "Tính lại chỉ số" để cập nhật cache `usage_indicators`.
 
 ## Ghi chú kỹ thuật
 
-- **Mapping nhom_hang/phan_loai**: mặc định `nhom_hang ← Phân loại 1`,
-  `phan_loai ← Phân loại 2` (sửa trong `api/index.ts::fetchProducts` nếu cần).
-- **gia** lấy từ `dm_vat_tu.don_gia_thau_moi`.
-- **Mật khẩu**: bảng dùng chung để cột `salt` TRỐNG ⇒ verify `SHA-256(password)`.
-  (Nếu điền salt thì tự chuyển sang `SHA-256(salt + ":" + password)`.) Dùng
-  `set_password.py` để set cho đúng scheme. Cần ≥1 tài khoản `role=admin`.
-- **PM theo scope**: cột `scope` của user (vd "Cột sống Ulrich, Khớp UOC") = danh sách
-  `dm_vat_tu.nhom_san_pham` ngăn bằng dấu phẩy. PM chỉ nhập/sửa SL duyệt cho SKU thuộc
-  scope (khớp không phân biệt hoa/thường); server chặn lại phần ngoài scope khi lưu.
-  Nút "Xác nhận" của PM vẫn đẩy cả đợt sang PM_APPROVED — nếu có NHIỀU PM mỗi người 1
-  scope trên cùng đợt và cần duyệt xong hết mới chuyển bước, đó là thay đổi luồng riêng
-  (báo để làm thêm).
-- **UTF-8 token**: `api` giải mã bằng TextDecoder utf-8 (tránh mojibake tiếng Việt).
-- **NaN**: các script dùng `clean()`/`math.isnan`.
-- **Tồn tổng** giữ nguyên: `DA + Ký gửi + Đi đường − Vét thầu`.
-- **RLS** bật hết, deny anon; Edge Function dùng service_role bypass.
+- **Tổng tồn** = `DA + ký gửi + đi đường − vét thầu`. Tồn kho chọn cycledate, logistics chọn
+  snapshot mới nhất ≤ ngày mở đợt.
+- **PostgREST timeout 8 giây** (DB dùng chung nhiều app): RPC nặng gọi qua `npm:postgres` +
+  `SUPABASE_DB_URL` với `statement_timeout` riêng trong transaction, không nâng timeout của role.
+  Đo thời gian bằng `set role service_role;` khi cache nguội.
+- **`pg-safeupdate`** bật trên DB: mọi `DELETE` / `UPDATE` phải có `WHERE`.
+- **`shared.users.active`** có thể NULL: luôn lọc `active !== false`, không dùng `.eq("active", true)`.
+- **Mật khẩu**: v1 = `SHA-256(password)` hoặc `SHA-256(salt + ":" + password)`; v2 = PBKDF2-SHA256
+  210k vòng (`password_hash_v2`), lazy upgrade khi đăng nhập.
+- **Token**: HMAC-SHA256, TTL 8 giờ, payload decode bằng `TextDecoder` UTF-8 (tránh lỗi tiếng Việt).
+- **Email**: nội dung chuyển về ASCII không dấu (webmail nội bộ không decode encoded-word).
+- **CORS**: chỉ `https://vietmedical-vmed.github.io` và `localhost` / `127.0.0.1`.
+- **Dev local**: chạy frontend bằng static server bất kỳ trên `localhost` (vd `python -m http.server`),
+  backend gọi thẳng Supabase cloud.
