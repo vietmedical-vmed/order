@@ -37,6 +37,23 @@ function smtpClient() {
   });
 }
 
+// Body có đánh dấu **...** (in đậm) -> gửi thêm phần HTML (multipart/alternative).
+// Bản text/plain bỏ dấu **; body không có ** thì gửi text/plain như cũ.
+function hasBold(body: string): boolean {
+  return /\*\*[^*\n]+\*\*/.test(body);
+}
+function stripBold(body: string): string {
+  return body.replace(/\*\*([^*\n]+)\*\*/g, "$1");
+}
+function toHtml(body: string): string {
+  const esc = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const html = esc
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+    .replace(/\n/g, "<br>\n");
+  return `<div style="font-family:Arial,sans-serif;font-size:14px">${html}</div>`;
+}
+
 async function sendSmtp(to: string[], subject: string, body: string) {
   const client = smtpClient();
   try {
@@ -44,7 +61,8 @@ async function sendSmtp(to: string[], subject: string, body: string) {
       from: Deno.env.get("SMTP_FROM") || Deno.env.get("SMTP_USER") || "",
       to,
       subject,
-      content: body,
+      content: stripBold(body),
+      ...(hasBold(body) ? { html: toHtml(body) } : {}),
     });
   } finally {
     // Kết nối hỏng thì close() cũng ném lỗi -> nuốt để giữ lỗi gốc của send().
@@ -93,7 +111,12 @@ async function sendZimbra(to: string[], subject: string, body: string) {
         m: {
           e: [{ t: "f", a: from }, ...to.map((a) => ({ t: "t", a }))],
           su: { _content: subject },
-          mp: [{ ct: "text/plain", content: { _content: body } }],
+          mp: hasBold(body)
+            ? [{ ct: "multipart/alternative", mp: [
+                { ct: "text/plain", content: { _content: stripBold(body) } },
+                { ct: "text/html", content: { _content: toHtml(body) } },
+              ] }]
+            : [{ ct: "text/plain", content: { _content: body } }],
         },
       },
     }, zimbraToken);

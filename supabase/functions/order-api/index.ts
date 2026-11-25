@@ -2345,7 +2345,9 @@ async function notifyEvent(
     (meta.dm || meta.po) ? "DM/PO: " + (meta.dm || "-") + " / " + (meta.po || "-") : "",
     appLink ? "Mở app: " + appLink : "",
     excelLink ? "Tải Excel: " + excelLink : "",
-  ].filter((x) => x !== "").join("\n");
+  ].filter((x) => x !== "").join("\n")
+    // Đợt đã duyệt: nhắc Sale Support bước tiếp theo (cách 1 dòng, in đậm — notify-sender đổi **...** thành <b>).
+    + (event === "MANAGER_APPROVE" ? "\n\n**Sale Support tạo Đề nghị mua hàng (DM) để tiếp tục đặt hàng**" : "");
 
   await supa.schema("shared").from("notifications").insert({
     app: "order", event, to_emails: to, subject, body, channel: "email",
